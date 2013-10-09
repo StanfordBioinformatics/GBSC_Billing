@@ -3,50 +3,12 @@
 from optparse import OptionParser
 import pwd
 import grp
+from datetime import date
 
 import xlrd
 
 # List of non-lab group names.
-non_lab_group_names = [ "scgpm-informatics_vendors",
-#                        "gbsc-pacbio",
-#                        "training-camp"
-]
-
-# Mapping from group name to PI.
-# group_name_to_pi = { 
-#     "scg-admin" : "Somalee",
-#     "scgpm-informatics_ashley" : "Ashley",
-#     "scgpm-informatics_assimes" : "Assimes",
-#     "mb-lab" : "Barna",
-#     "bat-lab" : "Batzoglou",
-#     "scgpm-informatics_blau" : "Blau",
-#     "ab-lab" : "Brunet",
-#     "cb-lab" : "Bustamante",
-#     "butte_lab" : "Butte",
-#     "mc-lab" : "Cherry",
-#     "mfeldman" : "Feldman",
-#     "mf-lab" : "Fuller",
-#     "ag-lab" : "Gitler",
-#     "wg-lab" : "Greenleaf",
-#     "hj-lab" : "Hanlee Ji",
-#     "scgpm-informatics_kundaje" : "Kundaje",
-#     "bl-lab" : "Billy Li",
-#     "sm-lab" : "Montgomery",
-#     "dp-lab" : "Petrov",
-#     "pol-lab" : "Pollack",
-#     "jp-lab" : "Pringle",
-#     "scgpm-informatics_pritchard" : "Pritchard",
-#     "scgpm-informatics_tomq1lab" : "Quertermous",
-#     "js-lab" : "Sage",
-#     "as-lab" : "Sidow",
-#     "ms-lab" : "Snyder",
-#     "ht-lab" : "Tang",
-#     "scgpm-informatics_urban" : "Urban",
-#     "mw-lab" : "Winslow",
-#     "scgpm-informatics_wong" : "Wing Wong",
-#     "training-camp" : "Genetics Training Camp",
-#     "scgpm-informatics_rosenberg" : "Rosenberg"
-# }
+non_lab_group_names = [ "scgpm-informatics_vendors" ]
 
 # Mapping from group name to group member list.
 group_members = dict()
@@ -121,7 +83,7 @@ db_workbook = xlrd.open_workbook(billing_conf_db)
 # Set of all "lab" group names.
 all_lab_groups = set(group_name_to_pi.keys())
 
-pi_to_group_name = dict(zip(group_name_to_pi.values(), group_name_to_pi.keys()))
+pi_to_group_name     = dict(zip(group_name_to_pi.values(), group_name_to_pi.keys()))
 pi_tag_to_group_name = dict(zip(group_name_to_pi_tag.values(), group_name_to_pi_tag.keys()))
 
 #
@@ -204,7 +166,7 @@ if options.lab_users:
     print
     print "Users per lab group (%d total users):" % (len(all_lab_members))
     print
-    print "PI Last Name\tUsername\tEmail\tFull Name"
+    print "PI Last Name\tUsername\tEmail\tFull Name\tDate"
     for pi in sorted(pi_to_group_name):
         group_name = pi_to_group_name[pi]
         if len(group_members[group_name]) > 0:
@@ -222,7 +184,7 @@ if options.lab_users:
                 if fullname == '':
                     fullname = "NO NAME"
 
-                print "%s\t%s\t%s@stanford.edu\t%s" % (pi, member, member, fullname)
+                print "%s\t%s\t%s@stanford.edu\t%s\t%s" % (pi, member, member, fullname, date.today().strftime("%m/%d/%y"))
 
 if options.non_lab_users:
     #
