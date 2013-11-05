@@ -52,6 +52,11 @@ def read_billing_conf_db(db_workbook):
    group_name_to_pi     = dict(zip(group_names, pi_last_names))
    group_name_to_pi_tag = dict(zip(group_names, pi_tags))
 
+   # Remove group names of "None".
+   if "None" in group_names:
+       del group_name_to_pi["None"]
+       del group_name_to_pi_tag["None"]
+
    return (group_name_to_pi, group_name_to_pi_tag)
 
 
