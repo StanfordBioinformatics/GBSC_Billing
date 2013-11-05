@@ -37,7 +37,7 @@
 #
 #=====
 
-from datetime import date
+import datetime
 import time
 import argparse
 import os
@@ -105,7 +105,7 @@ parser.add_argument("-c", "--billing_config_file",
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2031),
+parser.add_argument("-y","--year", type=int, choices=range(2013,2021),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
 parser.add_argument("-m", "--month", type=int, choices=range(1,13),
@@ -118,22 +118,22 @@ args = parser.parse_args()
 # Sanity-check arguments.
 #
 
-# If there is no billing_config_file and not both accounting_file and billing_root,
+# If there is no billing_config_file and no accounting_file,
 # flag an error.
 if args.billing_config_file is None and args.accounting_file is None:
     parser.print_usage()
-    parser.exit(-1, "Need either --billing_config_file or --accounting_file.")
+    parser.exit(-1, "Need either --billing_config_file or --accounting_file.\n")
 
 # Do year next, because month might modify it.
 if args.year is None:
-    year = date.today().year
+    year = datetime.date.today().year
 else:
     year = args.year
 
 # Do month now, and decrement year if want last month and this month is Dec.
 if args.month is None:
     # No month given: use last month.
-    this_month = date.today().month
+    this_month = datetime.date.today().month
 
     # If this month is Jan, last month was Dec. of previous year.
     if this_month == 1:
@@ -155,8 +155,8 @@ else:
 # The begin_ and end_month_timestamps are to be used as follows:
 #   date is within the month if begin_month_timestamp <= date < end_month_timestamp
 # Both values should be GMT.
-begin_month_timestamp = int(time.mktime(date(year, month, 1).timetuple()))
-end_month_timestamp   = int(time.mktime(date(next_month_year, next_month, 1).timetuple()))
+begin_month_timestamp = int(time.mktime(datetime.date(year, month, 1).timetuple()))
+end_month_timestamp   = int(time.mktime(datetime.date(next_month_year, next_month, 1).timetuple()))
 
 #
 # Use values for accounting_file and billing_root from options, if available.
@@ -168,18 +168,43 @@ if args.billing_config_file is not None:
     config_dict = config_sheet_get_dict(billing_config_wkbk)
 
     accounting_file = config_dict.get("SGEAccountingFile")
-    if accounting_file is None:
-        print >> sys.stderr, "Need accounting file: exiting..."
-        sys.exit(-1)
+    billing_root    = config_dict.get("BillingRoot")
 
-    billing_root    = config_dict.get("BillingRoot", os.getcwd())
-else:
+# Override billing_root with switch args, if present.
+if args.billing_root is not None:
+    billing_root = args.billing_root
+# If we still don't have a billing root dir, use the current directory.
+if billing_root is None:
+    billing_root = os.getcwd()
+
+# Within BillingRoot, create YEAR/MONTH dirs if necessary.
+year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
+if not os.path.exists(year_month_dir):
+    os.makedirs(year_month_dir)
+
+# Use switch arg for accounting_file if present.
+if args.accounting_file is not None:
     accounting_file = args.accounting_file
 
-    if args.billing_root is not None:
-        billing_root = args.billing_root
-    else:
-        billing_root = os.getcwd()
+# , else use file in BillingRoot.
+#elif accounting_file is None:
+#    accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
+#    accounting_file = os.path.join(year_month_dir, accounting_filename)
+
+#
+# Print summary of arguments.
+#
+
+print "TAKING SNAPSHOT OF %02d/%d:" % (month, year)
+print "  BillingConfigFile: %s" % (args.billing_config_file)
+print "  BillingRoot: %s" % billing_root
+print "  SGEAccountingFile: %s" % accounting_file
+
+# Create output accounting pathname.
+new_accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
+new_accounting_pathname = os.path.join(year_month_dir, new_accounting_filename)
+
+print "  OutputAccountingFile: %s" % (new_accounting_pathname)
 
 #
 # Open the current accounting file for input.
@@ -189,13 +214,6 @@ accounting_input_fp = open(accounting_file, "r")
 #
 # Open the new accounting file for output.
 #
-new_accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
-
-if args.billing_root is not None:
-    new_accounting_pathname = os.path.join(billing_root, str(year), "%02d" % month, new_accounting_filename)
-else:
-    new_accounting_pathname = os.path.join(billing_root, new_accounting_filename)
-
 accounting_output_fp = open(new_accounting_pathname, "w")
 
 #
@@ -203,6 +221,8 @@ accounting_output_fp = open(new_accounting_pathname, "w")
 #  Output to the new accounting file all those lines
 #  which have "submission_times" in the given month.
 #
+job_count = 0
+this_months_job_count = 0
 for line in accounting_input_fp:
 
     if line[0] == "#": continue
@@ -212,10 +232,24 @@ for line in accounting_input_fp:
 
     # If the submission date of this job was within the month,
     #  output it to the new accounting file.
-    if (submission_date >= begin_month_timestamp and
-        submission_date < end_month_timestamp):
+    found_job = False
+    if begin_month_timestamp <= submission_date < end_month_timestamp:
         accounting_output_fp.write(line)
+        this_months_job_count += 1
+        found_job = True
+
+    if job_count % 10000 == 0:
+        if found_job:
+            sys.stdout.write(':')
+        else:
+            sys.stdout.write('.')
+        sys.stdout.flush()
+    job_count += 1
+
+print
 
 accounting_output_fp.close()
 accounting_input_fp.close()
 
+print "Jobs found for %02d/%d:\t\t%d" % (month, year, this_months_job_count)
+print "Total jobs in accounting:\t%d" % (job_count)
