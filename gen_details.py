@@ -25,6 +25,7 @@
 #
 #=====
 import argparse
+from collections import OrderedDict
 import datetime
 import os
 import os.path
@@ -43,11 +44,12 @@ import xlsxwriter
 BILLING_DETAILS_PREFIX = "BillingDetails"
 
 # Mapping from sheet name to the column headers within that sheet.
-BILLING_DETAILS_SHEET_COLUMNS = {
-    'Storage'    : ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used'),
-    'Computing'  : ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID'),
-    'Consulting' : ('Work Date', 'Item', 'Hours', 'PI')
-}
+BILLING_DETAILS_SHEET_COLUMNS = OrderedDict((
+    ('Storage'   , ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used')),
+    ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID')),
+    ('Consulting', ('Work Date', 'Item', 'Hours', 'PI')),
+    ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID', 'Reason')),
+) )
 
 QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
 USAGE_EXECUTABLE = ['sudo', 'du', '-s']
@@ -69,7 +71,7 @@ ACCOUNTING_FIELDS = (
 SGEACCOUNTING_PREFIX = "SGEAccounting"  # Prefix of accounting file name in BillingRoot.
 
 # List of hostname prefixes to use for billing purposes.
-HOSTNAME_FILTER_PREFIXES = ['scg1']
+BILLABLE_HOSTNAME_PREFIXES = ['scg1']
 
 #=====
 #
@@ -220,6 +222,67 @@ def get_folder_usage(folder, pi_tag):
     return None
 
 
+def write_job_details(sheet, job_details):
+
+    for row in range(0, len(job_details)):
+
+        # Bump rows down below header line.
+        sheet_row = row + 1
+
+        # A little feedback for the people.
+        if not args.verbose:
+            if sheet_row % 1000 == 0:
+                sys.stdout.write('.')
+                sys.stdout.flush()
+
+        # 'Job Date'
+        col = 0
+        sheet.write_formula(sheet_row, col, '=(%f/86400)+DATE(1970,1,1)' % job_details[row][col], DATE_FORMAT)
+
+        # 'Job Timestamp'
+        col += 1
+        sheet.write(sheet_row, col, job_details[row][col])
+        if args.verbose: print job_details[row][col],
+
+        # 'Username'
+        col += 1
+        sheet.write(sheet_row, col, job_details[row][col])
+        if args.verbose: print job_details[row][col],
+
+        # 'Job Name'
+        col += 1
+        sheet.write(sheet_row, col, job_details[row][col])
+        if args.verbose: print job_details[row][col],
+
+        # 'Account'
+        col += 1
+        sheet.write(sheet_row, col, job_details[row][col])
+        if args.verbose: print job_details[row][col],
+
+        # 'Node'
+        col += 1
+        sheet.write(sheet_row, col, job_details[row][col])
+        if args.verbose: print job_details[row][col],
+
+        # 'Slots'
+        col += 1
+        sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+        if args.verbose: print job_details[row][col],
+
+        # 'Wallclock'
+        col += 1
+        sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+        if args.verbose: print job_details[row][col],
+
+        # 'JobID'
+        col += 1
+        sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+        if args.verbose: print job_details[row][col],
+
+        if args.verbose: print
+
+    print
+
 def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage_sheet):
 
     print "Computing storage charges..."
@@ -282,7 +345,8 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
         if args.verbose: print folder_sizes[row][col-1]
 
 
-def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accounting_file, computing_sheet):
+def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accounting_file,
+                              computing_sheet, nonbillable_job_sheet):
 
     print "Computing computing charges..."
 
@@ -318,7 +382,9 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     not_in_users_list = set()
     not_in_job_tag_list = set()
 
-    accounting_details = []
+    billable_job_details    = []  # Jobs that are on hosts we can bill for.
+    unbillable_node_job_details = []  # Jobs not on hosts we can bill for.
+    unknown_user_job_details= []  # Jobs from users we don't know.
     for line in accounting_fp:
 
         if line[0] == "#": continue
@@ -327,55 +393,57 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
         accounting_record = dict(zip(ACCOUNTING_FIELDS, fields))
 
-        #
-        # Only look at hosts that start with "scg1".
-        #
-
-        # Edit hostname to remove trailing ".local".
-        node_name = accounting_record['hostname']
-        if node_name.endswith(".local"):
-            node_name = node_name[:-6]
-
-        filtering_prefixes = map(lambda p: node_name.startswith(p), HOSTNAME_FILTER_PREFIXES)
-        if not any(filtering_prefixes): continue
-
         submission_date = int(accounting_record['submission_time'])
 
         # If the submission date of this job was within the month,
         #  examine it.
         if begin_timestamp <= submission_date < end_timestamp:
 
+            job_details = []
+            job_details.append(submission_date)
+            job_details.append(submission_date)  # Two columns used for the date: one date formatted, one timestamp.
+            job_details.append(accounting_record['owner'])
+            job_details.append(accounting_record['job_name'])
+
+            # Elide the default account 'sge'.
+            if accounting_record['account'] != 'sge':
+
+                # If this account/job tag is unknown, save details for later output.
+                if accounting_record['account'] not in job_tag_list:
+                    not_in_job_tag_list.add((accounting_record['owner'],
+                                             accounting_record['job_name'],
+                                             accounting_record['account']))
+
+                job_details.append(accounting_record['account'])
+            else:
+                job_details.append('')
+
+            # Edit hostname to remove trailing ".local".
+            node_name = accounting_record['hostname']
+            if node_name.endswith(".local"):
+                node_name = node_name[:-6]
+
+            job_details.append(node_name)
+
+            job_details.append(int(accounting_record['slots']))
+            job_details.append(int(accounting_record['ru_wallclock']))
+            job_details.append(int(accounting_record['job_number']))
+
             if accounting_record['owner'] in users:
+                #
+                # Job is billable if it ran on hosts starting with one of the BILLABLE_HOSTNAME_PREFIXES.
+                #
+                billable_hostname_prefixes = map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES)
 
-                job_details = []
-                job_details.append(submission_date)
-                job_details.append(submission_date)  # Two columns used for the date: one date formatted, one timestamp.
-                job_details.append(accounting_record['owner'])
-                job_details.append(accounting_record['job_name'])
-
-                # Elide the default account 'sge'.
-                if accounting_record['account'] != 'sge':
-
-                    # If this account/job tag is unknown, save details for later output.
-                    if accounting_record['account'] not in job_tag_list:
-                        not_in_job_tag_list.add((accounting_record['owner'],
-                                                 accounting_record['job_name'],
-                                                 accounting_record['account']))
-
-                    job_details.append(accounting_record['account'])
+                # If hostname doesn't have a billable prefix, save in a separate list.
+                if not any(billable_hostname_prefixes):
+                    unbillable_node_job_details.append(job_details)
                 else:
-                    job_details.append('')
-
-                job_details.append(node_name)
-
-                job_details.append(int(accounting_record['slots']))
-                job_details.append(int(accounting_record['ru_wallclock']))
-                job_details.append(int(accounting_record['job_number']))
-
-                accounting_details.append(job_details)
+                    billable_job_details.append(job_details)
 
             else:
                 not_in_users_list.add(accounting_record['owner'])
+                unknown_user_job_details.append(job_details)
 
         else:
             dates_tuple = (datetime.date.fromtimestamp(submission_date).strftime("%m/%d/%Y"),
@@ -400,64 +468,16 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     # Output the accounting details to the BillingDetails worksheet.
     print "  Outputting accounting details"
 
-    for row in range(0, len(accounting_details)):
+    # Output jobs to sheet for billable jobs.
+    print "    Billable Jobs:   ",
+    write_job_details(computing_sheet, billable_job_details)
 
-        # Bump rows down below header line.
-        sheet_row = row + 1
-
-        # A little feedback for the people.
-        if not args.verbose:
-            if sheet_row % 1000 == 0:
-                sys.stdout.write('.')
-                sys.stdout.flush()
-
-        # 'Job Date'
-        col = 0
-        computing_sheet.write_formula(sheet_row, col, '=(%f/86400)+DATE(1970,1,1)' % accounting_details[row][col], DATE_FORMAT)
-
-        # 'Job Timestamp'
-        col += 1
-        computing_sheet.write(sheet_row, col, accounting_details[row][col])
-        if args.verbose: print accounting_details[row][col],
-
-        # 'Username'
-        col += 1
-        computing_sheet.write(sheet_row, col, accounting_details[row][col])
-        if args.verbose: print accounting_details[row][col],
-
-        # 'Job Name'
-        col += 1
-        computing_sheet.write(sheet_row, col, accounting_details[row][col])
-        if args.verbose: print accounting_details[row][col],
-
-        # 'Account'
-        col += 1
-        computing_sheet.write(sheet_row, col, accounting_details[row][col])
-        if args.verbose: print accounting_details[row][col],
-
-        # 'Node'
-        col += 1
-        computing_sheet.write(sheet_row, col, accounting_details[row][col])
-        if args.verbose: print accounting_details[row][col],
-
-        # 'Slots'
-        col += 1
-        computing_sheet.write(sheet_row, col, accounting_details[row][col], INT_FORMAT)
-        if args.verbose: print accounting_details[row][col],
-
-        # 'Wallclock'
-        col += 1
-        computing_sheet.write(sheet_row, col, accounting_details[row][col], INT_FORMAT)
-        if args.verbose: print accounting_details[row][col],
-
-        # 'JobID'
-        col += 1
-        computing_sheet.write(sheet_row, col, accounting_details[row][col], INT_FORMAT)
-        if args.verbose: print accounting_details[row][col],
-
-        if args.verbose: print
-
-    print
+    # Output nonbillable jobs to sheet for nonbillable jobs.
+    print "   Nonbillable Jobs: ",
+    all_nonbillable_job_details = (
+      map(lambda l: l + ['Unbillable Node'], unbillable_node_job_details) +
+      map(lambda l: l + ['Unknown User'], unknown_user_job_details) )
+    write_job_details(nonbillable_job_sheet, all_nonbillable_job_details)
 
     print "Computing charges computed."
 
@@ -477,7 +497,7 @@ parser.add_argument("billing_config_file",
                     help='The BillingConfig file')
 parser.add_argument("-a", "--accounting_file",
                     default=None,
-                    help='The SGE accounting file to snapshot [default = None]')
+                    help='The SGE accounting file to read [default = None]')
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
@@ -548,7 +568,7 @@ end_month_timestamp   = int(time.mktime(datetime.date(next_month_year, next_mont
 
 # Add the SCG3 prefix to the filter for hostnames.
 if args.scg3:
-    HOSTNAME_FILTER_PREFIXES.append('scg3')
+    BILLABLE_HOSTNAME_PREFIXES.append('scg3')
 
 #
 # Open the Billing Config workbook.
@@ -609,19 +629,22 @@ print
 # Compute storage charges.
 #
 if not args.no_storage:
-    compute_storage_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, sheet_name_to_sheet['Storage'])
+    compute_storage_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp,
+                            sheet_name_to_sheet['Storage'])
 
 #
 # Compute computing charges.
 #
 if not args.no_computing:
-    compute_computing_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, accounting_file, sheet_name_to_sheet['Computing'])
+    compute_computing_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, accounting_file,
+                              sheet_name_to_sheet['Computing'], sheet_name_to_sheet['Nonbillable Jobs'])
 
 #
 # Compute consulting charges.
 #
 if not args.no_consulting:
-    compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, sheet_name_to_sheet['Consulting'])
+    compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp,
+                               sheet_name_to_sheet['Consulting'])
 
 #
 # Close the output workbook and write the .xlsx file.
