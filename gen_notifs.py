@@ -41,24 +41,24 @@ import xlsxwriter
 BILLING_NOTIFS_PREFIX = "GBSCBilling"
 
 # Mapping from sheet name to the column headers within that sheet.
-BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict({
-    'Billing'    : [],  # Billing sheet is not columnar.
-    'Lab Users'  : [ 'Username', 'Email', 'Full Name', 'Date Added', 'Date Removed'],
-    'Computing Details' : ['Job Date', 'Username', 'Job Name', 'Job Tag', 'CPU-core Hours', 'Job ID', '%age'],
-    'Rates'      : ['Type', 'Amount', 'Unit', 'Time' ]
-} )
+BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
+    ('Billing'    , () ),  # Billing sheet is not columnar.
+    ('Lab Users'  , ('Username', 'Email', 'Full Name', 'Date Added', 'Date Removed') ),
+    ('Computing Details' , ('Job Date', 'Username', 'Job Name', 'Job Tag', 'CPU-core Hours', 'Job ID', '%age') ),
+    ('Rates'      , ('Type', 'Amount', 'Unit', 'Time' ) )
+) )
 
 # Mapping from sheet name in BillingAggregate workbook to the column headers within that sheet.
-BILLING_AGGREG_SHEET_COLUMNS = {
-    'Totals': ['PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges']
-}
+BILLING_AGGREG_SHEET_COLUMNS = OrderedDict( [
+    ('Totals', ('PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges') )
+] )
 
 #
 # For make_format(), a data structure to save all the dictionaries and resulting Format objects
 #  which were created for a given workbook.
 #
 # Data Structure: dict with workbooks as keys, and values of [(property_dict, Format)*]
-FORMAT_PROPS_PER_WORKBOOK = dict()
+FORMAT_PROPS_PER_WORKBOOK = defaultdict(list)
 
 #=====
 #
@@ -74,41 +74,41 @@ FORMAT_PROPS_PER_WORKBOOK = dict()
 pi_tag_list = []
 
 # Mapping from usernames to list of [date, pi_tag].
-username_to_pi_tag_dates = dict()
+username_to_pi_tag_dates = defaultdict(list)
 
 # Mapping from usernames to a list of [email, full_name].
-username_to_user_details = dict()
+username_to_user_details = defaultdict(list)
 
 # Mapping from pi_tags to list of [first_name, last_name, email].
-pi_tag_to_names_email = dict()
+pi_tag_to_names_email = defaultdict(list)
 
 # Mapping from job_tags to list of [pi_tag, %age].
-job_tag_to_pi_tag_pctages = dict()
+job_tag_to_pi_tag_pctages = defaultdict(list)
 
 # Mapping from folders to list of [pi_tag, %age].
-folder_to_pi_tag_pctages = dict()
+folder_to_pi_tag_pctages = defaultdict(list)
 
 #
 # These globals are data structures used to write the BillingNotification workbooks.
 #
 
 # Mapping from pi_tag to list of [folder, size, %age].
-pi_tag_to_folder_sizes = dict()
+pi_tag_to_folder_sizes = defaultdict(list)
 
 # Mapping from pi_tag to list of [username, cpu_core_hrs, %age].
-pi_tag_to_username_cpus = dict()
+pi_tag_to_username_cpus = defaultdict(list)
 
 # Mapping from pi_tag to list of [job_tag, cpu_core_hrs, %age].
-pi_tag_to_job_tag_cpus = dict()
+pi_tag_to_job_tag_cpus = defaultdict(list)
 
 # Mapping from pi_tag to list of [date, username, job_name, account, cpu_core_hrs, jobID, %age].
-pi_tag_to_sge_job_details = dict()
+pi_tag_to_sge_job_details = defaultdict(list)
 
 # Mapping from pi_tag to list of [username, date_added, date_removed, %age].
-pi_tag_to_user_details = dict()
+pi_tag_to_user_details = defaultdict(list)
 
 # Mapping from pi_tag to list of [storage_charge, computing_charge, consulting_charge].
-pi_tag_to_charges = dict()
+pi_tag_to_charges = defaultdict(list)
 
 #=====
 #
@@ -212,6 +212,7 @@ def init_billing_notifs_wkbk(wkbk):
 
     return sheet_name_to_sheet
 
+
 def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
 
     bold_format = make_format(wkbk, {'bold' : True})
@@ -226,11 +227,12 @@ def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
 
         sheet_name_to_sheet[sheet_name] = sheet
 
-    # Make a sheet for each PI.
-    for pi_tag in sorted(pi_tag_list):
+    if args.pi_sheets:
+        # Make a sheet for each PI.
+        for pi_tag in sorted(pi_tag_list):
 
-        sheet = wkbk.add_worksheet(pi_tag)
-        sheet_name_to_sheet[pi_tag] = sheet
+            sheet = wkbk.add_worksheet(pi_tag)
+            sheet_name_to_sheet[pi_tag] = sheet
 
     # Make the Aggregate sheet the active one.
     sheet_name_to_sheet['Totals'].activate()
@@ -302,10 +304,6 @@ def build_global_data(wkbk):
     #
     global username_to_pi_tag_dates
 
-    # Initialize username_to_pi_tag_dates to empty lists for all usernames.
-    #  (This should be fine, despite the fact that usernames can appear more than once.)
-    username_to_pi_tag_dates = dict(zip(usernames, [[] for _ in range(len(usernames))]))
-
     pi_tags       = sheet_get_named_column(users_sheet, "PI Tag")
     dates_added   = sheet_get_named_column(users_sheet, "Date Added")
     dates_removed = sheet_get_named_column(users_sheet, "Date Removed")
@@ -320,9 +318,6 @@ def build_global_data(wkbk):
     # Create mapping from pi_tags to a list of [username, date_added, date_removed]
     #
     global pi_tag_to_user_details
-
-    # Initialize pi_tag_to_user_details to empty lists for all pi_tags.
-    pi_tag_to_user_details = dict(zip(pi_tag_list, [[] for _ in range(len(pi_tag_list))]))
 
     for username in username_to_pi_tag_dates.keys():
 
@@ -343,10 +338,6 @@ def build_global_data(wkbk):
     job_tag_rows = zip(job_tags, pi_tags, pctages)
 
     for (job_tag, pi_tag, pctage) in job_tag_rows:
-
-        if job_tag_to_pi_tag_pctages.get(job_tag) is None:
-            job_tag_to_pi_tag_pctages[job_tag] = []
-
         job_tag_to_pi_tag_pctages[job_tag].append([pi_tag, pctage])
 
     #
@@ -361,10 +352,6 @@ def build_global_data(wkbk):
     folder_rows = zip(folders, pi_tags, pctages)
 
     for (folder, pi_tag, pctage) in folder_rows:
-
-        if folder_to_pi_tag_pctages.get(folder) is None:
-            folder_to_pi_tag_pctages[folder] = []
-
         folder_to_pi_tag_pctages[folder].append([pi_tag, pctage])
 
 
@@ -401,9 +388,6 @@ def read_storage_sheet(wkbk):
 
     global pi_tag_to_folder_sizes
 
-    # Initialize pi_tag_to_folder_sizes to empty lists for all pi_tags.
-    pi_tag_to_folder_sizes = dict(zip(pi_tag_list, [[] for _ in range(len(pi_tag_list))]))
-
     storage_sheet = wkbk.sheet_by_name("Storage")
 
     for row in range(1,storage_sheet.nrows):
@@ -422,11 +406,6 @@ def read_computing_sheet(wkbk):
     global pi_tag_to_sge_job_details
     global pi_tag_to_job_tag_cpus
     global pi_tag_to_username_cpus
-
-    # Initialize pi_tag dicts to empty lists for all pi_tags.
-    pi_tag_to_sge_job_details = dict(zip(pi_tag_list, [[] for _ in range(len(pi_tag_list))]))
-    pi_tag_to_job_tag_cpus = dict(zip(pi_tag_list, [[] for _ in range(len(pi_tag_list))]))
-    pi_tag_to_username_cpus = dict(zip(pi_tag_list, [[] for _ in range(len(pi_tag_list))]))
 
     computing_sheet = wkbk.sheet_by_name("Computing")
 
@@ -520,11 +499,7 @@ def read_computing_sheet(wkbk):
                 #
                 new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
 
-                sge_job_details_list = pi_tag_to_sge_job_details.get(pi_tag)
-                if sge_job_details_list is not None:
-                    sge_job_details_list.append(new_job_details)
-                else:
-                    pi_tag_to_sge_job_details[pi_tag] = [new_job_details]
+                pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
 
 
 def read_consulting_sheet(wkbk):
@@ -1065,6 +1040,9 @@ parser.add_argument("-d","--billing_details_file",
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
+parser.add_argument("-p", "--pi_sheets", action="store_true",
+                    default=False,
+                    help='Add PI-specific sheets to the BillingAggregate workbook [default = False]')
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
@@ -1231,12 +1209,13 @@ aggreg_totals_sheet = aggreg_sheet_name_to_sheet['Totals']
 # Create the aggregate Totals sheet.
 generate_aggregrate_sheet(aggreg_totals_sheet)
 
-# Add the Billing sheets for each PI.
-for pi_tag in sorted(pi_tag_list):
+if args.pi_sheets:
+    # Add the Billing sheets for each PI.
+    for pi_tag in sorted(pi_tag_list):
 
-    pi_sheet = aggreg_sheet_name_to_sheet[pi_tag]
+        pi_sheet = aggreg_sheet_name_to_sheet[pi_tag]
 
-    generate_billing_sheet(billing_aggreg_wkbk, pi_sheet,
-                           pi_tag, begin_month_timestamp, end_month_timestamp)
+        generate_billing_sheet(billing_aggreg_wkbk, pi_sheet,
+                               pi_tag, begin_month_timestamp, end_month_timestamp)
 
 billing_aggreg_wkbk.close()
