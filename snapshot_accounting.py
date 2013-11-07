@@ -18,7 +18,7 @@
 #                      [default if no BillingRoot in BillingConfig.xlsx or switch: CWD]
 #
 # OUTPUT:
-#    An accounting file with only entries with submission_dates within the given
+#    An accounting file with only entries with end_dates within the given
 #     month.  This file, named SGEAccounting.<YEAR>-<MONTH>.txt, will be placed in
 #     <BillingRoot>/<YEAR>/<MONTH>/ if BillingRoot is given or in the current
 #     working directory if not.
@@ -169,6 +169,9 @@ if args.billing_config_file is not None:
 
     accounting_file = config_dict.get("SGEAccountingFile")
     billing_root    = config_dict.get("BillingRoot")
+else:
+    accounting_file = None
+    billing_root    = None
 
 # Override billing_root with switch args, if present.
 if args.billing_root is not None:
@@ -186,10 +189,8 @@ if not os.path.exists(year_month_dir):
 if args.accounting_file is not None:
     accounting_file = args.accounting_file
 
-# , else use file in BillingRoot.
-#elif accounting_file is None:
-#    accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
-#    accounting_file = os.path.join(year_month_dir, accounting_filename)
+if accounting_file is None:
+    parser.exit(-1, "Need accounting file from BillingConfig file or command line switch.")
 
 #
 # Print summary of arguments.
@@ -219,7 +220,7 @@ accounting_output_fp = open(new_accounting_pathname, "w")
 #
 # Read all the lines of the current accounting file.
 #  Output to the new accounting file all those lines
-#  which have "submission_times" in the given month.
+#  which have "end_dates" in the given month.
 #
 job_count = 0
 this_months_job_count = 0
@@ -228,12 +229,12 @@ for line in accounting_input_fp:
     if line[0] == "#": continue
 
     fields = line.split(':')
-    submission_date = int(fields[8])
+    end_date = int(fields[10])
 
-    # If the submission date of this job was within the month,
+    # If the end date of this job was within the month,
     #  output it to the new accounting file.
     found_job = False
-    if begin_month_timestamp <= submission_date < end_month_timestamp:
+    if begin_month_timestamp <= end_date < end_month_timestamp:
         accounting_output_fp.write(line)
         this_months_job_count += 1
         found_job = True

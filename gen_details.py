@@ -393,15 +393,15 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
         accounting_record = dict(zip(ACCOUNTING_FIELDS, fields))
 
-        submission_date = int(accounting_record['submission_time'])
+        end_date = int(accounting_record['end_time'])
 
-        # If the submission date of this job was within the month,
+        # If the end date of this job was within the month,
         #  examine it.
-        if begin_timestamp <= submission_date < end_timestamp:
+        if begin_timestamp <= end_date < end_timestamp:
 
             job_details = []
-            job_details.append(submission_date)
-            job_details.append(submission_date)  # Two columns used for the date: one date formatted, one timestamp.
+            job_details.append(end_date)
+            job_details.append(end_date)  # Two columns used for the date: one date formatted, one timestamp.
             job_details.append(accounting_record['owner'])
             job_details.append(accounting_record['job_name'])
 
@@ -446,7 +446,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                 unknown_user_job_details.append(job_details)
 
         else:
-            dates_tuple = (datetime.date.fromtimestamp(submission_date).strftime("%m/%d/%Y"),
+            dates_tuple = (datetime.date.fromtimestamp(end_date).strftime("%m/%d/%Y"),
                            datetime.date.fromtimestamp(begin_timestamp).strftime("%m/%d/%Y"),
                            datetime.date.fromtimestamp(end_timestamp).strftime("%m/%d/%Y"))
             print "Job date %s is not between %s and %s" % dates_tuple
