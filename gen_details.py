@@ -49,6 +49,7 @@ BILLING_DETAILS_SHEET_COLUMNS = OrderedDict((
     ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID')),
     ('Consulting', ('Work Date', 'Item', 'Hours', 'PI')),
     ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID', 'Reason')),
+    ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID', 'Failed Code'))
 ) )
 
 QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
@@ -67,6 +68,10 @@ ACCOUNTING_FIELDS = (
     'task_number', 'cpu', 'mem', 'category', 'iow', 'pe_taskid', 'max_vmem', 'arid',
     'ar_submission_time'
 )
+
+# OGE accounting failed codes which invalidate the accounting entry.
+# From http://docs.oracle.com/cd/E19080-01/n1.grid.eng6/817-6117/chp11-1/index.html
+ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,26,27,28)
 
 SGEACCOUNTING_PREFIX = "SGEAccounting"  # Prefix of accounting file name in BillingRoot.
 
@@ -241,7 +246,7 @@ def write_job_details(sheet, job_details):
 
         # 'Job Timestamp'
         col += 1
-        sheet.write(sheet_row, col, job_details[row][col])
+        sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
         if args.verbose: print job_details[row][col],
 
         # 'Username'
@@ -278,6 +283,12 @@ def write_job_details(sheet, job_details):
         col += 1
         sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
         if args.verbose: print job_details[row][col],
+
+        # Extra column if needed: 'Reason' or 'Failed Code'
+        if col < len(job_details[row])-1:
+            col += 1
+            sheet.write(sheet_row, col, job_details[row][col])
+            if args.verbose: print job_details[row][col],
 
         if args.verbose: print
 
@@ -346,23 +357,22 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
 
 
 def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accounting_file,
-                              computing_sheet, nonbillable_job_sheet):
+                              computing_sheet, nonbillable_job_sheet, failed_job_sheet):
 
     print "Computing computing charges..."
 
-    #
     # Read in the Usernames from the Users sheet.
-    #
     users_sheet = config_wkbk.sheet_by_name('Users')
-
     users_list = sheet_get_named_column(users_sheet, "Username")
     #  NOTE: This column may have some duplicates in it.
     #        Need to make a set out of the result.
-    users = set(users_list)
+    users_list = set(users_list)
 
-    #
+    # Read in the PI Tag list from the PIs sheet.
+    pis_sheet = config_wkbk.sheet_by_name('PIs')
+    pi_tag_list = sheet_get_named_column(pis_sheet, 'PI Tag')
+
     # Read in the Job Tags from the Job Tags sheet.
-    #
     job_tags_sheet = config_wkbk.sheet_by_name('JobTags')
     job_tag_list = sheet_get_named_column(job_tags_sheet, "Job Tag")
 
@@ -382,9 +392,11 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     not_in_users_list = set()
     not_in_job_tag_list = set()
 
-    billable_job_details    = []  # Jobs that are on hosts we can bill for.
-    unbillable_node_job_details = []  # Jobs not on hosts we can bill for.
-    unknown_user_job_details= []  # Jobs from users we don't know.
+    failed_job_details           = []  # Jobs which failed.
+    billable_job_details         = []  # Jobs that are on hosts we can bill for.
+    nonbillable_node_job_details = []  # Jobs not on hosts we can bill for.
+    unknown_user_job_details     = []  # Jobs from users we don't know.
+
     for line in accounting_fp:
 
         if line[0] == "#": continue
@@ -393,63 +405,80 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
         accounting_record = dict(zip(ACCOUNTING_FIELDS, fields))
 
-        end_date = int(accounting_record['end_time'])
+        # If the job failed, the submission_time is the job date.
+        # Else, the end_time is the job date.
+        failed_code = int(accounting_record['failed'])
+        job_failed = failed_code in ACCOUNTING_FAILED_CODES
+        if job_failed:
+            job_date = int(accounting_record['submission_time'])  # The only valid date in the record.
+        else:
+            job_date = int(accounting_record['end_time'])
+
+        job_details = []
+        job_details.append(job_date)
+        job_details.append(job_date)  # Two columns used for the date: one date formatted, one timestamp.
+        job_details.append(accounting_record['owner'])
+        job_details.append(accounting_record['job_name'])
+
+        # Elide the default account 'sge'.
+        if accounting_record['account'] != 'sge':
+
+            # If this account/job tag is unknown, save details for later output.
+            if (accounting_record['account'] not in job_tag_list and
+                accounting_record['account'] not in pi_tag_list):
+                not_in_job_tag_list.add((accounting_record['owner'],
+                                         accounting_record['job_name'],
+                                         accounting_record['account']))
+
+            job_details.append(accounting_record['account'])
+        else:
+            job_details.append('')
+
+        # Edit hostname to remove trailing ".local".
+        node_name = accounting_record['hostname']
+        if node_name.endswith(".local"):
+            node_name = node_name[:-6]
+
+        job_details.append(node_name)
+
+        job_details.append(int(accounting_record['slots']))
+        job_details.append(int(accounting_record['ru_wallclock']))
+        job_details.append(int(accounting_record['job_number']))
 
         # If the end date of this job was within the month,
         #  examine it.
-        if begin_timestamp <= end_date < end_timestamp:
+        if begin_timestamp <= job_date < end_timestamp:
 
-            job_details = []
-            job_details.append(end_date)
-            job_details.append(end_date)  # Two columns used for the date: one date formatted, one timestamp.
-            job_details.append(accounting_record['owner'])
-            job_details.append(accounting_record['job_name'])
+            # Do we know this job's user?
+            if accounting_record['owner'] in users_list:
 
-            # Elide the default account 'sge'.
-            if accounting_record['account'] != 'sge':
-
-                # If this account/job tag is unknown, save details for later output.
-                if accounting_record['account'] not in job_tag_list:
-                    not_in_job_tag_list.add((accounting_record['owner'],
-                                             accounting_record['job_name'],
-                                             accounting_record['account']))
-
-                job_details.append(accounting_record['account'])
-            else:
-                job_details.append('')
-
-            # Edit hostname to remove trailing ".local".
-            node_name = accounting_record['hostname']
-            if node_name.endswith(".local"):
-                node_name = node_name[:-6]
-
-            job_details.append(node_name)
-
-            job_details.append(int(accounting_record['slots']))
-            job_details.append(int(accounting_record['ru_wallclock']))
-            job_details.append(int(accounting_record['job_number']))
-
-            if accounting_record['owner'] in users:
-                #
-                # Job is billable if it ran on hosts starting with one of the BILLABLE_HOSTNAME_PREFIXES.
-                #
-                billable_hostname_prefixes = map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES)
-
-                # If hostname doesn't have a billable prefix, save in a separate list.
-                if not any(billable_hostname_prefixes):
-                    unbillable_node_job_details.append(job_details)
+                # If job failed, save in Failed job list.
+                if job_failed:
+                    failed_job_details.append(job_details + [failed_code])
                 else:
-                    billable_job_details.append(job_details)
+                    # Job is billable if it ran on hosts starting with one of the BILLABLE_HOSTNAME_PREFIXES.
+                    billable_hostname_prefixes = map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES)
+
+                    # If hostname doesn't have a billable prefix, save in an nonbillable list.
+                    if not any(billable_hostname_prefixes):
+                        nonbillable_node_job_details.append(job_details + ['Nonbillable Node'])
+                    else:
+                        billable_job_details.append(job_details)
 
             else:
+                # Save unknown user and job details in unknown user lists.
                 not_in_users_list.add(accounting_record['owner'])
-                unknown_user_job_details.append(job_details)
+                unknown_user_job_details.append(job_details + ['Unknown User'])
 
         else:
-            dates_tuple = (datetime.date.fromtimestamp(end_date).strftime("%m/%d/%Y"),
-                           datetime.date.fromtimestamp(begin_timestamp).strftime("%m/%d/%Y"),
-                           datetime.date.fromtimestamp(end_timestamp).strftime("%m/%d/%Y"))
-            print "Job date %s is not between %s and %s" % dates_tuple
+            if job_date != 0:
+                dates_tuple = (datetime.date.fromtimestamp(job_date).strftime("%m/%d/%Y"),
+                               datetime.date.fromtimestamp(begin_timestamp).strftime("%m/%d/%Y"),
+                               datetime.date.fromtimestamp(end_timestamp).strftime("%m/%d/%Y"))
+                print "Job date %s is not between %s and %s" % dates_tuple
+            else:
+                print "Job date is zero."
+            print ':'.join(fields)
 
     # Close the accounting file.
     accounting_fp.close()
@@ -469,15 +498,17 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     print "  Outputting accounting details"
 
     # Output jobs to sheet for billable jobs.
-    print "    Billable Jobs:   ",
+    print "    Billable Jobs:    ",
     write_job_details(computing_sheet, billable_job_details)
 
     # Output nonbillable jobs to sheet for nonbillable jobs.
-    print "   Nonbillable Jobs: ",
-    all_nonbillable_job_details = (
-      map(lambda l: l + ['Unbillable Node'], unbillable_node_job_details) +
-      map(lambda l: l + ['Unknown User'], unknown_user_job_details) )
+    print "    Nonbillable Jobs: ",
+    all_nonbillable_job_details = nonbillable_node_job_details + unknown_user_job_details
     write_job_details(nonbillable_job_sheet, all_nonbillable_job_details)
+
+    # Output jobs to sheet for failed jobs.
+    print "    Failed Jobs:      ",
+    write_job_details(failed_job_sheet, failed_job_details)
 
     print "Computing charges computed."
 
@@ -637,7 +668,8 @@ if not args.no_storage:
 #
 if not args.no_computing:
     compute_computing_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, accounting_file,
-                              sheet_name_to_sheet['Computing'], sheet_name_to_sheet['Nonbillable Jobs'])
+                              sheet_name_to_sheet['Computing'],
+                              sheet_name_to_sheet['Nonbillable Jobs'], sheet_name_to_sheet['Failed Jobs'])
 
 #
 # Compute consulting charges.
