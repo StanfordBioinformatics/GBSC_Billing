@@ -59,14 +59,14 @@ STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in both above commands.
 # OGE accounting file column info: 
 # http://manpages.ubuntu.com/manpages/lucid/man5/sge_accounting.5.html
 ACCOUNTING_FIELDS = (
-    'qname', 'hostname', 'group', 'owner', 'job_name', 'job_number',
-    'account', 'priority','submission_time', 'start_time', 'end_time',
-    'failed', 'exit_status', 'ru_wallclock', 'ru_utime', 'ru_stime',
-    'ru_maxrss', 'ru_ixrss', 'ru_ismrss', 'ru_idrss', 'ru_isrss', 'ru_minflt', 'ru_majflt',
-    'ru_nswap', 'ru_inblock', 'ru_oublock', 'ru_msgsnd', 'ru_msgrcv', 'ru_nsignals',
-    'ru_nvcsw', 'ru_nivcsw', 'project', 'department', 'granted_pe', 'slots',
-    'task_number', 'cpu', 'mem', 'category', 'iow', 'pe_taskid', 'max_vmem', 'arid',
-    'ar_submission_time'
+    'qname', 'hostname', 'group', 'owner', 'job_name', 'job_number',        # Fields 0-5
+    'account', 'priority', 'submission_time', 'start_time', 'end_time',     # Fields 6-10
+    'failed', 'exit_status', 'ru_wallclock', 'ru_utime', 'ru_stime',        # Fields 11-15
+    'ru_maxrss', 'ru_ixrss', 'ru_ismrss', 'ru_idrss', 'ru_isrss', 'ru_minflt', 'ru_majflt',  # Fields 16-22
+    'ru_nswap', 'ru_inblock', 'ru_oublock', 'ru_msgsnd', 'ru_msgrcv', 'ru_nsignals',  # Fields 23-28
+    'ru_nvcsw', 'ru_nivcsw', 'project', 'department', 'granted_pe', 'slots',  # Fields 29-34
+    'task_number', 'cpu', 'mem', 'category', 'iow', 'pe_taskid', 'max_vmem', 'arid',  # Fields 35-42
+    'ar_submission_time'                                                    # Field 43
 )
 
 # OGE accounting failed codes which invalidate the accounting entry.
