@@ -5,12 +5,16 @@
 # check_config.py - Confirm that the BillingConfiguration workbook makes sense.
 #
 # ARGS:
+#   1st: The BillingConfig workbook to be checked.
 #
 # SWITCHES:
+#   None
 #
 # OUTPUT:
+#   None, if the file is OK.  O/W, messages regarding inconsistencies.
 #
 # ASSUMPTIONS:
+#   Depends on xlrd module.
 #
 # AUTHOR:
 #   Keith Bettinger
@@ -48,8 +52,7 @@ BILLING_CONFIG_SHEET_COLUMNS = {
     'Config'  : ['Key', 'Value']
 }
 
-# TODO: check that all sheets have the headings above.
-# TODO: check that all sheets have columns of the same length (except maybe Folders!By Quota? )
+# TODO: check that all sheets have columns of the same number of rows (except maybe Folders!By Quota? )
 
 # TODO: Confirm that all folders exist.
 
@@ -81,7 +84,7 @@ def check_sheets(wkbk):
     all_sheets = wkbk.sheet_names()
 
     # Check each sheet.
-    for sheet_name in BILLING_CONFIG_SHEET_COLUMNS.keys():
+    for sheet_name in BILLING_CONFIG_SHEET_COLUMNS:
 
         # Does the sheet exist?
         if sheet_name not in all_sheets:
@@ -131,7 +134,7 @@ def check_pctages(sheet, col_name):
 
 def check_folders_sheet(wkbk):
 
-    folders_sheet = billing_config_wkbk.sheet_by_name('Folders')
+    folders_sheet = wkbk.sheet_by_name('Folders')
 
     # Check that, in the Folders sheet, the %ages associated with each folder
     #  add up to 100%.
@@ -176,7 +179,7 @@ def check_users_sheet(wkbk):
     users_pi_tags_are_OK = True
     pi_tag_list = sheet_get_named_column(pi_sheet, 'PI Tag')
 
-    for uname in username_to_pi_tag_dates.keys():
+    for uname in username_to_pi_tag_dates:
 
         pi_tag_date_list = username_to_pi_tag_dates[uname]
 
