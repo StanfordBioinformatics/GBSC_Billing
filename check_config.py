@@ -34,48 +34,26 @@ import sys
 
 import xlrd
 
+# Simulate an "include billing_common.py".
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+
 #=====
 #
 # CONSTANTS
 #
 #=====
-
-#
-# Mapping from sheets to their column headers.
-#
-BILLING_CONFIG_SHEET_COLUMNS = {
-    'Rates'   : ['Type', 'Amount', 'Unit', 'Time'],
-    'PIs'     : ['PI First Name', 'PI Last Name', 'PI Tag', 'Group Name', 'PI Email', 'Date Added'],
-    'Folders' : ['Folder', 'PI Tag', '%age', 'By Quota?', 'Date Added'],
-    'Users'   : ['PI Tag', 'Username', 'Email', 'Full Name', 'Date Added', 'Date Removed'],
-    'JobTags' : ['Job Tag', 'PI Tag', '%age', 'Date Added'],
-    'Config'  : ['Key', 'Value']
-}
-
-# TODO: check that all sheets have columns of the same number of rows (except maybe Folders!By Quota? )
-
-# TODO: Confirm that all folders exist.
+# From billing_common.py
+global BILLING_CONFIG_SHEET_COLUMNS
 
 #=====
 #
 # FUNCTIONS
 #
 #=====
+# From billing_common.py
+global sheet_get_named_column
 
-# This method takes in an xlrd Sheet object and a column name,
-# and returns all the values from that column.
-def sheet_get_named_column(sheet, col_name):
-
-    header_row = sheet.row_values(0)
-
-    for idx in range(len(header_row)):
-        if header_row[idx] == col_name:
-           col_name_idx = idx
-           break
-    else:
-        return None
-
-    return sheet.col_values(col_name_idx, start_rowx=1)
 
 def check_sheets(wkbk):
 
@@ -211,6 +189,9 @@ parser.add_argument("-v", "--verbose", action="store_true",
 args = parser.parse_args()
 
 billing_config_wkbk = xlrd.open_workbook(args.billing_config_file)
+
+# TODO: check that all sheets have columns of the same number of rows (except maybe Folders!By Quota? )
+# TODO: Confirm that all folders exist.
 
 # Check that all the proper sheets are in the spreadsheet.
 sheets_are_OK = check_sheets(billing_config_wkbk)
