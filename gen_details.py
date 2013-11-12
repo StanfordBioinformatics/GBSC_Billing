@@ -8,10 +8,28 @@
 #   1st: the BillingConfig spreadsheet.
 #
 # SWITCHES:
+#   --accounting_file: Location of accounting file (overrides BillingConfig.xlsx)
+#   --billing_root:    Location of BillingRoot directory (overrides BillingConfig.xlsx)
+#                      [default if no BillingRoot in BillingConfig.xlsx or switch given: CWD]
+#   --year:            Year of snapshot requested. [Default is this year]
+#   --month:           Month of snapshot requested. [Default is last month]
+#   --no_storage:      Don't run the storage calculations.
+#   --no_usage:        Don't run the storage usage calculations (only the quotas).
+#   --no_computing:    Don't run the computing calculations.
+#   --no_consulting:   Don't run the consulting calculations.
+#   --scg3:            Add 'scg3' to list of hostname prefixes for billable jobs.
+#
+# INPUT:
+#   BillingConfig spreadsheet.
+#   SGE Accounting snapshot file (from snapshot_accounting.py).
+#     - Expected in BillingRoot/<year>/<month>/SGEAccounting.<year>-<month>.xlsx
 #
 # OUTPUT:
+#   BillingDetails spreadsheet in BillingRoot/<year>/<month>/BillingDetails.<year>-<month>.xlsx
+#   Various messages about current processing status to STDOUT.
 #
 # ASSUMPTIONS:
+#   Depends on xlrd and xlsxwriter modules.
 #   The input spreadsheet has been certified by check_config.py.
 #
 # AUTHOR:
@@ -25,7 +43,6 @@
 #
 #=====
 import argparse
-from collections import OrderedDict
 import datetime
 import os
 import os.path
@@ -36,53 +53,30 @@ import time
 import xlrd
 import xlsxwriter
 
+# Simulate an "include billing_common.py".
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+
 #=====
 #
 # CONSTANTS
 #
 #=====
-BILLING_DETAILS_PREFIX = "BillingDetails"
 
-# Mapping from sheet name to the column headers within that sheet.
-BILLING_DETAILS_SHEET_COLUMNS = OrderedDict((
-    ('Storage'   , ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used')),
-    ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID')),
-    ('Consulting', ('Work Date', 'Item', 'Hours', 'PI')),
-    ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID', 'Reason')),
-    ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID', 'Failed Code'))
-) )
-
-QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
-USAGE_EXECUTABLE = ['sudo', 'du', '-s']
-STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in both above commands.
-
-# OGE accounting file column info: 
-# http://manpages.ubuntu.com/manpages/lucid/man5/sge_accounting.5.html
-ACCOUNTING_FIELDS = (
-    'qname', 'hostname', 'group', 'owner', 'job_name', 'job_number',        # Fields 0-5
-    'account', 'priority', 'submission_time', 'start_time', 'end_time',     # Fields 6-10
-    'failed', 'exit_status', 'ru_wallclock', 'ru_utime', 'ru_stime',        # Fields 11-15
-    'ru_maxrss', 'ru_ixrss', 'ru_ismrss', 'ru_idrss', 'ru_isrss', 'ru_minflt', 'ru_majflt',  # Fields 16-22
-    'ru_nswap', 'ru_inblock', 'ru_oublock', 'ru_msgsnd', 'ru_msgrcv', 'ru_nsignals',  # Fields 23-28
-    'ru_nvcsw', 'ru_nivcsw', 'project', 'department', 'granted_pe', 'slots',  # Fields 29-34
-    'task_number', 'cpu', 'mem', 'category', 'iow', 'pe_taskid', 'max_vmem', 'arid',  # Fields 35-42
-    'ar_submission_time'                                                    # Field 43
-)
-
-# OGE accounting failed codes which invalidate the accounting entry.
-# From http://docs.oracle.com/cd/E19080-01/n1.grid.eng6/817-6117/chp11-1/index.html
-ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,26,27,28)
-
-SGEACCOUNTING_PREFIX = "SGEAccounting"  # Prefix of accounting file name in BillingRoot.
-
-# List of hostname prefixes to use for billing purposes.
-BILLABLE_HOSTNAME_PREFIXES = ['scg1']
 
 #=====
 #
 # GLOBALS
 #
 #=====
+# In billing_common.py
+global SGEACCOUNTING_PREFIX
+global BILLING_DETAILS_PREFIX
+
+# Commands for determining folder quotas and usages.
+QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
+USAGE_EXECUTABLE = ['sudo', 'du', '-s']
+STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in both above commands.
 
 #
 # Formats for the output workbook, to be initialized along with the workbook.
@@ -100,46 +94,22 @@ PERCENT_FORMAT = None
 #
 #=====
 
-# This method takes in an xlrd Sheet object and a column name,
-# and returns all the values from that column.
-def sheet_get_named_column(sheet, col_name):
+# In billing_common.py
+global read_config_sheet
+global sheet_get_named_column
+global sheet_name_to_sheet
+global from_timestamp_to_excel_date
+global from_excel_date_to_timestamp
+global from_timestamp_to_date_string
+global from_excel_date_to_date_string
+global from_ymd_date_to_timestamp
 
-    header_row = sheet.row_values(0)
-
-    for idx in range(len(header_row)):
-        if header_row[idx] == col_name:
-           col_name_idx = idx
-           break
-    else:
-        return None
-
-    return sheet.col_values(col_name_idx,start_rowx=1)
-
-
-def config_sheet_get_dict(wkbk):
-
-    config_sheet = wkbk.sheet_by_name("Config")
-
-    config_keys   = sheet_get_named_column(config_sheet, "Key")
-    config_values = sheet_get_named_column(config_sheet, "Value")
-
-    return dict(zip(config_keys, config_values))
-
-
-def read_config_sheet(wkbk):
-
-    config_dict = config_sheet_get_dict(wkbk)
-
-    accounting_file = config_dict.get("SGEAccountingFile")
-    if accounting_file is None:
-        print >> sys.stderr, "Need accounting file: exiting..."
-        sys.exit(-1)
-
-    billing_root    = config_dict.get("BillingRoot", os.getcwd())
-
-    return (billing_root, accounting_file)
-
-
+# Initialize the output BillingDetails workbook, given as argument.
+# It creates all the formats used within the workbook, and saves them
+# as the global variables listed at the top of the method.
+# It also creates all the sheets within the workbook, and the column
+# headers within those sheets.  The method returns a dict of mappings
+# from sheet_name to the workbook's Sheet object for that name.
 def init_billing_details_wkbk(workbook):
 
     global BOLD_FORMAT
@@ -148,6 +118,8 @@ def init_billing_details_wkbk(workbook):
     global INT_FORMAT
     global MONEY_FORMAT
     global PERCENT_FORMAT
+
+    global BILLING_DETAILS_SHEET_COLUMNS  # In billing_common.py
 
     # Create formats for use within the workbook.
     BOLD_FORMAT = workbook.add_format({'bold' : True})
@@ -159,7 +131,7 @@ def init_billing_details_wkbk(workbook):
 
     sheet_name_to_sheet = dict()
 
-    for sheet_name in BILLING_DETAILS_SHEET_COLUMNS.keys():
+    for sheet_name in BILLING_DETAILS_SHEET_COLUMNS:
 
         sheet = workbook.add_worksheet(sheet_name)
         for col in range(0, len(BILLING_DETAILS_SHEET_COLUMNS[sheet_name])):
@@ -172,7 +144,9 @@ def init_billing_details_wkbk(workbook):
 
     return sheet_name_to_sheet
 
-
+# Gets the quota for the given PI tag.
+# Returns a tuple of (size used, quota) with values in Tb, or
+# None if there was a problem parsing the quota command output.
 def get_folder_quota(folder, pi_tag):
 
     print "  Getting folder quota for %s..." % (pi_tag)
@@ -201,7 +175,9 @@ def get_folder_quota(folder, pi_tag):
 
     return None
 
-
+# Gets the usage for the given folder.
+# Returns a tuple of (quota, quota) with values in Tb, or
+# None if there was a problem parsing the usage command output.
 def get_folder_usage(folder, pi_tag):
 
     print "  Getting folder usage of %s..." % (folder)
@@ -226,7 +202,9 @@ def get_folder_usage(folder, pi_tag):
 
     return None
 
-
+# Given a list of tuples of job details, writes the job details to
+# the sheet given.  Possible sheets for use in this method are
+# typically the "Computing", "Nonbillable Jobs", and "Failed Jobs" sheets.
 def write_job_details(sheet, job_details):
 
     for row in range(0, len(job_details)):
@@ -242,7 +220,7 @@ def write_job_details(sheet, job_details):
 
         # 'Job Date'
         col = 0
-        sheet.write_formula(sheet_row, col, '=(%f/86400)+DATE(1970,1,1)' % job_details[row][col], DATE_FORMAT)
+        sheet.write(sheet_row, col, from_timestamp_to_excel_date(job_details[row][col]), DATE_FORMAT)
 
         # 'Job Timestamp'
         col += 1
@@ -294,6 +272,7 @@ def write_job_details(sheet, job_details):
 
     print
 
+# Generates the Storage sheet data from folder quotas and usages.
 def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage_sheet):
 
     print "Computing storage charges..."
@@ -311,8 +290,8 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
     # Create mapping from folders to space used.
     for (folder, pi_tag, quota_bool, date_added) in zip(folders, pi_tags, quota_bools, dates_added):
 
-        #print begin_timestamp, date_added, end_timestamp
-        #if begin_timestamp <= date_added:
+        # If this folder has been added prior to or within this month, analyze it.
+        if end_timestamp > from_excel_date_to_timestamp(date_added):
             if quota_bool == "yes":
                 # Check folder's quota.
                 (used, total) = get_folder_quota(folder, pi_tag)
@@ -325,6 +304,8 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
                     (used, total) = (0, 0)
 
             folder_sizes.append([ time.time(), folder, total, used ])
+        else:
+            print "  *** Excluding %s for PI %s: not active in this month" % (folder, pi_tag)
 
     # Write space-used mapping into details workbook.
     for row in range(0, len(folder_sizes)):
@@ -333,7 +314,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
 
         # 'Date Measured'
         col = 0
-        storage_sheet.write_formula(sheet_row, col, '=(%f/86400)+DATE(1970,1,1)' % folder_sizes[row][col], DATE_FORMAT)
+        storage_sheet.write(sheet_row, col, from_timestamp_to_excel_date(folder_sizes[row][col]), DATE_FORMAT)
 
         # 'Timestamp'
         col += 1
@@ -356,8 +337,14 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
         if args.verbose: print folder_sizes[row][col-1]
 
 
+# Generates the job details stored in the "Computing", "Nonbillable Jobs", and "Failed Jobs" sheets.
 def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accounting_file,
                               computing_sheet, nonbillable_job_sheet, failed_job_sheet):
+
+    # In billing_common.py
+    global ACCOUNTING_FIELDS
+    global ACCOUNTING_FAILED_CODES
+    global BILLABLE_HOSTNAME_PREFIXES
 
     print "Computing computing charges..."
 
@@ -386,7 +373,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     #
     # Read all the lines of the current accounting file.
     #  Output to the details spreadsheet those jobs
-    #  which have "submission_times" in the given month,
+    #  which have "end_times" in the given month,
     #  and "owner"s in the list of users.
     #
     not_in_users_list = set()
@@ -414,13 +401,14 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         else:
             job_date = int(accounting_record['end_time'])
 
+        # Create a list of job details for this job.
         job_details = []
         job_details.append(job_date)
         job_details.append(job_date)  # Two columns used for the date: one date formatted, one timestamp.
         job_details.append(accounting_record['owner'])
         job_details.append(accounting_record['job_name'])
 
-        # Elide the default account 'sge'.
+        # Edit out the default account 'sge'.
         if accounting_record['account'] != 'sge':
 
             # If this account/job tag is unknown, save details for later output.
@@ -472,9 +460,9 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
         else:
             if job_date != 0:
-                dates_tuple = (datetime.date.fromtimestamp(job_date).strftime("%m/%d/%Y"),
-                               datetime.date.fromtimestamp(begin_timestamp).strftime("%m/%d/%Y"),
-                               datetime.date.fromtimestamp(end_timestamp).strftime("%m/%d/%Y"))
+                dates_tuple = (from_timestamp_to_date_string(job_date),
+                               from_timestamp_to_date_string(begin_timestamp),
+                               from_timestamp_to_date_string(end_timestamp))
                 print "Job date %s is not between %s and %s" % dates_tuple
             else:
                 print "Job date is zero."
@@ -512,7 +500,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
     print "Computing charges computed."
 
-
+# Generates the "Consulting" sheet (someday).
 def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, consulting_sheet):
     pass
 
@@ -593,9 +581,9 @@ else:
 
 # The begin_ and end_month_timestamps are to be used as follows:
 #   date is within the month if begin_month_timestamp <= date < end_month_timestamp
-# Both values should be GMT.
-begin_month_timestamp = int(time.mktime(datetime.date(year, month, 1).timetuple()))
-end_month_timestamp   = int(time.mktime(datetime.date(next_month_year, next_month, 1).timetuple()))
+# Both values should be UTC.
+begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
+end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
 # Add the SCG3 prefix to the filter for hostnames.
 if args.scg3:
