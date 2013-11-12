@@ -15,7 +15,11 @@
 # SWITCHES:
 #   --accounting_file: Location of accounting file (overrides BillingConfig.xlsx)
 #   --billing_root:    Location of BillingRoot directory (overrides BillingConfig.xlsx)
-#                      [default if no BillingRoot in BillingConfig.xlsx or switch: CWD]
+#                      [default if no BillingRoot in BillingConfig.xlsx or switch given: CWD]
+#   --billing_config_file: Location of BillingConfig xlsx file
+#                      [not required if both --accounting_file and --billing_root given].
+#   --year:            Year of snapshot requested. [Default is this year]
+#   --month:           Month of snapshot requested. [Default is last month]
 #
 # OUTPUT:
 #    An accounting file with only entries with end_dates within the given
@@ -24,7 +28,7 @@
 #     working directory if not.
 #
 # ASSUMPTIONS:
-#    Directory hierarchy <BillingRoot>/<YEAR>/<MONTH>/ already exists.
+#    Dependent on xlrd module.
 #
 # AUTHOR:
 #   Keith Bettinger
@@ -46,44 +50,26 @@ import sys
 
 import xlrd
 
+# Simulate an "include billing_common.py".
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+
 #=====
 #
 # CONSTANTS
 #
 #=====
-SGEACCOUNTING_PREFIX = "SGEAccounting"  # Prefix of output file name.
+# From billing_common.py
+global SGEACCOUNTING_PREFIX
 
 #=====
 #
 # FUNCTIONS
 #
 #=====
-
-# This method takes in an xlrd Sheet object and a column name,
-# and returns all the values from that column.
-def sheet_get_named_column(sheet, col_name):
-
-    header_row = sheet.row_values(0)
-
-    for idx in range(len(header_row)):
-        if header_row[idx] == col_name:
-           col_name_idx = idx
-           break
-    else:
-        return None
-
-    return sheet.col_values(col_name_idx,start_rowx=1)
-
-
-def config_sheet_get_dict(wkbk):
-
-    config_sheet = wkbk.sheet_by_name("Config")
-
-    config_keys   = sheet_get_named_column(config_sheet, "Key")
-    config_values = sheet_get_named_column(config_sheet, "Value")
-
-    return dict(zip(config_keys, config_values))
-
+# From billing_common.py
+global config_sheet_get_dict
+global from_ymd_date_to_timestamp
 
 #=====
 #
@@ -154,9 +140,9 @@ else:
 
 # The begin_ and end_month_timestamps are to be used as follows:
 #   date is within the month if begin_month_timestamp <= date < end_month_timestamp
-# Both values should be GMT.
-begin_month_timestamp = int(time.mktime(datetime.date(year, month, 1).timetuple()))
-end_month_timestamp   = int(time.mktime(datetime.date(next_month_year, next_month, 1).timetuple()))
+# Both values should be UTC.
+begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
+end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
 #
 # Use values for accounting_file and billing_root from options, if available.
