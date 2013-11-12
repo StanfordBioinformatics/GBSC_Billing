@@ -36,7 +36,7 @@
 # IMPORTS
 #
 #=====
-
+import calendar
 from collections import OrderedDict
 import datetime
 import time
@@ -86,7 +86,8 @@ USER = pwd.getpwuid(os.getuid()).pw_name
 # FUNCTIONS
 #
 #=====
-
+def from_ymd_date_to_timestamp(year, month, day):
+    return int(calendar.timegm(datetime.date(year, month, day).timetuple()))
 
 #=====
 #
@@ -114,6 +115,9 @@ parser.add_argument("--print_completed_jobs", action="store_true",
 parser.add_argument("--print_failed_jobs", action="store_true",
                     default=False,
                     help="Print details about failed jobs to STDOUT [default = False]")
+parser.add_argument("--no_index", action="store_true",
+                    default=False,
+                    help="Don't use the built-in accounting index [default = False]")
 parser.add_argument("-a", "--accounting_file",
                     default=SGE_ACCOUNTING_FILE,
                     help='The SGE accounting file to snapshot [default = %s]' % SGE_ACCOUNTING_FILE)
@@ -158,7 +162,7 @@ is_billable_month = year > BILLING_FIRST_YEAR or (year == BILLING_FIRST_YEAR and
 
 # If we use the default accounting file, we can mine some data from the hard-coded index above.
 #   Data: earliest month/year, seek_point where month/year's data starts.
-if args.accounting_file == SGE_ACCOUNTING_FILE:
+if args.accounting_file == SGE_ACCOUNTING_FILE and not args.no_index:
 
     # Validate month/year against SGE_ACCOUNTING_INDEX keys to see if we have data for them.
     (earliest_year, earliest_month) = SGE_ACCOUNTING_INDEX.keys()[0]
@@ -180,11 +184,15 @@ else:
 
 # The begin_ and end_month_timestamps are to be used as follows:
 #   date is within the month if begin_month_timestamp <= date < end_month_timestamp
-# Both values should be GMT.
-begin_month_timestamp = int(time.mktime(datetime.date(year, month, 1).timetuple()))
-end_month_timestamp   = int(time.mktime(datetime.date(next_month_year, next_month, 1).timetuple()))
+# Both values should be UTC.
+begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
+end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
-# Print first line of upcoming table.
+# Print first lines of upcoming table.
+if args.all_users:
+    print "JOBS RUN BY ALL USERS:"
+else:
+    print "JOBS RUN BY USER %s:" % (args.user)
 if is_billable_month:
     print >> sys.stderr, "MONTH: %02d/%d\tCPU-hrs\tJobs\tCost" % (month, year)
 else:
@@ -234,13 +242,15 @@ with open(args.accounting_file, "r") as accounting_input_fp:
         #  save it for statistics.
         if begin_month_timestamp <= job_date < end_month_timestamp:
 
+            job_date_string = datetime.datetime.utcfromtimestamp(job_date).strftime("%m/%d/%Y")
+
             # The job must also be run by the requested user, if all_users not True.
             if args.all_users or owner == args.user:
                 if not job_failed:
-                    this_month_user_jobs.append((hostname, owner, job_name, job_ID, job_date, slots, wallclock))
+                    this_month_user_jobs.append((hostname, owner, job_name, job_ID, job_date_string, slots, wallclock))
                 else:
                     # One more failed job.
-                    this_month_failed_jobs.append((hostname, owner, job_name, job_ID, job_date, slots, wallclock, failed))
+                    this_month_failed_jobs.append((hostname, owner, job_name, job_ID, job_date_string, slots, wallclock, failed))
 
 
 #
