@@ -2,8 +2,7 @@
 
 #===============================================================================
 #
-# billing_common.py - Set of utilities to help in using workbooks
-#                   from xlrd and Xlsxwriter.
+# billing_common.py - Set of common utilities and variables to help in the billing scripts.
 #
 # ARGS:
 #
@@ -23,14 +22,12 @@
 # IMPORTS
 #
 #=====
+import calendar
 from collections import OrderedDict
-import argparse
+import datetime
 import os
-import os.path
-import sys
 
 import xlrd
-
 import xlsxwriter
 
 
@@ -105,8 +102,6 @@ ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,26,27,28)
 BILLABLE_HOSTNAME_PREFIXES = ['scg1']
 
 
-
-
 #=====
 #
 # FUNCTIONS
@@ -128,7 +123,7 @@ def sheet_get_named_column(sheet, col_name):
 
     return sheet.col_values(col_name_idx,start_rowx=1)
 
-
+# This function returns the dict of values in a BillingConfig's Config sheet.
 def config_sheet_get_dict(wkbk):
 
     config_sheet = wkbk.sheet_by_name("Config")
@@ -140,8 +135,8 @@ def config_sheet_get_dict(wkbk):
 
 
 # Read the Config sheet of the BillingConfig workbook to
-# get the BillingRoot directory.  Returns it if present,
-# the current directory if not.
+# get the BillingRoot directory and the SGEAccountingFile.
+# Returns a tuple of (BillingRoot, SGEAccountingFile).
 def read_config_sheet(wkbk):
 
     config_dict = config_sheet_get_dict(wkbk)
@@ -151,8 +146,17 @@ def read_config_sheet(wkbk):
 
     return (billing_root, accounting_file)
 
-
+#
+# This suite of functions converts to/from timestamps, Excel dates, and date strings.
+#
 def from_timestamp_to_excel_date(timestamp):
-    return timestamp/86400 + 25569
+    return timestamp/86400.0 + 25569
 def from_excel_date_to_timestamp(excel_date):
-    return (excel_date - 25569) * 86400
+    return (excel_date - 25569) * 86400.0
+def from_timestamp_to_date_string(timestamp):
+    return datetime.datetime.utcfromtimestamp(timestamp).strftime("%m/%d/%Y")
+def from_excel_date_to_date_string(excel_date):
+    return from_timestamp_to_date_string(from_excel_date_to_timestamp(excel_date))
+
+def from_ymd_date_to_timestamp(year, month, day):
+    return int(calendar.timegm(datetime.date(year, month, day).timetuple()))
