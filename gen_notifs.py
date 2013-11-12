@@ -24,7 +24,6 @@
 #=====
 import argparse
 from collections import defaultdict
-from collections import OrderedDict
 import datetime
 import time
 import os
@@ -33,25 +32,19 @@ import sys
 import xlrd
 import xlsxwriter
 
+# Simulate an "include billing_common.py".
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+
 #=====
 #
 # CONSTANTS
 #
 #=====
-BILLING_NOTIFS_PREFIX = "GBSCBilling"
-
-# Mapping from sheet name to the column headers within that sheet.
-BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
-    ('Billing'    , () ),  # Billing sheet is not columnar.
-    ('Lab Users'  , ('Username', 'Email', 'Full Name', 'Date Added', 'Date Removed') ),
-    ('Computing Details' , ('Job Date', 'Username', 'Job Name', 'Job Tag', 'CPU-core Hours', 'Job ID', '%age') ),
-    ('Rates'      , ('Type', 'Amount', 'Unit', 'Time' ) )
-) )
-
-# Mapping from sheet name in BillingAggregate workbook to the column headers within that sheet.
-BILLING_AGGREG_SHEET_COLUMNS = OrderedDict( [
-    ('Totals', ('PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges') )
-] )
+# From billing_common.py
+global BILLING_NOTIFS_SHEET_COLUMNS
+global BILLING_AGGREG_SHEET_COLUMNS
+global BILLING_NOTIFS_PREFIX
 
 #
 # For make_format(), a data structure to save all the dictionaries and resulting Format objects
@@ -115,43 +108,20 @@ pi_tag_to_charges = defaultdict(list)
 # FUNCTIONS
 #
 #=====
-
-def from_timestamp_to_excel_date(timestamp):
-    return timestamp/86400 + 25569
-def from_excel_date_to_timestamp(excel_date):
-    return (excel_date - 25569) * 86400
-
-# This method takes in an xlrd Sheet object and a column name,
-# and returns all the values from that column.
-def sheet_get_named_column(sheet, col_name):
-
-    header_row = sheet.row_values(0)
-
-    for idx in range(len(header_row)):
-        if header_row[idx] == col_name:
-           col_name_idx = idx
-           break
-    else:
-        return None
-
-    return sheet.col_values(col_name_idx,start_rowx=1)
-
-
-def config_sheet_get_dict(wkbk):
-
-    config_sheet = wkbk.sheet_by_name("Config")
-
-    config_keys   = sheet_get_named_column(config_sheet, "Key")
-    config_values = sheet_get_named_column(config_sheet, "Value")
-
-    return dict(zip(config_keys, config_values))
-
+# From billing_common.py
+global from_timestamp_to_excel_date
+global from_excel_date_to_timestamp
+global from_timestamp_to_date_string
+global from_ymd_date_to_timestamp
+global sheet_get_named_column
+global read_config_sheet
+global config_sheet_get_dict
 
 # This function takes an arbitrary number of dicts with
 # xlsxwriter Format properties in them, adds the format to the given workbook,
 # and returns it.
 #
-# This function caches the ones it creates, so if a format is requested more than once,
+# This function caches the ones it creates per workbook, so if a format is requested more than once,
 #  it will simply return the previously created Format and not make a new one.
 #
 def make_format(wkbk, *prop_dicts):
@@ -164,11 +134,11 @@ def make_format(wkbk, *prop_dicts):
     # Get the list of (prop_dict, Format)s for this workbook.
     prop_dict_format_list = FORMAT_PROPS_PER_WORKBOOK.setdefault(wkbk, [])
 
-    for prop_dict_format in prop_dict_format_list:
+    for (prop_dict, wkbk_format) in prop_dict_format_list:
         # Is final_prop_dict already in the list?
-        if final_prop_dict == prop_dict_format[0]:
+        if final_prop_dict == prop_dict:
             # Yes: return the associated Format object.
-            format_obj = prop_dict_format[1]
+            format_obj = wkbk_format
             break
     else:
         # Nope: new prop_dict, therefore we must make a new Format object.
@@ -179,7 +149,9 @@ def make_format(wkbk, *prop_dicts):
     return format_obj
 
 
-
+# This function creates some formats in a BillingNotification workbook,
+# creates the necessary sheets, and writes the column headers in the sheets.
+# It also makes the Billing sheet the active sheet when it is opened in Excel.
 def init_billing_notifs_wkbk(wkbk):
 
     global BOLD_FORMAT
@@ -213,6 +185,9 @@ def init_billing_notifs_wkbk(wkbk):
     return sheet_name_to_sheet
 
 
+# This function creates a bold format in a BillingAggregate workbook,
+# creates the necessary sheets, and writes the column headers in the sheets.
+# It also makes the Totals sheet the active sheet when it is opened in Excel.
 def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
 
     bold_format = make_format(wkbk, {'bold' : True})
@@ -239,8 +214,9 @@ def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
 
     return sheet_name_to_sheet
 
-
-def get_pi_tags_for_username_by_date(username, date):
+# This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
+# for the PIs that the given user was working for on the given date.
+def get_pi_tags_for_username_by_date(username, date_timestamp):
 
     # Add PI Tag to the list if the given date is after date_added, but before date_removed.
 
@@ -249,15 +225,18 @@ def get_pi_tags_for_username_by_date(username, date):
     pi_tag_dates = username_to_pi_tag_dates.get(username)
     if pi_tag_dates is not None:
 
-        date_timestamp = from_timestamp_to_excel_date(date)
+        date_excel = from_timestamp_to_excel_date(date_timestamp)
 
         for (pi_tag, date_added, date_removed, pctage) in pi_tag_dates:
-            if date_added <= date_timestamp < date_removed:
+            if date_added <= date_excel < date_removed:
                 pi_tag_list.append([pi_tag, pctage])
 
     return pi_tag_list
 
 
+# Creates all the data structures used to write the BillingNotification workbook.
+# The overall goal is to mimic the tables of the notification sheets so that
+# to build the table, all that is needed is to print out one of these data structures.
 def build_global_data(wkbk):
 
     pis_sheet      = wkbk.sheet_by_name("PIs")
@@ -270,6 +249,7 @@ def build_global_data(wkbk):
     #
     global pi_tag_list
 
+    print "  Creating PI tag list"
     pi_tag_list = sheet_get_named_column(pis_sheet, "PI Tag")
 
     #
@@ -277,6 +257,7 @@ def build_global_data(wkbk):
     #
     global pi_tag_to_names_email
 
+    print "  Creating PI Tag -> Names, Email dict"
     pi_first_names = sheet_get_named_column(pis_sheet, "PI First Name")
     pi_last_names  = sheet_get_named_column(pis_sheet, "PI Last Name")
     pi_emails      = sheet_get_named_column(pis_sheet, "PI Email")
@@ -290,6 +271,7 @@ def build_global_data(wkbk):
     #
     global username_to_user_details
 
+    print "  Creating username -> user details dict"
     usernames  = sheet_get_named_column(users_sheet, "Username")
     emails     = sheet_get_named_column(users_sheet, "Email")
     full_names = sheet_get_named_column(users_sheet, "Full Name")
@@ -304,6 +286,7 @@ def build_global_data(wkbk):
     #
     global username_to_pi_tag_dates
 
+    print "  Creating username -> PI Tag, Dates dict"
     pi_tags       = sheet_get_named_column(users_sheet, "PI Tag")
     dates_added   = sheet_get_named_column(users_sheet, "Date Added")
     dates_removed = sheet_get_named_column(users_sheet, "Date Removed")
@@ -319,7 +302,8 @@ def build_global_data(wkbk):
     #
     global pi_tag_to_user_details
 
-    for username in username_to_pi_tag_dates.keys():
+    print "  Creating PI Tag -> User dates dict"
+    for username in username_to_pi_tag_dates:
 
         pi_tag_date_list = username_to_pi_tag_dates[username]
 
@@ -331,6 +315,7 @@ def build_global_data(wkbk):
     #
     global job_tag_to_pi_tag_pctages
 
+    print "  Creating job tag -> PI Tag, %%ages dict"
     job_tags = sheet_get_named_column(job_tags_sheet, "Job Tag")
     pi_tags  = sheet_get_named_column(job_tags_sheet, "PI Tag")
     pctages  = sheet_get_named_column(job_tags_sheet, "%age")
@@ -345,6 +330,7 @@ def build_global_data(wkbk):
     #
     global folder_to_pi_tag_pctages
 
+    print "  Creating folder -> PI Tag, %%ages dict"
     folders = sheet_get_named_column(folders_sheet, "Folder")
     pi_tags = sheet_get_named_column(folders_sheet, "PI Tag")
     pctages = sheet_get_named_column(folders_sheet, "%age")
@@ -355,22 +341,8 @@ def build_global_data(wkbk):
         folder_to_pi_tag_pctages[folder].append([pi_tag, pctage])
 
 
-
-def read_config_sheet(wkbk):
-
-    config_dict = config_sheet_get_dict(wkbk)
-
-    accounting_file = config_dict.get("SGEAccountingFile")
-    if accounting_file is None:
-        print >> sys.stderr, "Need accounting file: exiting..."
-        sys.exit(-1)
-
-    billing_root    = config_dict.get("BillingRoot", os.getcwd())
-
-    return (billing_root, accounting_file)
-
-
-def get_rates(rate_type, wkbk):
+# Reads the particular rate requested from the Rates sheet of the BillingConfig workbook.
+def get_rates(wkbk, rate_type):
 
     rates_sheet = wkbk.sheet_by_name('Rates')
 
@@ -384,6 +356,8 @@ def get_rates(rate_type, wkbk):
         return None
 
 
+# Reads the Storage sheet of the BillingDetails workbook given, and populates
+# the pi_tag_to_folder_sizes dict with the folder measurements for each PI.
 def read_storage_sheet(wkbk):
 
     global pi_tag_to_folder_sizes
@@ -401,6 +375,9 @@ def read_storage_sheet(wkbk):
             pi_tag_to_folder_sizes[pi_tag].append([folder, size, pctage])
 
 
+# Reads the Computing sheet of the BillingDetails workbook given, and populates
+# the job_tag_to_pi_tag_cpus, pi_tag_to_job_tag_cpus, pi_tag_to_username_cpus, and
+# pi_tag_to_sge_job_details dicts.
 def read_computing_sheet(wkbk):
 
     global pi_tag_to_sge_job_details
@@ -415,7 +392,7 @@ def read_computing_sheet(wkbk):
             computing_sheet.row_values(row)
 
         # Calculate CPU-core-hrs for job.
-        cpu_core_hrs = cores * wallclock / 3600  # wallclock is in seconds.
+        cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
 
         # If there is a job_tag in the account field, credit the job_tag with the job CPU time.
         if account != '':
@@ -453,12 +430,12 @@ def read_computing_sheet(wkbk):
 
                  # Else start a new job_tag/CPUs list for the pi_tag.
                  else:
-                     pi_tag_to_job_tag_cpus[pi_tag] = [job_tag, cpu_core_hrs, pctage]
+                     pi_tag_to_job_tag_cpus[pi_tag] = [[job_tag, cpu_core_hrs, pctage]]
 
                  #
                  # Save job details for pi_tag.
                  #
-                 new_job_details = [job_timestamp, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
+                 new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
                  pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
 
         # Else credit a user with the job CPU time.
@@ -502,10 +479,14 @@ def read_computing_sheet(wkbk):
                 pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
 
 
+# Reads the Consulting sheet of the BillingDetails workbook (someday).
 def read_consulting_sheet(wkbk):
     pass
 
 
+# Generates the Billing sheet of a BillingNotifications (or BillingAggregate) workbook for a particular pi_tag.
+# It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_job_tag_cpus, and puts
+# summaries of its results in dict pi_tag_to_charges.
 def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month_timestamp):
 
     global pi_tag_to_charges
@@ -545,12 +526,17 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     fmt = make_format(wkbk, {'font_size' : 16, 'align': 'left', 'valign': 'vcenter'})
     sheet.write(1, 1, "PI: %s, %s" % (pi_last_name, pi_first_name), fmt)
 
+    #
     # Write the Billing Period dates on the fourth row.
-    begin_date = datetime.date.fromtimestamp(begin_month_timestamp)
-    end_date   = datetime.date.fromtimestamp(end_month_timestamp-1)
+    #
+    begin_date_string = from_timestamp_to_date_string(begin_month_timestamp)
 
-    begin_date_string = begin_date.strftime("%m/%d/%Y")
-    end_date_string   = end_date.strftime("%m/%d/%Y")
+    # If we are running this script mid-month, use today's date as the end date for the Billing Period.
+    now_timestamp = time.time()
+    if now_timestamp < end_month_timestamp:
+        end_date_string = from_timestamp_to_date_string(now_timestamp)
+    else:
+        end_date_string = from_timestamp_to_date_string(end_month_timestamp-1)
 
     billing_period_string = "Billing Period: %s - %s" % (begin_date_string, end_date_string)
 
@@ -636,9 +622,12 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, upper_right_border_fmt)
     curr_row += 1
 
+    ###
     #
-    # STORAGE
+    # STORAGE Subtable
     #
+    ###
+
     # Skip line between Breakdown of Charges.
     sheet.write(curr_row, 1, None, left_border_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
@@ -658,7 +647,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_storage_sizes   = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_tb_per_month = get_rates('Storage', billing_config_wkbk)
+    rate_tb_per_month = get_rates(billing_config_wkbk, 'Storage')
 
     for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
         sheet.write(curr_row, 1, folder, item_entry_fmt)
@@ -697,9 +686,12 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, lower_right_border_fmt)
     curr_row += 1
 
+    ###
     #
-    # COMPUTING
+    # COMPUTING Subtable
     #
+    ###
+
     # Skip row before Computing header.
     sheet.write(curr_row, 1, None, left_border_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
@@ -719,7 +711,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_computing_cpuhrs  = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_cpu_per_hour = get_rates('Computing', billing_config_wkbk)
+    rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Computing')
 
     # Get the job details for the users associated with this PI.
     if len(pi_tag_to_username_cpus[pi_tag]) > 0:
@@ -735,6 +727,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
                 total_computing_charges += charge
             else:
                 charge = "No rate"
+
+            # Check if user has accumulated more than $500 in a month.
+            if charge > 500:
+                print "  *** User %s for PI %s: $%0.02f" % (username, pi_tag, charge)
 
             total_computing_cpuhrs += cpu_core_hrs
 
@@ -762,7 +758,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
 
             if rate_cpu_per_hour is not None:
-                charge = cpu_core_hrs * pctage * rate_tb_per_month
+                charge = cpu_core_hrs * pctage * rate_cpu_per_hour
                 total_computing_charges += charge
             else:
                 charge = "No rate"
@@ -819,7 +815,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_consulting_charges = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_consulting_per_hour = get_rates('Bioinformatics Consulting', billing_config_wkbk)
+    rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting')
 
     # TODO: finish this part.
     sheet.write(curr_row, 1, "No consulting", item_entry_fmt)
@@ -881,6 +877,8 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_consulting_charges, total_charges)
 
 
+# Copies the Rates sheet from the Rates sheet in the BillingConfig workbook to
+# a BillingNotification workbook.
 def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
 
     curr_row = 0
@@ -908,7 +906,8 @@ def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
             curr_col += 1
         curr_row += 1
 
-
+# Generates a Computing Details sheet for a BillingNotification workbook with
+# job details associated with a particular PI.  It reads from dict pi_tag_to_sge_job_details.
 def generate_computing_details_sheet(sheet, pi_tag):
 
     # Write the sheet headers.
@@ -918,9 +917,9 @@ def generate_computing_details_sheet(sheet, pi_tag):
         sheet.write(0, curr_col, header, BOLD_FORMAT)
         curr_col += 1
 
-    # Write the job details.
+    # Write the job details, sorted by username.
     curr_row = 1
-    for (date, username, job_name, account, cpu_core_hrs, jobID, pctage) in pi_tag_to_sge_job_details[pi_tag]:
+    for (date, username, job_name, account, cpu_core_hrs, jobID, pctage) in sorted(pi_tag_to_sge_job_details[pi_tag],key=lambda s: s[1]):
 
         sheet.write(curr_row, 0, date, DATE_FORMAT)
         sheet.write(curr_row, 1, username)
@@ -934,6 +933,8 @@ def generate_computing_details_sheet(sheet, pi_tag):
         curr_row += 1
 
 
+# Generates the Lab Users sheet for a BillingNotification workbook with
+# username details for a particular PI.  It reads from dicts pi_tag_to_user_details and username_to_user_details.
 def generate_lab_users_sheet(sheet, pi_tag):
 
     # Write the sheet headers.
@@ -975,6 +976,9 @@ def generate_lab_users_sheet(sheet, pi_tag):
 
         curr_row += 1
 
+
+# Generates the Totals sheet for a BillingAggregate workbook, populating the sheet
+# from the pi_tag_to_charges dict.
 def generate_aggregrate_sheet(sheet):
 
     # Set column widths
@@ -1089,9 +1093,9 @@ else:
 
 # The begin_ and end_month_timestamps are to be used as follows:
 #   date is within the month if begin_month_timestamp <= date < end_month_timestamp
-# Both values should be GMT.
-begin_month_timestamp = int(time.mktime(datetime.date(year, month, 1).timetuple()))
-end_month_timestamp   = int(time.mktime(datetime.date(next_month_year, next_month, 1).timetuple()))
+# Both values should be UTC.
+begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
+end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
 ###
 #
@@ -1146,6 +1150,7 @@ build_global_data(billing_config_wkbk)
 ###
 
 # Open the BillingDetails workbook.
+print "Open BillingDetails workbook."
 billing_details_wkbk = xlrd.open_workbook(billing_details_file)
 
 # Read in its Storage sheet and generate output data.
