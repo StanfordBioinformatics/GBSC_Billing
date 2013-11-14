@@ -249,7 +249,6 @@ def build_global_data(wkbk):
     #
     global pi_tag_list
 
-    print "  Creating PI tag list"
     pi_tag_list = sheet_get_named_column(pis_sheet, "PI Tag")
 
     #
@@ -257,7 +256,6 @@ def build_global_data(wkbk):
     #
     global pi_tag_to_names_email
 
-    print "  Creating PI Tag -> Names, Email dict"
     pi_first_names = sheet_get_named_column(pis_sheet, "PI First Name")
     pi_last_names  = sheet_get_named_column(pis_sheet, "PI Last Name")
     pi_emails      = sheet_get_named_column(pis_sheet, "PI Email")
@@ -271,7 +269,6 @@ def build_global_data(wkbk):
     #
     global username_to_user_details
 
-    print "  Creating username -> user details dict"
     usernames  = sheet_get_named_column(users_sheet, "Username")
     emails     = sheet_get_named_column(users_sheet, "Email")
     full_names = sheet_get_named_column(users_sheet, "Full Name")
@@ -286,7 +283,6 @@ def build_global_data(wkbk):
     #
     global username_to_pi_tag_dates
 
-    print "  Creating username -> PI Tag, Dates dict"
     pi_tags       = sheet_get_named_column(users_sheet, "PI Tag")
     dates_added   = sheet_get_named_column(users_sheet, "Date Added")
     dates_removed = sheet_get_named_column(users_sheet, "Date Removed")
@@ -302,7 +298,6 @@ def build_global_data(wkbk):
     #
     global pi_tag_to_user_details
 
-    print "  Creating PI Tag -> User dates dict"
     for username in username_to_pi_tag_dates:
 
         pi_tag_date_list = username_to_pi_tag_dates[username]
@@ -315,7 +310,6 @@ def build_global_data(wkbk):
     #
     global job_tag_to_pi_tag_pctages
 
-    print "  Creating job tag -> PI Tag, %%ages dict"
     job_tags = sheet_get_named_column(job_tags_sheet, "Job Tag")
     pi_tags  = sheet_get_named_column(job_tags_sheet, "PI Tag")
     pctages  = sheet_get_named_column(job_tags_sheet, "%age")
@@ -330,7 +324,6 @@ def build_global_data(wkbk):
     #
     global folder_to_pi_tag_pctages
 
-    print "  Creating folder -> PI Tag, %%ages dict"
     folders = sheet_get_named_column(folders_sheet, "Folder")
     pi_tags = sheet_get_named_column(folders_sheet, "PI Tag")
     pctages = sheet_get_named_column(folders_sheet, "%age")
@@ -957,7 +950,7 @@ def generate_lab_users_sheet(sheet, pi_tag):
             sheet.write(curr_row, 1, fullname)
             sheet.write(curr_row, 2, email)
             sheet.write(curr_row, 3, date_added, DATE_FORMAT)
-            sheet.write(curr_row, 4, "current member")
+            sheet.write(curr_row, 4, "current")
             curr_row += 1
         else:
             past_user_details.append([username, email, fullname, date_added, date_removed])
@@ -1150,7 +1143,7 @@ build_global_data(billing_config_wkbk)
 ###
 
 # Open the BillingDetails workbook.
-print "Open BillingDetails workbook."
+print "Read in BillingDetails workbook."
 billing_details_wkbk = xlrd.open_workbook(billing_details_file)
 
 # Read in its Storage sheet and generate output data.
