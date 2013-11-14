@@ -62,16 +62,16 @@ BILLING_CONFIG_SHEET_COLUMNS = {
 # Mapping from sheet name to the column headers within that sheet.
 BILLING_DETAILS_SHEET_COLUMNS = OrderedDict((
     ('Storage'   , ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used')),
-    ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID')),
+    ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID')),
     ('Consulting', ('Work Date', 'Item', 'Hours', 'PI')),
-    ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID', 'Reason')),
-    ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock', 'Job ID', 'Failed Code'))
+    ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Reason')),
+    ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Failed Code'))
 ) )
 
 # Mapping from sheet name to the column headers within that sheet.
 BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
     ('Billing'    , () ),  # Billing sheet is not columnar.
-    ('Lab Users'  , ('Username', 'Email', 'Full Name', 'Date Added', 'Date Removed') ),
+    ('Lab Users'  , ('Username', 'Full Name', 'Email', 'Date Added', 'Date Removed') ),
     ('Computing Details' , ('Job Date', 'Username', 'Job Name', 'Job Tag', 'CPU-core Hours', 'Job ID', '%age') ),
     ('Rates'      , ('Type', 'Amount', 'Unit', 'Time' ) )
 ) )
