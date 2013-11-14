@@ -17,7 +17,7 @@
 #   --no_usage:        Don't run the storage usage calculations (only the quotas).
 #   --no_computing:    Don't run the computing calculations.
 #   --no_consulting:   Don't run the consulting calculations.
-#   --scg3:            Add 'scg3' to list of hostname prefixes for billable jobs.
+#   --all_jobs_billable: Consider all jobs to be billable. [default=False]
 #
 # INPUT:
 #   BillingConfig spreadsheet.
@@ -207,6 +207,13 @@ def get_folder_usage(folder, pi_tag):
 # typically the "Computing", "Nonbillable Jobs", and "Failed Jobs" sheets.
 def write_job_details(sheet, job_details):
 
+    # If no job details, write "No Jobs".
+    if len(job_details) == 0:
+        sheet.write(1, 0, "No jobs")
+        print
+        return
+
+    # If we have job details, write them to the sheet, below the headers.
     for row in range(0, len(job_details)):
 
         # Bump rows down below header line.
@@ -252,7 +259,7 @@ def write_job_details(sheet, job_details):
         sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
         if args.verbose: print job_details[row][col],
 
-        # 'Wallclock'
+        # 'Wallclock Secs'
         col += 1
         sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
         if args.verbose: print job_details[row][col],
@@ -444,8 +451,11 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                 if job_failed:
                     failed_job_details.append(job_details + [failed_code])
                 else:
-                    # Job is billable if it ran on hosts starting with one of the BILLABLE_HOSTNAME_PREFIXES.
-                    billable_hostname_prefixes = map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES)
+                    if not args.all_jobs_billable:
+                        # Job is billable if it ran on hosts starting with one of the BILLABLE_HOSTNAME_PREFIXES.
+                        billable_hostname_prefixes = map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES)
+                    else:
+                        billable_hostname_prefixes = [True]
 
                     # If hostname doesn't have a billable prefix, save in an nonbillable list.
                     if not any(billable_hostname_prefixes):
@@ -535,9 +545,9 @@ parser.add_argument("--no_computing", action="store_true",
 parser.add_argument("--no_consulting", action="store_true",
                     default=False,
                     help="Don't run consulting calculations [default = false]")
-parser.add_argument("--scg3", action="store_true",
+parser.add_argument("--all_jobs_billable", action="store_true",
                     default=False,
-                    help="Add SCG3 nodes to output [default = false]")
+                    help="Consider all jobs to be billable [default = false]")
 parser.add_argument("-y","--year", type=int, choices=range(2013,2031),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
@@ -584,10 +594,6 @@ else:
 # Both values should be UTC.
 begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
 end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
-
-# Add the SCG3 prefix to the filter for hostnames.
-if args.scg3:
-    BILLABLE_HOSTNAME_PREFIXES.append('scg3')
 
 #
 # Open the Billing Config workbook.
@@ -639,8 +645,8 @@ if args.no_computing:
     print "  Skipping computing calculations"
 if args.no_consulting:
     print "  Skipping consulting calculations"
-if args.scg3:
-    print "  Including scg3 hosts."
+if args.all_jobs_billable:
+    print "  All jobs billable."
 print "  BillingDetailsFile: %s" % (details_wkbk_pathname)
 print
 
