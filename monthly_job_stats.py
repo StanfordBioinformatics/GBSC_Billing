@@ -53,23 +53,6 @@ import sys
 #
 #=====
 SGE_ACCOUNTING_FILE = "/srv/gs1/software/oge2011.11p1/scg3-oge-new/common/accounting"
-# Mapping from month/year to where data starts in above file.
-SGE_ACCOUNTING_INDEX = OrderedDict(
-    ( ((2012, 10), 0),
-       ((2012, 11), 258961),
-       ((2012, 12), 29172760),
-       ((2013, 1), 56261525),
-       ((2013, 2), 132304934),
-       ((2013, 3), 178580084),
-       ((2013, 4), 614161313),
-       ((2013, 5), 2091555539),
-       ((2013, 6), 2479204288),
-       ((2013, 7), 2697853929),
-       ((2013, 8), 2804120613),
-       ((2013, 9), 2897909091),
-       ((2013, 10), 2990451158),
-       ((2013, 11), 3063743925)
-) )
 
 # OGE accounting failed codes which invalidate the accounting entry.
 # From http://docs.oracle.com/cd/E19080-01/n1.grid.eng6/817-6117/chp11-1/index.html
@@ -115,9 +98,6 @@ parser.add_argument("--print_completed_jobs", action="store_true",
 parser.add_argument("--print_failed_jobs", action="store_true",
                     default=False,
                     help="Print details about failed jobs to STDOUT [default = False]")
-parser.add_argument("--no_index", action="store_true",
-                    default=False,
-                    help="Don't use the built-in accounting index [default = False]")
 parser.add_argument("-a", "--accounting_file",
                     default=SGE_ACCOUNTING_FILE,
                     help='The SGE accounting file to snapshot [default = %s]' % SGE_ACCOUNTING_FILE)
@@ -160,28 +140,6 @@ else:
 # Was this month billable?  (9/2013 or beyond)
 is_billable_month = year > BILLING_FIRST_YEAR or (year == BILLING_FIRST_YEAR and month >= BILLING_FIRST_MONTH)
 
-# If we use the default accounting file, we can mine some data from the hard-coded index above.
-#   Data: earliest month/year, seek_point where month/year's data starts.
-if args.accounting_file == SGE_ACCOUNTING_FILE and not args.no_index:
-
-    # Validate month/year against SGE_ACCOUNTING_INDEX keys to see if we have data for them.
-    (earliest_year, earliest_month) = SGE_ACCOUNTING_INDEX.keys()[0]
-    (latest_year, latest_month)     = SGE_ACCOUNTING_INDEX.keys()[-1]
-
-    # If asking for before earliest, can't help you.
-    if (year < earliest_year) or (year == earliest_year and month < earliest_month):
-        print >> sys.stderr, "Month/year of %d/%d predates data in the accounting file (%d/%d)...exiting." % (month, year, earliest_month, earliest_year)
-        sys.exit(-1)
-
-    # If asking for after latest, use latest as seek point (indexing doesn't always have current ptrs, as the file grows).
-    if (year > latest_year) or (year == latest_year and month > latest_month):
-        sge_accounting_seek_point = SGE_ACCOUNTING_INDEX[(latest_year, latest_month)]
-    else:
-        sge_accounting_seek_point = SGE_ACCOUNTING_INDEX[(year, month)]
-else:
-    # Unknown accounting file: read the whole thing.
-    sge_accounting_seek_point = 0
-
 # The begin_ and end_month_timestamps are to be used as follows:
 #   date is within the month if begin_month_timestamp <= date < end_month_timestamp
 # Both values should be UTC.
@@ -190,9 +148,9 @@ end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 
 
 # Print first lines of upcoming table.
 if args.all_users:
-    print "JOBS RUN BY ALL USERS:"
+    print >> sys.stderr, "JOBS RUN BY ALL USERS:"
 else:
-    print "JOBS RUN BY USER %s:" % (args.user)
+    print >> sys.stderr, "JOBS RUN BY USER %s:" % (args.user)
 if is_billable_month:
     print >> sys.stderr, "MONTH: %02d/%d\tCPU-hrs\tJobs\tCost" % (month, year)
 else:
@@ -204,9 +162,6 @@ else:
 #  which have "end_times" in the given month.
 #
 with open(args.accounting_file, "r") as accounting_input_fp:
-
-    # Seek to point in file that starts data for the month/year (calculated above).
-    accounting_input_fp.seek(sge_accounting_seek_point)
 
     this_month_user_jobs = []
     this_month_failed_jobs = []
