@@ -8,9 +8,6 @@
 # ARGS:
 #   1st: BillingConfig.xlsx file (for Config sheet: location of accounting file)
 #        [optional if --accounting_file given]
-#   2nd: month as number
-#        [optional: if not present, last month will be used.]
-#   3rd: year [optional: if not present, current year will be used.]
 #
 # SWITCHES:
 #   --accounting_file: Location of accounting file (overrides BillingConfig.xlsx)
@@ -61,6 +58,7 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 #=====
 # From billing_common.py
 global SGEACCOUNTING_PREFIX
+global ACCOUNTING_FAILED_CODES
 
 #=====
 #
@@ -215,12 +213,22 @@ for line in accounting_input_fp:
     if line[0] == "#": continue
 
     fields = line.split(':')
+    submission_date = int(fields[8])
     end_date = int(fields[10])
+    failed = int(fields[11])
+
+    # If this job failed, then use its submission_time as the job date.
+    # else use the end_time as the job date.
+    job_failed = failed in ACCOUNTING_FAILED_CODES
+    if job_failed:
+        job_date = submission_date  # No end_date for failed jobs.
+    else:
+        job_date = end_date
 
     # If the end date of this job was within the month,
     #  output it to the new accounting file.
     found_job = False
-    if begin_month_timestamp <= end_date < end_month_timestamp:
+    if begin_month_timestamp <= job_date < end_month_timestamp:
         accounting_output_fp.write(line)
         this_months_job_count += 1
         found_job = True
