@@ -5,10 +5,22 @@
 # gen_notifs.py - Generate billing notifications for each PI for month/year.
 #
 # ARGS:
+#   1st: the BillingConfig spreadsheet.
 #
 # SWITCHES:
+#   --billing_details_file: Location of the BillingDetails.xlsx file (default=look in BillingRoot/<year>/<month>
+#   --accounting_file: Location of accounting file (overrides BillingConfig.xlsx)
+#   --billing_root:    Location of BillingRoot directory (overrides BillingConfig.xlsx)
+#                      [default if no BillingRoot in BillingConfig.xlsx or switch given: CWD]
+#   --year:            Year of snapshot requested. [Default is this year]
+#   --month:           Month of snapshot requested. [Default is last month]
+#   --pi_sheets:       Put Billing sheets from PI-specific BillingNotifications workbooks in
+#                        the BillingAggregate workbook (default=False).
 #
 # OUTPUT:
+#   BillingNotification spreadsheets for each PI
+#     in BillingRoot/<year>/<month>/GBSCBilling-<pi_tag>.<year>-<month>.xlsx
+#   Various messages about current processing status to STDOUT.
 #
 # ASSUMPTIONS:
 #
@@ -46,18 +58,18 @@ global BILLING_NOTIFS_SHEET_COLUMNS
 global BILLING_AGGREG_SHEET_COLUMNS
 global BILLING_NOTIFS_PREFIX
 
+#=====
+#
+# GLOBALS
+#
+#=====
+
 #
 # For make_format(), a data structure to save all the dictionaries and resulting Format objects
 #  which were created for a given workbook.
 #
 # Data Structure: dict with workbooks as keys, and values of [(property_dict, Format)*]
 FORMAT_PROPS_PER_WORKBOOK = defaultdict(list)
-
-#=====
-#
-# GLOBALS
-#
-#=====
 
 #
 # These globals are data structures read in from BillingConfig workbook.
@@ -213,6 +225,7 @@ def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
     sheet_name_to_sheet['Totals'].activate()
 
     return sheet_name_to_sheet
+
 
 # This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
 # for the PIs that the given user was working for on the given date.
