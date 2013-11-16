@@ -2,29 +2,37 @@
 
 #===============================================================================
 #
-# snapshot_accounting.py - Copies the given month/year's SGE accounting data
-#                           into a separate file.
+# monthly_job_stats.py - Prints statistics about a user's job usage for a given month.
 #
 # ARGS:
-#   1st: BillingConfig.xlsx file (for Config sheet: location of accounting file)
-#        [optional if --accounting_file given]
-#   2nd: month as number
-#        [optional: if not present, last month will be used.]
-#   3rd: year [optional: if not present, current year will be used.]
+#   None
 #
 # SWITCHES:
+#   --user:            Username to print statistics for (default=current user).
+#   --all_users:       Analyze jobs for all users (default=False).
+#
+#   --print_billable_jobs:     Print details of billable jobs to STDOUT (default=False).
+#   --print_nonbillable_jobs:  Print details of nonbillable jobs to STDOUT (default=False).
+#   --print_completed_jobs:    Print details of completed jobs to STDOUT (default=False).
+#                                Note: completed jobs are billable jobs + nonbillable jobs.
+#   --print_failed_jobs:       Print details of failed jobs to STDOUT (default=False).
+#
 #   --accounting_file: Location of accounting file (overrides BillingConfig.xlsx)
 #   --billing_root:    Location of BillingRoot directory (overrides BillingConfig.xlsx)
 #                      [default if no BillingRoot in BillingConfig.xlsx or switch: CWD]
+#   --year:            Year of snapshot requested. [Default is this year]
+#   --month:           Month of snapshot requested. [Default is this month]
+
 #
 # OUTPUT:
-#    An accounting file with only entries with submission_dates within the given
-#     month.  This file, named SGEAccounting.<YEAR>-<MONTH>.txt, will be placed in
-#     <BillingRoot>/<YEAR>/<MONTH>/ if BillingRoot is given or in the current
-#     working directory if not.
+#    A table of statistics from the user's jobs for the given month.
+#      Statistics include: CPU-hrs, job count, billable value.
+#      Categories of jobs: billable, nonbillable, failed.
+#    If any of the --print switches are present, lines about the particular
+#      details of the job categories requested.
 #
 # ASSUMPTIONS:
-#    Directory hierarchy <BillingRoot>/<YEAR>/<MONTH>/ already exists.
+#    None
 #
 # AUTHOR:
 #   Keith Bettinger
@@ -100,7 +108,7 @@ parser.add_argument("--print_failed_jobs", action="store_true",
                     help="Print details about failed jobs to STDOUT [default = False]")
 parser.add_argument("-a", "--accounting_file",
                     default=SGE_ACCOUNTING_FILE,
-                    help='The SGE accounting file to snapshot [default = %s]' % SGE_ACCOUNTING_FILE)
+                    help='The SGE accounting file to analyze [default = %s]' % SGE_ACCOUNTING_FILE)
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
@@ -109,7 +117,7 @@ parser.add_argument("-y","--year", type=int, choices=range(2012,2021),
                     help="The year to be filtered out. [default = this year]")
 parser.add_argument("-m", "--month", type=int, choices=range(1,13),
                     default=None,
-                    help="The month to be filtered out. [default = last month]")
+                    help="The month to be filtered out. [default = this month]")
 
 args = parser.parse_args()
 
@@ -227,7 +235,7 @@ if is_billable_month:
 
         (hostname, owner, job_name, job_ID, end_date, slots, wallclock) = job_details
 
-         # Calculate this job's CPUslot-hrs.
+        # Calculate this job's CPUslot-hrs.
         cpu_hrs = slots * wallclock / 3600.0
 
         # Count billable jobs: hostname starts with 'scg1'.
@@ -261,7 +269,7 @@ if is_billable_month:
 
 else:
     # Not a billable month: just return stats on job that ran vs jobs which failed.
-    user_total_cpu_hrs = 0
+    user_completed_cpu_hrs = 0
 
     for job_details in this_month_user_jobs:
 
@@ -270,16 +278,18 @@ else:
         # Calculate this job's CPUslot-hrs.
         cpu_hrs = slots * wallclock / 3600.0
 
-        user_total_cpu_hrs += cpu_hrs
+        user_completed_cpu_hrs += cpu_hrs
 
     user_completed_job_count = len(this_month_user_jobs)
     user_failed_job_count = len(this_month_failed_jobs)
     user_total_job_count = user_completed_job_count + user_failed_job_count
 
+    user_total_cpu_hrs = user_completed_cpu_hrs
+
     #
     # Print rest of output table
     #
-    print >> sys.stderr, " Completed\t%7.1f\t%6d" % (user_total_cpu_hrs, user_total_job_count)
+    print >> sys.stderr, " Completed\t%7.1f\t%6d" % (user_completed_cpu_hrs, user_completed_job_count)
     print >> sys.stderr, " Failed\t\t%7s\t%6d" % ("N/A", user_failed_job_count)
     print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d" % (user_total_cpu_hrs, user_total_job_count)
 
