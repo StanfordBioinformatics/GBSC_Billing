@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+# General script to run a pyc/py script from the same directory as this script.
+#
+# If this file is named 'script', it will try to run 'script.pyc', then 'script.py'.
+#
+
+BILLING_DIR=`dirname $0`
+
+if [ -e $0.pyc ]
+then
+   python $0.pyc $*
+elif [ -e $0.py ]
+then
+   $0.py $*
+else
+   echo "Can't find $0.pyc or $0.py"
+fi
