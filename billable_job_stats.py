@@ -2,7 +2,7 @@
 
 #===============================================================================
 #
-# monthly_job_stats.py - Prints statistics about a user's job usage for a given month.
+# billable_job_stats.py - Prints statistics about a user's job usage for a given month.
 #
 # ARGS:
 #   None
@@ -45,9 +45,7 @@
 #
 #=====
 import calendar
-from collections import OrderedDict
 import datetime
-import time
 import argparse
 import os
 import os.path
@@ -97,9 +95,9 @@ parser.add_argument("--all_users", action="store_true",
 parser.add_argument("--print_billable_jobs", action="store_true",
                     default=False,
                     help="Print details about billable jobs to STDOUT [default = False]")
-parser.add_argument("--print_nonbillable_jobs", action="store_true",
-                    default=False,
-                    help="Print details about nonbillable jobs to STDOUT [default = False]")
+#parser.add_argument("--print_nonbillable_jobs", action="store_true",
+#                    default=False,
+#                    help="Print details about nonbillable jobs to STDOUT [default = False]")
 parser.add_argument("--print_completed_jobs", action="store_true",
                     default=False,
                     help="Print details about completed jobs to STDOUT [default = False]")
@@ -263,9 +261,9 @@ if is_billable_month:
     # Print rest of output table
     #
     print >> sys.stderr, " Billable\t%7.1f\t%6d\t$%0.02f" % (user_billable_cpu_hrs, user_billable_job_count, billable_cost)
-    print >> sys.stderr, " Nonbillable\t%7.1f\t%6d\t%6s" % (user_nonbillable_cpu_hrs, user_nonbillable_job_count, "--")
+    #print >> sys.stderr, " Nonbillable\t%7.1f\t%6d\t%6s" % (user_nonbillable_cpu_hrs, user_nonbillable_job_count, "--")
     print >> sys.stderr, " Failed\t\t%7s\t%6d\t%6s" % ("N/A", user_failed_job_count, "--")
-    print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d\t$%0.02f" % (user_total_cpu_hrs, user_total_job_count, billable_cost)
+    #print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d\t$%0.02f" % (user_total_cpu_hrs, user_total_job_count, billable_cost)
 
 else:
     # Not a billable month: just return stats on job that ran vs jobs which failed.
@@ -300,9 +298,9 @@ if is_billable_month:
     if args.print_billable_jobs or args.print_completed_jobs:
         for job_details in this_month_billable_user_jobs:
             print ':'.join(map(lambda s: str(s), job_details))
-    if args.print_nonbillable_jobs or args.print_completed_jobs:
-        for job_details in this_month_nonbillable_user_jobs:
-            print ':'.join(map(lambda s: str(s), job_details))
+    #if args.print_nonbillable_jobs or args.print_completed_jobs:
+    #    for job_details in this_month_nonbillable_user_jobs:
+    #        print ':'.join(map(lambda s: str(s), job_details))
 else:
     if args.print_completed_jobs:
         for job_details in this_month_user_jobs:
