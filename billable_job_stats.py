@@ -58,6 +58,8 @@ import sys
 # CONSTANTS
 #
 #=====
+NONBILLABLE_JOBS_EXIST = True   # If True, countenance the existance of nonbillable jobs.
+
 SGE_ACCOUNTING_FILE = "/srv/gs1/software/oge2011.11p1/scg3-oge-new/common/accounting"
 
 # OGE accounting failed codes which invalidate the accounting entry.
@@ -89,15 +91,19 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-u","--user",
                     default=USER,
                     help="The user to compute statistics for [default = %s]" % USER)
+parser.add_argument("-j","--job_tag",
+                    default=None,
+                    help="The job tag to compute statistics for [default = None]")
 parser.add_argument("--all_users", action="store_true",
                     default=False,
                     help="Don't filter on users [default = False]")
 parser.add_argument("--print_billable_jobs", action="store_true",
                     default=False,
                     help="Print details about billable jobs to STDOUT [default = False]")
-#parser.add_argument("--print_nonbillable_jobs", action="store_true",
-#                    default=False,
-#                    help="Print details about nonbillable jobs to STDOUT [default = False]")
+if NONBILLABLE_JOBS_EXIST:
+    parser.add_argument("--print_nonbillable_jobs", action="store_true",
+                        default=False,
+                        help="Print details about nonbillable jobs to STDOUT [default = False]")
 parser.add_argument("--print_completed_jobs", action="store_true",
                     default=False,
                     help="Print details about completed jobs to STDOUT [default = False]")
@@ -154,9 +160,15 @@ end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 
 
 # Print first lines of upcoming table.
 if args.all_users:
-    print >> sys.stderr, "JOBS RUN BY ALL USERS:"
+    table_header_str = "JOBS RUN BY ALL USERS"
 else:
-    print >> sys.stderr, "JOBS RUN BY USER %s:" % (args.user)
+    table_header_str = "JOBS RUN BY USER %s" % (args.user)
+
+if args.job_tag is not None:
+    table_header_str += " WITH JOB TAG %s" % (args.job_tag)
+
+print >> sys.stderr, "%s:" % table_header_str
+
 if is_billable_month:
     print >> sys.stderr, "MONTH: %02d/%d\tCPU-hrs\tJobs\tCost" % (month, year)
 else:
@@ -181,6 +193,7 @@ with open(args.accounting_file, "r") as accounting_input_fp:
         owner = fields[3]
         job_name = fields[4]
         job_ID = fields[5]
+        account = fields[6]
         submission_date = int(fields[8])
         end_date = int(fields[10])
         failed = int(fields[11])
@@ -205,13 +218,17 @@ with open(args.accounting_file, "r") as accounting_input_fp:
 
             job_date_string = datetime.datetime.utcfromtimestamp(job_date).strftime("%m/%d/%Y")
 
-            # The job must also be run by the requested user, if all_users not True.
-            if args.all_users or owner == args.user:
+            # The job must be run by the requested user, if all_users not True.
+            correct_user = args.all_users or owner == args.user
+            # The job must match the given job tag, if any.
+            correct_job_tag = args.job_tag is None or account == args.job_tag
+
+            if correct_user and correct_job_tag:
                 if not job_failed:
-                    this_month_user_jobs.append((hostname, owner, job_name, job_ID, job_date_string, slots, wallclock))
+                    this_month_user_jobs.append((hostname, owner, job_name, job_ID, job_date_string, account, slots, wallclock))
                 else:
                     # One more failed job.
-                    this_month_failed_jobs.append((hostname, owner, job_name, job_ID, job_date_string, slots, wallclock, failed))
+                    this_month_failed_jobs.append((hostname, owner, job_name, job_ID, job_date_string, account, slots, wallclock, failed))
 
 
 #
@@ -231,7 +248,7 @@ if is_billable_month:
 
     for job_details in this_month_user_jobs:
 
-        (hostname, owner, job_name, job_ID, end_date, slots, wallclock) = job_details
+        (hostname, owner, job_name, job_ID, job_date, account, slots, wallclock) = job_details
 
         # Calculate this job's CPUslot-hrs.
         cpu_hrs = slots * wallclock / 3600.0
@@ -261,9 +278,11 @@ if is_billable_month:
     # Print rest of output table
     #
     print >> sys.stderr, " Billable\t%7.1f\t%6d\t$%0.02f" % (user_billable_cpu_hrs, user_billable_job_count, billable_cost)
-    #print >> sys.stderr, " Nonbillable\t%7.1f\t%6d\t%6s" % (user_nonbillable_cpu_hrs, user_nonbillable_job_count, "--")
+    if NONBILLABLE_JOBS_EXIST:
+        print >> sys.stderr, " Nonbillable\t%7.1f\t%6d\t%6s" % (user_nonbillable_cpu_hrs, user_nonbillable_job_count, "--")
     print >> sys.stderr, " Failed\t\t%7s\t%6d\t%6s" % ("N/A", user_failed_job_count, "--")
-    #print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d\t$%0.02f" % (user_total_cpu_hrs, user_total_job_count, billable_cost)
+    if NONBILLABLE_JOBS_EXIST:
+        print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d\t$%0.02f" % (user_total_cpu_hrs, user_total_job_count, billable_cost)
 
 else:
     # Not a billable month: just return stats on job that ran vs jobs which failed.
@@ -271,7 +290,7 @@ else:
 
     for job_details in this_month_user_jobs:
 
-        (hostname, owner, job_name, job_ID, end_date, slots, wallclock) = job_details
+        (hostname, owner, job_name, job_ID, job_date, account, slots, wallclock) = job_details
 
         # Calculate this job's CPUslot-hrs.
         cpu_hrs = slots * wallclock / 3600.0
@@ -298,9 +317,10 @@ if is_billable_month:
     if args.print_billable_jobs or args.print_completed_jobs:
         for job_details in this_month_billable_user_jobs:
             print ':'.join(map(lambda s: str(s), job_details))
-    #if args.print_nonbillable_jobs or args.print_completed_jobs:
-    #    for job_details in this_month_nonbillable_user_jobs:
-    #        print ':'.join(map(lambda s: str(s), job_details))
+    if NONBILLABLE_JOBS_EXIST:
+        if args.print_nonbillable_jobs or args.print_completed_jobs:
+            for job_details in this_month_nonbillable_user_jobs:
+                print ':'.join(map(lambda s: str(s), job_details))
 else:
     if args.print_completed_jobs:
         for job_details in this_month_user_jobs:

@@ -144,6 +144,7 @@ def init_billing_details_wkbk(workbook):
 
     return sheet_name_to_sheet
 
+
 # Gets the quota for the given PI tag.
 # Returns a tuple of (size used, quota) with values in Tb, or
 # None if there was a problem parsing the quota command output.
