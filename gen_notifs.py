@@ -662,7 +662,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
         # Calculate charges.
         if rate_tb_per_month is not None:
-            charge = size * rate_tb_per_month
+            charge = size * pctage * rate_tb_per_month
             total_storage_charges += charge
         else:
             charge = "No rate"
