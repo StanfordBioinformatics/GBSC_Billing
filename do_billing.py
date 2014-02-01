@@ -39,8 +39,14 @@ import argparse
 import datetime
 import os
 import os.path
+import stat
 import subprocess
 import sys
+import xlrd
+
+# Simulate an "include billing_common.py".
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 
 #=====
 #
@@ -60,6 +66,8 @@ GEN_NOTIFS_SCRIPT    = "gen_notifs.py"
 # FUNCTIONS
 #
 #=====
+# From billing_common.py
+global read_config_sheet
 
 #=====
 #
@@ -69,9 +77,12 @@ GEN_NOTIFS_SCRIPT    = "gen_notifs.py"
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("billing_config_file",
+parser.add_argument("--billing_config_file",
                     default=None,
                     help='The BillingConfig file [default = None]')
+parser.add_argument("--billing_root",
+                    default=None,
+                    help='The BillingRoot directory [default = None]')
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
@@ -137,8 +148,55 @@ else:
     next_month = 1
     next_month_year = year + 1
 
+# Make little directory hierarchy for year and month.
+year_month_dir = os.path.join(str(year), "%02d" % month)
+
+# Find BillingConfig file and BillingRoot dir if not given.
+if args.billing_config_file is None:
+
+    if args.billing_root is None:
+        # ERROR: Need billing_config_file OR billing_root.
+        parser.exit(-1, "Need either billing_config_file or billing_root")
+
+    else:
+        # Use billing_root given as argument.
+        billing_root = args.billing_root
+
+        # Look for billing_config_file in given billing_root dir.
+        billing_config_file = os.path.join(billing_root,year_month_dir,"BillingConfig.%s-%02d.xlsx" % (year,month))
+
+else:
+    # Use billing_config_file given as argument.
+    billing_config_file = args.billing_config_file
+
+    # Was billing_root given as argument?
+    if args.billing_root is None:
+        # Look in billing_config_file for billing_root.
+        config_wkbk = xlrd.open_workbook(billing_config_file)
+        (billing_root, _) = read_config_sheet(config_wkbk)
+    else:
+        # Use billing_root given as argument
+        billing_root = args.billing_root
+
+
+if not os.path.exists(billing_config_file):
+    # ERROR: Can't find billing_config_file
+    parser.exit(-2, "Can't find billing config file %s" % billing_config_file)
+
+if not os.path.exists(billing_root):
+    # ERROR: Can't find billing_root
+    parser.exit(-3, "Can't find billing root dir %s" % billing_root)
+
+
 # Save year and month arguments, which appear in almost every command.
 year_month_args = ['-y', str(year), '-m', str(month)]
+# Save billing_root argument, now used in every command.
+billing_root_args = ['--billing_root', billing_root]
+
+#
+# Open file for output for all scripts into BillingRoot dir.
+#
+billing_log_file = open(os.path.join(billing_root,year_month_dir,"BillingLog.%d-%02d.txt" % (year,month)), 'w')
 
 ###
 #
@@ -147,19 +205,20 @@ year_month_args = ['-y', str(year), '-m', str(month)]
 ###
 if not args.force:
     check_config_script_path = os.path.join(SCRIPT_DIR, CHECK_CONFIG_SCRIPT)
-    check_config_cmd = [check_config_script_path, args.billing_config_file]
+    check_config_cmd = [check_config_script_path, billing_config_file]
 
     print 'RUNNING CHECK CONFIG:'
-    if args.verbose: print check_config_cmd
+    print >> billing_log_file, 'RUNNING CHECK CONFIG:'
+    if args.verbose: print billing_log_file, check_config_cmd
     try:
-        check_config_output = subprocess.check_output(check_config_cmd, stderr=subprocess.STDOUT)
+        subprocess.check_call(check_config_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as cpe:
-        print >> sys.stderr, "Check config on %s failed (exit %d)" % (args.billing_config_file, cpe.returncode)
+        print >> sys.stderr, "Check config on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
         print >> sys.stderr, " Output: %s" % (cpe.output)
         sys.exit(-1)
 
-    print check_config_output
     print
+    print >> billing_log_file
 
 ###
 #
@@ -167,18 +226,20 @@ if not args.force:
 #
 ###
 snapshot_script_path = os.path.join(SCRIPT_DIR, SNAPSHOT_ACCT_SCRIPT)
-snapshot_cmd = [snapshot_script_path] + year_month_args + ['-c', args.billing_config_file]
+snapshot_cmd = [snapshot_script_path] + year_month_args + billing_root_args + ['-c', billing_config_file]
 
 print "RUNNING SNAPSHOT ACCOUNTING:"
-if args.verbose: print snapshot_cmd
+print >> billing_log_file, "RUNNING SNAPSHOT ACCOUNTING:"
+if args.verbose: print >> billing_log_file, snapshot_cmd
 try:
-    subprocess.check_call(snapshot_cmd, stderr=subprocess.STDOUT)
+    subprocess.check_call(snapshot_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
-    print >> sys.stderr, "Snapshot accounting on %s failed (exit %d)" % (args.billing_config_file, cpe.returncode)
+    print >> sys.stderr, "Snapshot accounting on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
     print >> sys.stderr, " Output: %s" % (cpe.output)
     sys.exit(-1)
 
 print
+print >> billing_log_file
 
 ###
 #
@@ -186,7 +247,7 @@ print
 #
 ###
 details_script_path = os.path.join(SCRIPT_DIR, GEN_DETAILS_SCRIPT)
-details_cmd = [details_script_path] + year_month_args + [args.billing_config_file]
+details_cmd = [details_script_path] + year_month_args + billing_root_args + [billing_config_file]
 
 # Add the switches concerning details.
 if args.no_storage:        details_cmd += ['--no_storage']
@@ -196,15 +257,17 @@ if args.no_consulting:     details_cmd += ['--no_consulting']
 if args.all_jobs_billable: details_cmd += ['--all_jobs_billable']
 
 print "RUNNING GENERATE DETAILS:"
-if args.verbose: print details_cmd
+print >> billing_log_file, "RUNNING GENERATE DETAILS:"
+if args.verbose: print >> billing_log_file, details_cmd
 try:
-    subprocess.check_call(details_cmd, stderr=subprocess.STDOUT)
+    subprocess.check_call(details_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
-    print >> sys.stderr, "Generate Details on %s failed (exit %d)" % (args.billing_config_file, cpe.returncode)
+    print >> sys.stderr, "Generate Details on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
     print >> sys.stderr, " Output: %s" % (cpe.output)
     sys.exit(-1)
 
 print
+print >> billing_log_file
 
 ###
 #
@@ -212,20 +275,36 @@ print
 #
 ###
 notifs_script_path = os.path.join(SCRIPT_DIR, GEN_NOTIFS_SCRIPT)
-notifs_cmd = [notifs_script_path] + year_month_args + [args.billing_config_file]
+notifs_cmd = [notifs_script_path] + year_month_args + billing_root_args + [billing_config_file]
 
 # Add the --pi_sheets switch, if requested.
 if args.pi_sheets: notifs_cmd += ['--pi_sheets']
 
 print "RUNNING GENERATE NOTIFICATIONS:"
-if args.verbose: print notifs_cmd
+print >> billing_log_file, "RUNNING GENERATE NOTIFICATIONS:"
+if args.verbose: print billing_log_file, notifs_cmd
 try:
-    subprocess.check_call(notifs_cmd, stderr=subprocess.STDOUT)
+    notifs_output = subprocess.check_call(notifs_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
-    print >> sys.stderr, "Generate Notifications on %s failed (exit %d)" % (args.billing_config_file, cpe.returncode)
+    print >> sys.stderr, "Generate Notifications on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
     print >> sys.stderr, " Output: %s" % (cpe.output)
     sys.exit(-1)
 
 print
+print >> billing_log_file
+
+###
+#
+# Set all the files in the year/month dir to read-only.
+#
+###
+# Permissions: User: rX, Group: rX, Other: none
+dir_mode  = stat.S_IRUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
+file_mode = stat.S_IRUSR | stat.S_IRGRP
+for root, dirs, files in os.walk(os.path.join(billing_root,year_month_dir)):
+    os.chmod(root, dir_mode)
+    for d in dirs:  os.chmod(os.path.join(root,d), dir_mode)
+    for f in files: os.chmod(os.path.join(root,f), file_mode)
 
 print "BILLING SCRIPTS COMPLETE."
+print >> billing_log_file, "BILLING SCRIPTS COMPLETE."
