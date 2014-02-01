@@ -43,6 +43,7 @@
 #
 #=====
 import argparse
+import collections
 import datetime
 import os
 import os.path
@@ -242,7 +243,7 @@ def write_job_details(sheet, job_details):
 
         # 'Job Name'
         col += 1
-        sheet.write(sheet_row, col, job_details[row][col])
+        sheet.write(sheet_row, col, unicode(job_details[row][col],'utf-8'))
         if args.verbose: print job_details[row][col],
 
         # 'Account'
@@ -293,56 +294,68 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
     quota_bools = sheet_get_named_column(folder_sheet, 'By Quota?')
     dates_added = sheet_get_named_column(folder_sheet, 'Date Added')
 
-    folder_sizes = []
+    # Mapping from folders to [timestamp, total, used].
+    folder_size_dict = collections.OrderedDict()
 
     # Create mapping from folders to space used.
     for (folder, pi_tag, quota_bool, date_added) in zip(folders, pi_tags, quota_bools, dates_added):
+
+        # Skip measuring this folder if we have already done it.
+        if folder_size_dict.get(folder) is not None: continue
 
         # If this folder has been added prior to or within this month, analyze it.
         if end_timestamp > from_excel_date_to_timestamp(date_added):
             if quota_bool == "yes":
                 # Check folder's quota.
+                print "Getting quota for %s" % folder
                 (used, total) = get_folder_quota(folder, pi_tag)
             else:
                 if not args.no_usage:
                     # Check folder's usage.
+                    print "Measuring usage for %s" % folder
                     (used, total) = get_folder_usage(folder, pi_tag)
                 else:
                     # Use null values for no usage data.
+                    print "SKIPPING usage for %s" % folder
                     (used, total) = (0, 0)
 
-            folder_sizes.append([ time.time(), folder, total, used ])
+            folder_size_dict[folder] = [time.time(), total, used ]
         else:
-            print "  *** Excluding %s for PI %s: not active in this month" % (folder, pi_tag)
+            print "  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag)
 
     # Write space-used mapping into details workbook.
-    for row in range(0, len(folder_sizes)):
+    row = 0
+    for folder in folder_size_dict.keys():
 
+        [timestamp, total, used] = folder_size_dict[folder]
         sheet_row = row + 1
 
         # 'Date Measured'
         col = 0
-        storage_sheet.write(sheet_row, col, from_timestamp_to_excel_date(folder_sizes[row][col]), DATE_FORMAT)
+        storage_sheet.write(sheet_row, col, from_timestamp_to_excel_date(timestamp), DATE_FORMAT)
 
         # 'Timestamp'
         col += 1
-        storage_sheet.write(sheet_row, col, folder_sizes[row][col-1])
-        if args.verbose: print folder_sizes[row][col-1],
+        storage_sheet.write(sheet_row, col, timestamp)
+        if args.verbose: print timestamp,
 
         # 'Folder'
         col += 1
-        storage_sheet.write(sheet_row, col, folder_sizes[row][col-1])
-        if args.verbose: print folder_sizes[row][col-1],
+        storage_sheet.write(sheet_row, col, folder)
+        if args.verbose: print folder,
 
         # 'Size'
         col += 1
-        storage_sheet.write(sheet_row, col, folder_sizes[row][col-1], FLOAT_FORMAT)
-        if args.verbose: print folder_sizes[row][col-1],
+        storage_sheet.write(sheet_row, col, total, FLOAT_FORMAT)
+        if args.verbose: print total,
 
         # 'Used'
         col += 1
-        storage_sheet.write(sheet_row, col, folder_sizes[row][col-1], FLOAT_FORMAT)
-        if args.verbose: print folder_sizes[row][col-1]
+        storage_sheet.write(sheet_row, col, used, FLOAT_FORMAT)
+        if args.verbose: print used
+
+        # Next row, please.
+        row += 1
 
 
 # Generates the job details stored in the "Computing", "Nonbillable Jobs", and "Failed Jobs" sheets.
@@ -385,7 +398,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     #  and "owner"s in the list of users.
     #
     not_in_users_list = set()
-    not_in_job_tag_list = set()
+    not_in_job_tag_list = collections.defaultdict(set)
 
     failed_job_details           = []  # Jobs which failed.
     billable_job_details         = []  # Jobs that are on hosts we can bill for.
@@ -422,9 +435,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
             # If this account/job tag is unknown, save details for later output.
             if (accounting_record['account'] not in job_tag_list and
                 accounting_record['account'] not in pi_tag_list):
-                not_in_job_tag_list.add((accounting_record['owner'],
-                                         accounting_record['job_name'],
-                                         accounting_record['account']))
+                not_in_job_tag_list[accounting_record['owner']].add(accounting_record['account'])
 
             job_details.append(accounting_record['account'])
         else:
@@ -488,10 +499,12 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         for user in not_in_users_list:
             print user,
         print
-    if len(not_in_job_tag_list) > 0:
+    if len(not_in_job_tag_list.keys()) > 0:
         print "  *** Jobs with unknown job tags:"
-        for (user, job_name, job_tag) in not_in_job_tag_list:
-            print '   ', user, job_name, job_tag
+        for user in sorted(not_in_job_tag_list.keys()):
+            print '   ', user
+            for job_tag in sorted(not_in_job_tag_list[user]):
+                print '     ', job_tag
 
     # Output the accounting details to the BillingDetails worksheet.
     print "  Outputting accounting details"
