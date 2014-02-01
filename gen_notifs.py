@@ -124,6 +124,7 @@ pi_tag_to_charges = defaultdict(list)
 global from_timestamp_to_excel_date
 global from_excel_date_to_timestamp
 global from_timestamp_to_date_string
+global from_excel_date_to_date_string
 global from_ymd_date_to_timestamp
 global sheet_get_named_column
 global read_config_sheet
@@ -250,7 +251,7 @@ def get_pi_tags_for_username_by_date(username, date_timestamp):
 # Creates all the data structures used to write the BillingNotification workbook.
 # The overall goal is to mimic the tables of the notification sheets so that
 # to build the table, all that is needed is to print out one of these data structures.
-def build_global_data(wkbk):
+def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
     pis_sheet      = wkbk.sheet_by_name("PIs")
     folders_sheet  = wkbk.sheet_by_name("Folders")
@@ -276,6 +277,23 @@ def build_global_data(wkbk):
     pi_details_list = zip(pi_first_names, pi_last_names, pi_emails)
 
     pi_tag_to_names_email = dict(zip(pi_tag_list, pi_details_list))
+
+    #
+    # Filter pi_tag_list for PIs active in the current month.
+    #
+    pi_dates_added = sheet_get_named_column(pis_sheet, "Date Added")
+
+    pi_tags_and_dates_added = zip(pi_tag_list, pi_dates_added)
+
+    for (pi_tag, date_added) in pi_tags_and_dates_added:
+
+        # Convert the Excel date to a timestamp.
+        date_added_timestamp = from_excel_date_to_timestamp(date_added)
+
+        # If the date added is AFTER this month, then remove the pi_tag from the list.
+        if date_added_timestamp > end_month_timestamp:
+            print >> sys.stderr, " *** Ignoring PI %s: added on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added))
+            pi_tag_list.remove(pi_tag)
 
     #
     # Create mapping from usernames to a list of user details.
@@ -1147,7 +1165,7 @@ print
 # Build data structures.
 #
 print "Building configuration data structures."
-build_global_data(billing_config_wkbk)
+build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp)
 
 ###
 #
