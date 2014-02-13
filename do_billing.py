@@ -209,7 +209,7 @@ if not args.force:
 
     print 'RUNNING CHECK CONFIG:'
     print >> billing_log_file, 'RUNNING CHECK CONFIG:'
-    if args.verbose: print billing_log_file, check_config_cmd
+    if args.verbose: print >> billing_log_file, check_config_cmd
     try:
         subprocess.check_call(check_config_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as cpe:
@@ -282,7 +282,7 @@ if args.pi_sheets: notifs_cmd += ['--pi_sheets']
 
 print "RUNNING GENERATE NOTIFICATIONS:"
 print >> billing_log_file, "RUNNING GENERATE NOTIFICATIONS:"
-if args.verbose: print billing_log_file, notifs_cmd
+if args.verbose: print >> billing_log_file, notifs_cmd
 try:
     notifs_output = subprocess.check_call(notifs_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
