@@ -418,18 +418,20 @@ def read_computing_sheet(wkbk):
         # Calculate CPU-core-hrs for job.
         cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
 
-        # If there is a job_tag in the account field, credit the job_tag with the job CPU time.
-        if account != '':
+        # If there is a job_tag in the account field, credit the job_tag with the job CPU time, if known.
+        # Else, credit the user with the job.
+        # TODO: should I print a message if the job_tag is unknown?
+        # TODO:  (gen_details.py already does this...)
+        if account != '' and job_tag_to_pi_tag_pctages.get(account) is not None:
 
+            # Rename this variable for easier understanding.
             job_tag = account
 
             # All PIs have a default job_tag that can be applied to jobs to be billed to them.
             if job_tag in pi_tag_list:
                 job_pi_tag_pctage_list = [[job_tag, 1.0]]
             else:
-                # TODO: should I print a message if the job_tag is unknown?
-                # TODO:  (gen_details.py already does this...)
-                job_pi_tag_pctage_list = job_tag_to_pi_tag_pctages.get(job_tag, [])
+                job_pi_tag_pctage_list = job_tag_to_pi_tag_pctages.get(job_tag)
 
             # Distribute this job's CPU-hrs amongst pi_tags by %ages.
             for (pi_tag, pctage) in job_pi_tag_pctage_list:
