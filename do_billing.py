@@ -156,7 +156,7 @@ if args.billing_config_file is None:
 
     if args.billing_root is None:
         # ERROR: Need billing_config_file OR billing_root.
-        parser.exit(-1, "Need either billing_config_file or billing_root")
+        parser.exit(-1, "Need either billing_config_file or billing_root\n")
 
     else:
         # Use billing_root given as argument.
@@ -175,18 +175,22 @@ else:
         config_wkbk = xlrd.open_workbook(billing_config_file)
         (billing_root, _) = read_config_sheet(config_wkbk)
     else:
-        # Use billing_root given as argument
+        # Use billing_root given as argument.
         billing_root = args.billing_root
 
 
 if not os.path.exists(billing_config_file):
     # ERROR: Can't find billing_config_file
-    parser.exit(-2, "Can't find billing config file %s" % billing_config_file)
+    parser.exit(-2, "Can't find billing config file %s\n" % billing_config_file)
 
 if not os.path.exists(billing_root):
     # ERROR: Can't find billing_root
-    parser.exit(-3, "Can't find billing root dir %s" % billing_root)
+    parser.exit(-3, "Can't find billing root dir %s\n" % billing_root)
 
+# Add the year/month dir hierarchy to billing_root.
+year_month_root = os.path.join(billing_root, year_month_dir)
+if not os.path.exists(year_month_root):
+    os.makedirs(year_month_root, 0770)
 
 # Save year and month arguments, which appear in almost every command.
 year_month_args = ['-y', str(year), '-m', str(month)]
@@ -196,7 +200,7 @@ billing_root_args = ['--billing_root', billing_root]
 #
 # Open file for output for all scripts into BillingRoot dir.
 #
-billing_log_file = open(os.path.join(billing_root,year_month_dir,"BillingLog.%d-%02d.txt" % (year,month)), 'w')
+billing_log_file = open(os.path.join(year_month_root,"BillingLog.%d-%02d.txt" % (year,month)), 'w')
 
 ###
 #
@@ -301,7 +305,7 @@ print >> billing_log_file
 # Permissions: User: rX, Group: rX, Other: none
 dir_mode  = stat.S_IRUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
 file_mode = stat.S_IRUSR | stat.S_IRGRP
-for root, dirs, files in os.walk(os.path.join(billing_root,year_month_dir)):
+for root, dirs, files in os.walk(year_month_root):
     os.chmod(root, dir_mode)
     for d in dirs:  os.chmod(os.path.join(root,d), dir_mode)
     for f in files: os.chmod(os.path.join(root,f), file_mode)
