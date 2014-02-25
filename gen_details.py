@@ -160,6 +160,7 @@ def get_folder_quota(folder, pi_tag):
         quota_output = subprocess.check_output(quota_cmd)
     except subprocess.CalledProcessError as cpe:
         print >> sys.stderr, "Couldn't get quota for %s (exit %d)" % (pi_tag, cpe.returncode)
+        print >> sys.stderr, " Command:", quota_cmd
         print >> sys.stderr, " Output: %s" % (cpe.output)
         return None
 
@@ -191,6 +192,7 @@ def get_folder_usage(folder, pi_tag):
         usage_output = subprocess.check_output(usage_cmd)
     except subprocess.CalledProcessError as cpe:
         print >> sys.stderr, "Couldn't get usage for %s (exit %d)" % (folder, cpe.returncode)
+        print >> sys.stderr, " Command:", usage_cmd
         print >> sys.stderr, " Output: %s" % (cpe.output)
         return None
 
@@ -399,6 +401,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     #
     not_in_users_list = set()
     not_in_job_tag_list = collections.defaultdict(set)
+    both_proj_and_acct_list = collections.defaultdict(set)
 
     failed_job_details           = []  # Jobs which failed.
     billable_job_details         = []  # Jobs that are on hosts we can bill for.
@@ -429,15 +432,44 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         job_details.append(accounting_record['owner'])
         job_details.append(accounting_record['job_name'])
 
-        # Edit out the default account 'sge'.
-        if accounting_record['account'] != 'sge':
+        #
+        # Look for job tags in both account and project fields.
+        # If values occur in both, use the project field and record the discrepancy.
+        #
+        account = accounting_record['account']
+        if account == 'sge':   # Edit out the default account 'sge'.
+            account = None
 
-            # If this account/job tag is unknown, save details for later output.
-            if (accounting_record['account'] not in job_tag_list and
-                accounting_record['account'] not in pi_tag_list):
-                not_in_job_tag_list[accounting_record['owner']].add(accounting_record['account'])
+        project = accounting_record['project']
+        if project == 'NONE':  # Edit out the placeholder project 'NONE'.
+            project = None
 
-            job_details.append(accounting_record['account'])
+        # Add job tag (project/account) info to job_details.
+        job_tag = None
+        if project is not None:
+
+            # If this project is known, use it as the job tag.
+            if project in job_tag_list or project in pi_tag_list:
+                job_tag = project
+
+                # If there's also an account, save details for later output.
+                if account is not None:
+                    # Keep track of the collision.
+                    both_proj_and_acct_list[accounting_record['owner']].add((project,account))
+            else:
+                # If this project/job tag is unknown, save details for later output.
+                not_in_job_tag_list[accounting_record['owner']].add(project)
+
+        elif account is not None:
+
+            # If this account is known, use it as the job tag.
+            if account in job_tag_list or account.lower() in pi_tag_list:
+                job_tag = account
+            else:  # If this account/job tag is unknown, save details for later output.
+                not_in_job_tag_list[accounting_record['owner']].add(account)
+
+        if job_tag is not None:
+            job_details.append(job_tag)
         else:
             job_details.append('')
 
@@ -499,12 +531,20 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         for user in not_in_users_list:
             print user,
         print
+    # Print out list of unknown job tags.
     if len(not_in_job_tag_list.keys()) > 0:
         print "  *** Jobs with unknown job tags:"
         for user in sorted(not_in_job_tag_list.keys()):
             print '   ', user
             for job_tag in sorted(not_in_job_tag_list[user]):
                 print '     ', job_tag
+    # Print out list of jobs with both project and account job tags.
+    if len(both_proj_and_acct_list.keys()) > 0:
+        print "  *** Jobs with both project and account job tags:"
+        for user in sorted(both_proj_and_acct_list.keys()):
+            print '   ', user
+            for (proj, acct) in both_proj_and_acct_list[user]:
+                print '     Project:', proj, 'Account:', acct
 
     # Output the accounting details to the BillingDetails worksheet.
     print "  Outputting accounting details"
