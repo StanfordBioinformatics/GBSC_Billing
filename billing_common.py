@@ -53,7 +53,7 @@ BILLING_NOTIFS_PREFIX = "GBSCBilling"
 BILLING_CONFIG_SHEET_COLUMNS = {
     'Rates'   : ['Type', 'Amount', 'Unit', 'Time'],
     'PIs'     : ['PI First Name', 'PI Last Name', 'PI Tag', 'Group Name', 'PI Email', 'Date Added'],
-    'Folders' : ['Folder', 'PI Tag', '%age', 'By Quota?', 'Date Added'],
+    'Folders' : ['Folder', 'PI Tag', '%age', 'Method', 'Date Added'],
     'Users'   : ['PI Tag', 'Username', 'Email', 'Full Name', 'Date Added', 'Date Removed'],
     'JobTags' : ['Job Tag', 'PI Tag', '%age', 'Date Added'],
     'Config'  : ['Key', 'Value']
@@ -78,7 +78,7 @@ BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
 
 # Mapping from sheet name in BillingAggregate workbook to the column headers within that sheet.
 BILLING_AGGREG_SHEET_COLUMNS = OrderedDict( [
-    ('Totals', ('PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges') )
+    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges') )
 ] )
 
 # OGE accounting file column info:

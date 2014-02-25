@@ -76,7 +76,7 @@ global BILLING_DETAILS_PREFIX
 
 # Commands for determining folder quotas and usages.
 QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
-USAGE_EXECUTABLE = ['sudo', 'du', '-s']
+USAGE_EXECUTABLE = ['du', '-s']
 STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in both above commands.
 
 #
@@ -149,12 +149,18 @@ def init_billing_details_wkbk(workbook):
 # Gets the quota for the given PI tag.
 # Returns a tuple of (size used, quota) with values in Tb, or
 # None if there was a problem parsing the quota command output.
-def get_folder_quota(folder, pi_tag):
+def get_folder_quota(machine, folder, pi_tag):
 
-    print "  Getting folder quota for %s..." % (pi_tag)
+    if args.verbose: print "  Getting folder quota for %s..." % (pi_tag)
 
     # Build and execute the quota command.
-    quota_cmd = QUOTA_EXECUTABLE + ["projects." + pi_tag] + STORAGE_BLOCK_SIZE_ARG + ["gsfs0"]
+    quota_cmd = []
+
+    # Add ssh if this is a remote call.
+    if machine is not None:
+        quota_cmd += ["ssh", machine]
+
+    quota_cmd += QUOTA_EXECUTABLE + ["projects." + pi_tag] + STORAGE_BLOCK_SIZE_ARG + ["gsfs0"]
 
     try:
         quota_output = subprocess.check_output(quota_cmd)
@@ -181,12 +187,21 @@ def get_folder_quota(folder, pi_tag):
 # Gets the usage for the given folder.
 # Returns a tuple of (quota, quota) with values in Tb, or
 # None if there was a problem parsing the usage command output.
-def get_folder_usage(folder, pi_tag):
+def get_folder_usage(machine, folder, pi_tag):
 
-    print "  Getting folder usage of %s..." % (folder)
+    if args.verbose: print "  Getting folder usage of %s..." % (folder)
 
     # Build and execute the quota command.
-    usage_cmd = USAGE_EXECUTABLE + STORAGE_BLOCK_SIZE_ARG + [folder]
+    usage_cmd = []
+
+    # Add ssh if this is a remote call.
+    if machine is not None:
+        usage_cmd += ["ssh", machine]
+    else:
+        # Local du's require sudo.
+        usage_cmd += ["sudo"]
+
+    usage_cmd += USAGE_EXECUTABLE + STORAGE_BLOCK_SIZE_ARG + [folder]
 
     try:
         usage_output = subprocess.check_output(usage_cmd)
@@ -293,7 +308,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
 
     folders     = sheet_get_named_column(folder_sheet, 'Folder')
     pi_tags     = sheet_get_named_column(folder_sheet, 'PI Tag')
-    quota_bools = sheet_get_named_column(folder_sheet, 'By Quota?')
+    quota_bools = sheet_get_named_column(folder_sheet, 'Method')
     dates_added = sheet_get_named_column(folder_sheet, 'Date Added')
 
     # Mapping from folders to [timestamp, total, used].
@@ -307,19 +322,26 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
 
         # If this folder has been added prior to or within this month, analyze it.
         if end_timestamp > from_excel_date_to_timestamp(date_added):
-            if quota_bool == "yes":
+
+            # Split folder into machine:dir components.
+            if folder.find(':') >= 0:
+                (machine, dir) = folder.split(':')
+            else:
+                machine = None
+                dir = folder
+
+            if quota_bool == "quota":
                 # Check folder's quota.
                 print "Getting quota for %s" % folder
-                (used, total) = get_folder_quota(folder, pi_tag)
+                (used, total) = get_folder_quota(machine, dir, pi_tag)
+            elif quota_bool == "usage" and not args.no_usage:
+                # Check folder's usage.
+                print "Measuring usage for %s" % folder
+                (used, total) = get_folder_usage(machine, dir, pi_tag)
             else:
-                if not args.no_usage:
-                    # Check folder's usage.
-                    print "Measuring usage for %s" % folder
-                    (used, total) = get_folder_usage(folder, pi_tag)
-                else:
-                    # Use null values for no usage data.
-                    print "SKIPPING usage for %s" % folder
-                    (used, total) = (0, 0)
+                # Use null values for no usage data.
+                print "SKIPPING measurement for %s" % folder
+                (used, total) = (0, 0)
 
             folder_size_dict[folder] = [time.time(), total, used ]
         else:
