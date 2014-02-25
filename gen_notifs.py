@@ -43,6 +43,7 @@ import sys
 
 import xlrd
 import xlsxwriter
+from xlsxwriter.utility import xl_rowcol_to_cell
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -1013,6 +1014,8 @@ def generate_aggregrate_sheet(sheet):
     sheet.set_column("C:C", 12)
     sheet.set_column("D:D", 12)
     sheet.set_column("E:E", 12)
+    sheet.set_column("F:F", 12)
+    sheet.set_column("G:G", 12)
 
     charge_fmt = make_format(billing_aggreg_wkbk,
                              {'font_size': 10, 'align': 'right',
@@ -1029,16 +1032,40 @@ def generate_aggregrate_sheet(sheet):
     sub_total_consulting = 0.0
     grand_total_charges = 0.0
 
+    # Compute column numbers for various columns.
+    storage_column_num = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Storage')
+    computing_column_num = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Computing')
+    consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting')
+
     curr_row = 1
     for pi_tag in sorted(pi_tag_to_charges.iterkeys()):
 
         (storage, computing, consulting, total_charges) = pi_tag_to_charges[pi_tag]
+        (pi_first_name, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
 
-        sheet.write(curr_row, 0, pi_tag)
-        sheet.write(curr_row, 1, storage, charge_fmt)
-        sheet.write(curr_row, 2, computing, charge_fmt)
-        sheet.write(curr_row, 3, consulting, charge_fmt)
-        sheet.write(curr_row, 4, total_charges, charge_fmt)
+        curr_col = 0
+        sheet.write(curr_row, curr_col, pi_first_name)
+        curr_col += 1
+        sheet.write(curr_row, curr_col, pi_last_name)
+        curr_col += 1
+        sheet.write(curr_row, curr_col, pi_tag)
+        curr_col += 1
+        sheet.write(curr_row, curr_col, storage, charge_fmt)
+        curr_col += 1
+        sheet.write(curr_row, curr_col, computing, charge_fmt)
+        curr_col += 1
+        sheet.write(curr_row, curr_col, consulting, charge_fmt)
+
+        #curr_col += 1
+        #sheet.write(curr_row, curr_col, total_charges, charge_fmt)
+
+        storage_a1_cell = xl_rowcol_to_cell(curr_row, storage_column_num)
+        #computing_a1_cell = xl_rowcol_to_cell(curr_row, computing_column_num)
+        consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
+
+        curr_col += 1
+        sheet.write_formula(curr_row, curr_col, '=SUM(%s:%s)' % (storage_a1_cell, consulting_a1_cell),
+                            charge_fmt, total_charges)
 
         sub_total_storage += storage
         sub_total_computing += computing
@@ -1047,12 +1074,29 @@ def generate_aggregrate_sheet(sheet):
 
         curr_row += 1
 
-    sheet.write(curr_row, 0, "TOTAL")
-    sheet.write(curr_row, 1, sub_total_storage, sub_total_charge_fmt)
-    sheet.write(curr_row, 2, sub_total_computing, sub_total_charge_fmt)
-    sheet.write(curr_row, 3, sub_total_consulting, sub_total_charge_fmt)
-    sheet.write(curr_row, 4, grand_total_charges, grand_charge_fmt)
+    storage_a1_cell = xl_rowcol_to_cell(curr_row, storage_column_num)
+    computing_a1_cell = xl_rowcol_to_cell(curr_row, computing_column_num)
+    consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
 
+    sheet.write(curr_row, 0, "TOTAL")
+    #sheet.write(curr_row, storage_column_num, sub_total_storage, sub_total_charge_fmt)
+    top_storage_a1_cell = xl_rowcol_to_cell(1, storage_column_num)
+    bot_storage_a1_cell = xl_rowcol_to_cell(curr_row - 1, storage_column_num)
+    sheet.write_formula(curr_row, storage_column_num, '=SUM(%s:%s)' % (top_storage_a1_cell, bot_storage_a1_cell),
+                        sub_total_charge_fmt, sub_total_storage)
+    #sheet.write(curr_row, computing_column_num, sub_total_computing, sub_total_charge_fmt)
+    top_computing_a1_cell = xl_rowcol_to_cell(1, computing_column_num)
+    bot_computing_a1_cell = xl_rowcol_to_cell(curr_row - 1, computing_column_num)
+    sheet.write_formula(curr_row, computing_column_num, '=SUM(%s:%s)' % (top_computing_a1_cell, bot_computing_a1_cell),
+                        sub_total_charge_fmt, sub_total_computing)
+    #sheet.write(curr_row, consulting_column_num, sub_total_consulting, sub_total_charge_fmt)
+    top_consulting_a1_cell = xl_rowcol_to_cell(1, consulting_column_num)
+    bot_consulting_a1_cell = xl_rowcol_to_cell(curr_row - 1, consulting_column_num)
+    sheet.write_formula(curr_row, consulting_column_num, '=SUM(%s:%s)' % (top_consulting_a1_cell, bot_consulting_a1_cell),
+                        sub_total_charge_fmt, sub_total_consulting)
+
+    sheet.write_formula(curr_row, 6, '=%s+%s+%s' % (storage_a1_cell, computing_a1_cell, consulting_a1_cell),
+                        grand_charge_fmt, grand_total_charges)
 
 #=====
 #
