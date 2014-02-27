@@ -380,6 +380,35 @@ def get_rates(wkbk, rate_type):
     else:
         return None
 
+def get_rate_a1_cell(wkbk, rate_type):
+
+    rates_sheet = wkbk.sheet_by_name('Rates')
+
+    header_row = rates_sheet.row_values(0)
+
+    # Find the column numbers for 'Type' and 'Amount'.
+    type_col = -1
+    amt_col = -1
+    for idx in range(len(header_row)):
+        if header_row[idx] == 'Type':
+            type_col = idx
+        elif header_row[idx] == 'Amount':
+            amt_col = idx
+
+    if type_col == -1 or amt_col == -1:
+        return None
+
+    # Get column of 'Types'.
+    types = rates_sheet.col_values(type_col, start_rowx=1)
+
+    # When you find the row with rate_type, return the Amount col and this row.
+    for idx in range(len(types)):
+        if types[idx] == rate_type:
+            # +1 is for "GBSC Rates:" above header line, +1 is for header line.
+            return 'Rates!%s' % xl_rowcol_to_cell(idx + 1 + 1, amt_col)
+    else:
+        return None
+
 
 # Reads the Storage sheet of the BillingDetails workbook given, and populates
 # the pi_tag_to_folder_sizes dict with the folder measurements for each PI.
@@ -676,6 +705,8 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # Get the rate from the Rates sheet of the BillingConfig workbook.
     rate_tb_per_month = get_rates(billing_config_wkbk, 'Storage')
 
+    starting_storage_row = curr_row
+    ending_storage_row   = curr_row
     for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
         sheet.write(curr_row, 1, folder, item_entry_fmt)
         sheet.write(curr_row, 2, size, float_entry_fmt)
@@ -690,7 +721,16 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
         total_storage_sizes += size
 
-        sheet.write(curr_row, 4, charge, charge_fmt)
+        #sheet.write(curr_row, 4, charge, charge_fmt)
+
+        size_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
+        pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
+        sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (size_a1_cell, pctage_a1_cell,
+                                                        get_rate_a1_cell(billing_config_wkbk, 'Storage')),
+                            charge_fmt, charge)
+
+        # Keep track of last row with storage values.
+        ending_storage_row = curr_row
 
         # Advance to the next row.
         curr_row += 1
@@ -702,8 +742,20 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Write the Total Storage line.
     sheet.write(curr_row, 1, "Total Storage", bot_header_fmt)
-    sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
-    sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
+    #sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
+    top_sizes_a1_cell = xl_rowcol_to_cell(starting_storage_row, 2)
+    bot_sizes_a1_cell = xl_rowcol_to_cell(ending_storage_row, 2)
+    sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell),
+                        float_entry_fmt, total_storage_sizes)
+    #sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
+    top_charges_a1_cell = xl_rowcol_to_cell(starting_storage_row, 4)
+    bot_charges_a1_cell = xl_rowcol_to_cell(ending_storage_row, 4)
+    sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_charges_a1_cell, bot_charges_a1_cell),
+                        charge_fmt, total_storage_charges)
+
+    # Save reference to this cell for use in Summary subtable.
+    total_storage_charges_a1_cell = xl_rowcol_to_cell(curr_row, 4)
+
     curr_row += 1
 
     # Skip the next line and draw line under this row.
@@ -741,7 +793,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Computing')
 
     # Get the job details for the users associated with this PI.
+    starting_computing_row = curr_row
+    ending_computing_row   = curr_row
     if len(pi_tag_to_username_cpus[pi_tag]) > 0:
+
         for (username, cpu_core_hrs, pctage) in pi_tag_to_username_cpus[pi_tag]:
 
             fullname = username_to_user_details[username][1]
@@ -761,7 +816,16 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
             total_computing_cpuhrs += cpu_core_hrs
 
-            sheet.write(curr_row, 4, charge, charge_fmt)
+            #sheet.write(curr_row, 4, charge, charge_fmt)
+
+            cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
+            pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
+            sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell,
+                                                            get_rate_a1_cell(billing_config_wkbk, 'Computing')),
+                                charge_fmt, charge)
+
+            # Keep track of last row with computing values.
+            ending_computing_row = curr_row
 
             # Advance to the next row.
             curr_row += 1
@@ -792,7 +856,16 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
             total_computing_cpuhrs += cpu_core_hrs
 
-            sheet.write(curr_row, 4, charge, charge_fmt)
+            #sheet.write(curr_row, 4, charge, charge_fmt)
+
+            cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
+            pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
+            sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell,
+                                                            get_rate_a1_cell(billing_config_wkbk, 'Computing')),
+                                charge_fmt, charge)
+
+            # Keep track of last row with computing values.
+            ending_computing_row = curr_row
 
             # Advance to the next row.
             curr_row += 1
@@ -809,8 +882,20 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Write the Total Computing line.
     sheet.write(curr_row, 1, "Total Computing", bot_header_fmt)
-    sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
-    sheet.write(curr_row, 4, total_computing_charges, charge_fmt)
+    #sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
+    top_cpu_a1_cell = xl_rowcol_to_cell(starting_computing_row, 2)
+    bot_cpu_a1_cell = xl_rowcol_to_cell(ending_computing_row, 2)
+    sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_cpu_a1_cell, bot_cpu_a1_cell),
+                        float_entry_fmt, total_computing_cpuhrs)
+    #sheet.write(curr_row, 4, total_computing_charges, charge_fmt)
+    top_charges_a1_cell = xl_rowcol_to_cell(starting_computing_row, 4)
+    bot_charges_a1_cell = xl_rowcol_to_cell(ending_computing_row, 4)
+    sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_charges_a1_cell, bot_charges_a1_cell),
+                        charge_fmt, total_computing_charges)
+
+    # Save reference to this cell for use in Summary subtable.
+    total_computing_charges_a1_cell = xl_rowcol_to_cell(curr_row, 4)
+
     curr_row += 1
 
     # Skip the next line and draw line under this row.
@@ -858,6 +943,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 1, "Total Consulting", bot_header_fmt)
     sheet.write(curr_row, 3, total_consulting_hours, float_entry_fmt)
     sheet.write(curr_row, 4, total_consulting_charges, charge_fmt)
+
+    # Save reference to this cell for use in Summary subtable.
+    total_consulting_charges_a1_cell = xl_rowcol_to_cell(curr_row, 4)
+
     curr_row += 1
 
     # Skip the next line and draw line under this row.
@@ -872,34 +961,46 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     #
 
     # Start the Summary of Charges table on the sixth row.
-    sheet.write(5, 1, "Summary of Charges:", top_header_fmt)
-    sheet.write(5, 2, None, top_border_fmt)
-    sheet.write(5, 3, None, top_border_fmt)
-    sheet.write(5, 4, None, upper_right_border_fmt)
+    curr_row = 5
+    sheet.write(curr_row, 1, "Summary of Charges:", top_header_fmt)
+    sheet.write(curr_row, 2, None, top_border_fmt)
+    sheet.write(curr_row, 3, None, top_border_fmt)
+    sheet.write(curr_row, 4, None, upper_right_border_fmt)
+    curr_row += 1
     # Write the Storage line.
-    sheet.write(6, 1, "Storage", header_no_ul_fmt)
-    sheet.write(6, 2, total_storage_sizes, float_entry_fmt)
-    sheet.write(6, 4, total_storage_charges, big_charge_fmt)
+    sheet.write(curr_row, 1, "Storage", header_no_ul_fmt)
+    sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
+    #sheet.write(curr_row, 4, total_storage_charges, big_charge_fmt)
+    sheet.write_formula(curr_row, 4, '=%s' % total_storage_charges_a1_cell, big_charge_fmt, total_storage_charges)
+    curr_row += 1
     # Write the Computing line.
-    sheet.write(7, 1, "Computing", header_no_ul_fmt)
-    sheet.write(7, 2, total_computing_cpuhrs, float_entry_fmt)
-    sheet.write(7, 4, total_computing_charges, big_charge_fmt)
+    sheet.write(curr_row, 1, "Computing", header_no_ul_fmt)
+    sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
+    #sheet.write(curr_row, 4, total_computing_charges, big_charge_fmt)
+    sheet.write_formula(curr_row, 4, '=%s' % total_computing_charges_a1_cell, big_charge_fmt, total_computing_charges)
+    curr_row += 1
     # Write the Consulting line.
-    sheet.write(8, 1, "Bioinformatics Consulting", header_no_ul_fmt)
-    sheet.write(8, 2, total_consulting_hours, float_entry_fmt)
-    sheet.write(8, 4, total_consulting_charges, big_charge_fmt)
+    sheet.write(curr_row, 1, "Bioinformatics Consulting", header_no_ul_fmt)
+    sheet.write(curr_row, 2, total_consulting_hours, float_entry_fmt)
+    #sheet.write(curr_row, 4, total_consulting_charges, big_charge_fmt)
+    sheet.write_formula(curr_row, 4, '=%s' % total_consulting_charges_a1_cell, big_charge_fmt, total_consulting_charges)
+    curr_row += 1
     # Skip a line.
-    sheet.write(9, 1, None, left_border_fmt)
-    sheet.write(9, 4, None, right_border_fmt)
+    sheet.write(curr_row, 1, None, left_border_fmt)
+    sheet.write(curr_row, 4, None, right_border_fmt)
+    curr_row += 1
     # Write the Grand Total line.
-    sheet.write(10, 1, "Total Charges", bot_header_border_fmt)
-    sheet.write(10, 2, None, bottom_border_fmt)
-    sheet.write(10, 3, None, bottom_border_fmt)
+    sheet.write(curr_row, 1, "Total Charges", bot_header_border_fmt)
+    sheet.write(curr_row, 2, None, bottom_border_fmt)
+    sheet.write(curr_row, 3, None, bottom_border_fmt)
     total_charges = total_storage_charges + total_computing_charges + total_consulting_charges
-    sheet.write(10, 4, total_charges, big_bold_charge_fmt)
+    #sheet.write(curr_row, 4, total_charges, big_bold_charge_fmt)
+    sheet.write_formula(curr_row, 4, '=%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell, total_consulting_charges_a1_cell),
+                        big_bold_charge_fmt, total_charges)
+    curr_row += 1
 
     #
-    # Fill in row in pi_tag -> charges var.
+    # Fill in row in pi_tag -> charges hash.
     #
     pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_consulting_charges, total_charges)
 
