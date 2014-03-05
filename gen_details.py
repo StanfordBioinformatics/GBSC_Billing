@@ -469,25 +469,22 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         # Add job tag (project/account) info to job_details.
         job_tag = None
         if project is not None:
+            job_tag = project
 
-            # If this project is known, use it as the job tag.
-            if project in job_tag_list or project in pi_tag_list:
-                job_tag = project
-
-                # If there's also an account, save details for later output.
-                if account is not None:
-                    # Keep track of the collision.
-                    both_proj_and_acct_list[accounting_record['owner']].add((project,account))
-            else:
-                # If this project/job tag is unknown, save details for later output.
+            # If this project/job tag is unknown, save details for later output.
+            if project not in job_tag_list and project not in pi_tag_list:
                 not_in_job_tag_list[accounting_record['owner']].add(project)
 
-        elif account is not None:
+            # If there's also an account, save details for later output.
+            if account is not None:
+                # Keep track of the collision.
+                both_proj_and_acct_list[accounting_record['owner']].add((project,account))
 
-            # If this account is known, use it as the job tag.
-            if account in job_tag_list or account.lower() in pi_tag_list:
-                job_tag = account
-            else:  # If this account/job tag is unknown, save details for later output.
+        elif account is not None:
+            job_tag = account
+
+            # If this account/job tag is unknown, save details for later output.
+            if account not in job_tag_list and account.lower() not in pi_tag_list:
                 not_in_job_tag_list[accounting_record['owner']].add(account)
 
         if job_tag is not None:
@@ -510,28 +507,36 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         #  examine it.
         if begin_timestamp <= job_date < end_timestamp:
 
+            # Is the job's node billable?
+            if not args.all_jobs_billable:
+                # Job is billable if it ran on hosts starting with one of the BILLABLE_HOSTNAME_PREFIXES.
+                billable_hostname_prefixes = map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES)
+            else:
+                billable_hostname_prefixes = [True]
+            job_node_is_billable = any(billable_hostname_prefixes)
+
             # Do we know this job's user?
-            if accounting_record['owner'] in users_list:
+            job_user_is_known = accounting_record['owner'] in users_list
+            # If not, save the username in an unknown-user list.
+            if not job_user_is_known:
+                # Save unknown user and job details in unknown user lists.
+                not_in_users_list.add(accounting_record['owner'])
+
+            # If we know the user or the job has a job tag,...
+            if job_user_is_known or job_tag is not None:
 
                 # If job failed, save in Failed job list.
                 if job_failed:
                     failed_job_details.append(job_details + [failed_code])
                 else:
-                    if not args.all_jobs_billable:
-                        # Job is billable if it ran on hosts starting with one of the BILLABLE_HOSTNAME_PREFIXES.
-                        billable_hostname_prefixes = map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES)
-                    else:
-                        billable_hostname_prefixes = [True]
-
                     # If hostname doesn't have a billable prefix, save in an nonbillable list.
-                    if not any(billable_hostname_prefixes):
+                    if not job_node_is_billable:
                         nonbillable_node_job_details.append(job_details + ['Nonbillable Node'])
                     else:
                         billable_job_details.append(job_details)
 
             else:
-                # Save unknown user and job details in unknown user lists.
-                not_in_users_list.add(accounting_record['owner'])
+                # Save the job details in an unknown-user list.
                 unknown_user_job_details.append(job_details + ['Unknown User'])
 
         else:

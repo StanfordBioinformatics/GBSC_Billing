@@ -448,20 +448,24 @@ def read_computing_sheet(wkbk):
         # Calculate CPU-core-hrs for job.
         cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
 
-        # If there is a job_tag in the account field, credit the job_tag with the job CPU time, if known.
-        # Else, credit the user with the job.
-        # TODO: should I print a message if the job_tag is unknown?
-        # TODO:  (gen_details.py already does this...)
-        if account != '' and job_tag_to_pi_tag_pctages.get(account) is not None:
+        # Rename this variable for easier understanding.
+        job_tag = account
 
-            # Rename this variable for easier understanding.
-            job_tag = account
+        # If there is a job_tag in the account field and the job tag is known, credit the job_tag with the job CPU time.
+        # Else, credit the user with the job.
+        if (job_tag != '' and
+            (job_tag_to_pi_tag_pctages.get(job_tag) is not None or job_tag.lower() in pi_tag_list)):
 
             # All PIs have a default job_tag that can be applied to jobs to be billed to them.
-            if job_tag in pi_tag_list:
+            if job_tag.lower() in pi_tag_list:
+                job_tag = job_tag.lower()
                 job_pi_tag_pctage_list = [[job_tag, 1.0]]
             else:
-                job_pi_tag_pctage_list = job_tag_to_pi_tag_pctages.get(job_tag)
+                job_pi_tag_pctage_list = job_tag_to_pi_tag_pctages[job_tag]
+
+            # If no pi_tag is associated with this job tag, speak up.
+            if len(job_pi_tag_pctage_list) == 0:
+                print "   No PI associated with job ID %s" % jobID
 
             # Distribute this job's CPU-hrs amongst pi_tags by %ages.
             for (pi_tag, pctage) in job_pi_tag_pctage_list:
@@ -498,6 +502,9 @@ def read_computing_sheet(wkbk):
         else:
             pi_tag_pctages = get_pi_tags_for_username_by_date(job_username, job_timestamp)
 
+            if len(pi_tag_pctages) == 0:
+                print "   No PI associated with user %s" % job_username
+
             for (pi_tag, pctage) in pi_tag_pctages:
 
                 if pctage == 0.0: continue
@@ -531,7 +538,6 @@ def read_computing_sheet(wkbk):
                 # Save job details for pi_tag.
                 #
                 new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
-
                 pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
 
 
@@ -831,7 +837,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             curr_row += 1
     else:
         # No users for this PI.
-        sheet.write(curr_row, 1, "No jobs", item_entry_fmt)
+        sheet.write(curr_row, 1, "No users with jobs", item_entry_fmt)
         sheet.write(curr_row, 4, 0.0, charge_fmt)
         curr_row += 1
 
