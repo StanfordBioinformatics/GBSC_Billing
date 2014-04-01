@@ -39,6 +39,7 @@ import argparse
 import datetime
 import os
 import os.path
+import shutil
 import stat
 import subprocess
 import sys
@@ -163,7 +164,7 @@ if args.billing_config_file is None:
         billing_root = args.billing_root
 
         # Look for billing_config_file in given billing_root dir.
-        billing_config_file = os.path.join(billing_root,year_month_dir,"BillingConfig.%s-%02d.xlsx" % (year,month))
+        billing_config_file = os.path.join(billing_root,"BillingConfig.xlsx")
 
 else:
     # Use billing_config_file given as argument.
@@ -191,6 +192,11 @@ if not os.path.exists(billing_root):
 year_month_root = os.path.join(billing_root, year_month_dir)
 if not os.path.exists(year_month_root):
     os.makedirs(year_month_root, 0770)
+
+# Copy billing config file into year_month_root, unless they are the same file.
+billing_config_file_copy = os.path.join(billing_root,year_month_dir,"BillingConfig.%s-%02d.xlsx" % (year,month))
+if billing_config_file != billing_config_file_copy:
+    shutil.copyfile(billing_config_file, billing_config_file_copy)
 
 # Save year and month arguments, which appear in almost every command.
 year_month_args = ['-y', str(year), '-m', str(month)]
