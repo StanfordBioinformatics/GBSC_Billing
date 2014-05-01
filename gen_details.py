@@ -310,18 +310,21 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
     pi_tags     = sheet_get_named_column(folder_sheet, 'PI Tag')
     quota_bools = sheet_get_named_column(folder_sheet, 'Method')
     dates_added = sheet_get_named_column(folder_sheet, 'Date Added')
+    dates_remvd = sheet_get_named_column(folder_sheet, 'Date Removed')
 
     # Mapping from folders to [timestamp, total, used].
     folder_size_dict = collections.OrderedDict()
 
     # Create mapping from folders to space used.
-    for (folder, pi_tag, quota_bool, date_added) in zip(folders, pi_tags, quota_bools, dates_added):
+    for (folder, pi_tag, quota_bool, date_added, date_removed) in zip(folders, pi_tags, quota_bools, dates_added, dates_remvd):
 
         # Skip measuring this folder if we have already done it.
         if folder_size_dict.get(folder) is not None: continue
 
-        # If this folder has been added prior to or within this month, analyze it.
-        if end_timestamp > from_excel_date_to_timestamp(date_added):
+        # If this folder has been added prior to or within this month
+        # and has not been removed before the beginning of this month, analyze it.
+        if (end_timestamp > from_excel_date_to_timestamp(date_added) and
+            (date_removed == '' or begin_timestamp < from_excel_date_to_timestamp(date_removed)) ):
 
             # Split folder into machine:dir components.
             if folder.find(':') >= 0:
@@ -343,7 +346,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
                 print "SKIPPING measurement for %s" % folder
                 (used, total) = (0, 0)
 
-            folder_size_dict[folder] = [time.time(), total, used ]
+            folder_size_dict[folder] = [time.time(), total, used]
         else:
             print "  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag)
 
@@ -466,27 +469,47 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         if project == 'NONE':  # Edit out the placeholder project 'NONE'.
             project = None
 
+        #
         # Add job tag (project/account) info to job_details.
+        #
         job_tag = None
         if project is not None:
-            job_tag = project
 
-            # If this project/job tag is unknown, save details for later output.
-            if project not in job_tag_list and project not in pi_tag_list:
+            # The project is a valid job tag if it is either in the job_tag_list
+            #  or the pi_tag_list.
+            project_is_valid_job_tag = (project in job_tag_list or project in pi_tag_list)
+
+            if not project_is_valid_job_tag:
+                # If this project/job tag is unknown, save details for later output.
                 not_in_job_tag_list[accounting_record['owner']].add(project)
+        else:
+            project_is_valid_job_tag = False
 
-            # If there's also an account, save details for later output.
-            if account is not None:
-                # Keep track of the collision.
-                both_proj_and_acct_list[accounting_record['owner']].add((project,account))
+        if account is not None:
 
-        elif account is not None:
-            job_tag = account
+            # The account is a valid job tag if it is either in the job_tag_list
+            #  or the pi_tag_list.
+            account_is_valid_job_tag = (account in job_tag_list or account.lower() in pi_tag_list)
 
-            # If this account/job tag is unknown, save details for later output.
-            if account not in job_tag_list and account.lower() not in pi_tag_list:
+            if not account_is_valid_job_tag:
+                # If this account/job tag is unknown, save details for later output.
                 not_in_job_tag_list[accounting_record['owner']].add(account)
 
+        else:
+            account_is_valid_job_tag = False
+
+        # Decide which of project and account will be used for job tag.
+        if project_is_valid_job_tag:
+
+            # If there's both a project and an account, choose the project and save details for later output.
+            job_tag = project
+            if account_is_valid_job_tag:
+                both_proj_and_acct_list[accounting_record['owner']].add((project,account))
+
+        elif account_is_valid_job_tag:
+            job_tag = account
+
+        # Add the computed job_tag to the job_details, if any.
         if job_tag is not None:
             job_details.append(job_tag)
         else:
