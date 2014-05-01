@@ -282,18 +282,31 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     #
     # Filter pi_tag_list for PIs active in the current month.
     #
-    pi_dates_added = sheet_get_named_column(pis_sheet, "Date Added")
+    pi_dates_added   = sheet_get_named_column(pis_sheet, "Date Added")
+    pi_dates_removed = sheet_get_named_column(pis_sheet, "Date Removed")
 
-    pi_tags_and_dates_added = zip(pi_tag_list, pi_dates_added)
+    pi_tags_and_dates_added = zip(pi_tag_list, pi_dates_added, pi_dates_removed)
 
-    for (pi_tag, date_added) in pi_tags_and_dates_added:
+    for (pi_tag, date_added, date_removed) in pi_tags_and_dates_added:
 
-        # Convert the Excel date to a timestamp.
-        date_added_timestamp = from_excel_date_to_timestamp(date_added)
+        # Convert the Excel dates to timestamps.
+        date_added_timestamp   = from_excel_date_to_timestamp(date_added)
+        if date_removed != '':
+            date_removed_timestamp = from_excel_date_to_timestamp(date_removed)
+        else:
+            date_removed_timestamp = end_month_timestamp + 1  # Not in this month.
 
-        # If the date added is AFTER this month, then remove the pi_tag from the list.
+        # If the date added is AFTER the end of this month, or
+        #  the date removed is BEFORE the beginning of this month,
+        # then remove the pi_tag from the list.
         if date_added_timestamp > end_month_timestamp:
-            print >> sys.stderr, " *** Ignoring PI %s: added on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added))
+
+            print >> sys.stderr, " *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added))
+            pi_tag_list.remove(pi_tag)
+
+        elif date_removed_timestamp < begin_month_timestamp:
+
+            print >> sys.stderr, " *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_removed))
             pi_tag_list.remove(pi_tag)
 
     #
@@ -1401,3 +1414,14 @@ if args.pi_sheets:
                                pi_tag, begin_month_timestamp, end_month_timestamp)
 
 billing_aggreg_wkbk.close()
+
+###
+#
+# Output some summary statistics.
+#
+###
+total_jobs_billed = 0
+for pi_tag in pi_tag_list:
+    total_jobs_billed += len(pi_tag_to_sge_job_details[pi_tag])
+
+print "Total Jobs Billed:", total_jobs_billed
