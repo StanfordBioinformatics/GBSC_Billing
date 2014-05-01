@@ -52,10 +52,10 @@ BILLING_NOTIFS_PREFIX = "GBSCBilling"
 #
 BILLING_CONFIG_SHEET_COLUMNS = {
     'Rates'   : ['Type', 'Amount', 'Unit', 'Time'],
-    'PIs'     : ['PI First Name', 'PI Last Name', 'PI Tag', 'Group Name', 'PI Email', 'Date Added'],
-    'Folders' : ['Folder', 'PI Tag', '%age', 'Method', 'Date Added'],
+    'PIs'     : ['PI First Name', 'PI Last Name', 'PI Tag', 'Group Name', 'PI Email', 'Date Added', 'Date Removed'],
+    'Folders' : ['Folder', 'PI Tag', '%age', 'Method', 'Date Added', 'Date Removed'],
     'Users'   : ['PI Tag', 'Username', 'Email', 'Full Name', 'Date Added', 'Date Removed'],
-    'JobTags' : ['Job Tag', 'PI Tag', '%age', 'Date Added'],
+    'JobTags' : ['Job Tag', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
     'Config'  : ['Key', 'Value']
 }
 
