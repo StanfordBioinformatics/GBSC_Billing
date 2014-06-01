@@ -145,6 +145,20 @@ def init_billing_details_wkbk(workbook):
 
     return sheet_name_to_sheet
 
+# Deduces the fileset that a folder being measured by quota lives in.
+def get_device_and_fileset_from_folder(folder):
+
+    # Find the two path elements after "/srv/gsfs0/".
+    path_elts = os.path.normpath(folder).split(os.path.sep)
+
+    if (len(path_elts) >= 5 and
+        path_elts[0] == '' and
+        path_elts[1] == 'srv'):
+
+        return (path_elts[2], "%s.%s" % (path_elts[3], path_elts[4]))
+    else:
+        return None
+
 
 # Gets the quota for the given PI tag.
 # Returns a tuple of (size used, quota) with values in Tb, or
@@ -160,7 +174,16 @@ def get_folder_quota(machine, folder, pi_tag):
     if machine is not None:
         quota_cmd += ["ssh", machine]
 
-    quota_cmd += QUOTA_EXECUTABLE + ["projects." + pi_tag] + STORAGE_BLOCK_SIZE_ARG + ["gsfs0"]
+    # Find the fileset to get the quota of, from the folder name.
+    device_and_fileset = get_device_and_fileset_from_folder(folder)
+    if device_and_fileset is None:
+        print >> sys.stderr, "ERROR: No fileset for folder %s; ignoring..."
+        return None
+
+    (device, fileset) = device_and_fileset
+
+    # Build the quota command from the assembled arguments.
+    quota_cmd += QUOTA_EXECUTABLE + [fileset] + STORAGE_BLOCK_SIZE_ARG + [device]
 
     try:
         quota_output = subprocess.check_output(quota_cmd)
