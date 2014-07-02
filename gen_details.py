@@ -221,8 +221,11 @@ def get_folder_usage(machine, folder, pi_tag):
     # Add ssh if this is a remote call.
     if machine is not None:
         usage_cmd += ["ssh", machine]
+    else:
+        # Local du's require sudo.
+        usage_cmd += ["sudo"]
 
-    usage_cmd += ["sudo"] + USAGE_EXECUTABLE + STORAGE_BLOCK_SIZE_ARG + [folder]
+    usage_cmd += USAGE_EXECUTABLE + STORAGE_BLOCK_SIZE_ARG + [folder]
 
     try:
         usage_output = subprocess.check_output(usage_cmd)
