@@ -99,7 +99,7 @@ ACCOUNTING_FIELDS = (
 ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,26,27,28)
 
 # List of hostname prefixes to use for billing purposes.
-BILLABLE_HOSTNAME_PREFIXES = ['scg1']
+BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1']
 
 
 #=====
@@ -160,3 +160,9 @@ def from_excel_date_to_date_string(excel_date):
 
 def from_ymd_date_to_timestamp(year, month, day):
     return int(calendar.timegm(datetime.date(year, month, day).timetuple()))
+
+#
+# This function removes the Unicode characters from a string.
+#
+def remove_unicode_chars(s):
+    return "".join(i for i in s if ord(i)<128)
