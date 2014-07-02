@@ -58,7 +58,7 @@ import sys
 # CONSTANTS
 #
 #=====
-NONBILLABLE_JOBS_EXIST = True   # If True, countenance the existance of nonbillable jobs.
+NONBILLABLE_JOBS_EXIST = True   # If True, countenance the existence of nonbillable jobs.
 
 SGE_ACCOUNTING_FILE = "/srv/gs1/software/oge2011.11p1/scg3-oge-new/common/accounting"
 
@@ -254,7 +254,7 @@ if is_billable_month:
         cpu_hrs = slots * wallclock / 3600.0
 
         # Count billable jobs: hostname starts with 'scg1'.
-        if hostname.startswith('scg1'):
+        if hostname.startswith('scg1') or hostname.startswith('scg3-1'):
             this_month_billable_user_jobs.append(job_details)
             user_billable_cpu_hrs += cpu_hrs
         else:
