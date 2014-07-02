@@ -104,6 +104,7 @@ global from_excel_date_to_timestamp
 global from_timestamp_to_date_string
 global from_excel_date_to_date_string
 global from_ymd_date_to_timestamp
+global remove_unicode_chars
 
 # Initialize the output BillingDetails workbook, given as argument.
 # It creates all the formats used within the workbook, and saves them
@@ -484,11 +485,11 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         # Look for job tags in both account and project fields.
         # If values occur in both, use the project field and record the discrepancy.
         #
-        account = accounting_record['account']
+        account = remove_unicode_chars(accounting_record['account'])
         if account == 'sge':   # Edit out the default account 'sge'.
             account = None
 
-        project = accounting_record['project']
+        project = remove_unicode_chars(accounting_record['project'])
         if project == 'NONE':  # Edit out the placeholder project 'NONE'.
             project = None
 
