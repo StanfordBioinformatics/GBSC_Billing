@@ -90,13 +90,13 @@ ACCOUNTING_FIELDS = (
     'ru_maxrss', 'ru_ixrss', 'ru_ismrss', 'ru_idrss', 'ru_isrss', 'ru_minflt', 'ru_majflt',  # Fields 16-22
     'ru_nswap', 'ru_inblock', 'ru_oublock', 'ru_msgsnd', 'ru_msgrcv', 'ru_nsignals',  # Fields 23-28
     'ru_nvcsw', 'ru_nivcsw', 'project', 'department', 'granted_pe', 'slots',  # Fields 29-34
-    'task_number', 'cpu', 'mem', 'category', 'iow', 'pe_taskid', 'max_vmem', 'arid',  # Fields 35-42
-    'ar_submission_time'                                                    # Field 43
+    'task_number', 'cpu', 'mem', 'io', 'category', 'iow', 'pe_taskid', 'max_vmem', 'arid',  # Fields 35-43
+    'ar_submission_time'                                                    # Field 44
 )
 
 # OGE accounting failed codes which invalidate the accounting entry.
-# From http://docs.oracle.com/cd/E19080-01/n1.grid.eng6/817-6117/chp11-1/index.html
-ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,26,27,28)
+# From https://arc.liv.ac.uk/SGE/htmlman/htmlman5/sge_status.html
+ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,18,19,20,21,26,27,28,29,36,38)
 
 # List of hostname prefixes to use for billing purposes.
 BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1']
