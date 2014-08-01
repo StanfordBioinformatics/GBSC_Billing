@@ -550,9 +550,9 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         job_details.append(int(accounting_record['ru_wallclock']))
         job_details.append(int(accounting_record['job_number']))
 
-        # If the end date of this job was within the month,
+        # If the end date of this job was within the month or we aren't reading job timestamps,
         #  examine it.
-        if begin_timestamp <= job_date < end_timestamp:
+        if (args.ignore_job_timestamps or begin_timestamp <= job_date < end_timestamp):
 
             # Is the job's node billable?
             if not args.all_jobs_billable:
@@ -676,6 +676,9 @@ parser.add_argument("--no_consulting", action="store_true",
 parser.add_argument("--all_jobs_billable", action="store_true",
                     default=False,
                     help="Consider all jobs to be billable [default = false]")
+parser.add_argument("-i", "--ignore_job_timestamps", action="store_true",
+                    default=False,
+                    help="Ignore timestamps in job (and allow jobs not in month selected) [default = false]")
 parser.add_argument("-y","--year", type=int, choices=range(2013,2031),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
