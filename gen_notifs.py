@@ -299,7 +299,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
         # If the date added is AFTER the end of this month, or
         #  the date removed is BEFORE the beginning of this month,
         # then remove the pi_tag from the list.
-        if date_added_timestamp > end_month_timestamp:
+        if date_added_timestamp >= end_month_timestamp:
 
             print >> sys.stderr, " *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added))
             pi_tag_list.remove(pi_tag)
