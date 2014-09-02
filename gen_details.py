@@ -152,11 +152,11 @@ def get_device_and_fileset_from_folder(folder):
     # Find the two path elements after "/srv/gsfs0/".
     path_elts = os.path.normpath(folder).split(os.path.sep)
 
-    if (len(path_elts) >= 5 and
+    if (len(path_elts) >= 4 and
         path_elts[0] == '' and
         path_elts[1] == 'srv'):
 
-        return (path_elts[2], "%s.%s" % (path_elts[3], path_elts[4]))
+        return (path_elts[2], ".".join(path_elts[3:5]))
     else:
         return None
 
