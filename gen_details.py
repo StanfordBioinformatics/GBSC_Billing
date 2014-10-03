@@ -522,16 +522,39 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         else:
             account_is_valid_job_tag = False
 
+        #
         # Decide which of project and account will be used for job tag.
+        #
+
+        # If project is valid, choose project for job tag.
         if project_is_valid_job_tag:
 
             # If there's both a project and an account, choose the project and save details for later output.
             job_tag = project
-            if account_is_valid_job_tag:
+            if account is not None:
                 both_proj_and_acct_list[accounting_record['owner']].add((project,account))
 
-        elif account_is_valid_job_tag:
+        # Else if project is present and account is not valid, choose project for job tag.
+        # (Non valid project trumps non-valid account).
+        elif project is not None and not account_is_valid_job_tag:
+
+            # If there's both a project and an account, choose the project and save details for later output.
+            job_tag = project
+            if account is not None:
+                both_proj_and_acct_list[accounting_record['owner']].add((project,account))
+
+        # Else if account is present, choose account for job tag.
+        # (either account is valid and the project is non-valid, or there is no project).
+        elif account is not None:
             job_tag = account
+
+            # If there's both an account and a project, save the details for later output.
+            if project is not None:
+                both_proj_and_acct_list[accounting_record['owner']].add((project,account))
+
+        # else No project and No account = No job tag.
+        else:
+            job_tag = None
 
         # Add the computed job_tag to the job_details, if any.
         if job_tag is not None:
@@ -670,9 +693,9 @@ parser.add_argument("--no_usage", action="store_true",
 parser.add_argument("--no_computing", action="store_true",
                     default=False,
                     help="Don't run computing calculations [default = false]")
-parser.add_argument("--no_consulting", action="store_true",
-                    default=False,
-                    help="Don't run consulting calculations [default = false]")
+#parser.add_argument("--no_consulting", action="store_true",
+#                    default=False,
+#                    help="Don't run consulting calculations [default = false]")
 parser.add_argument("--all_jobs_billable", action="store_true",
                     default=False,
                     help="Consider all jobs to be billable [default = false]")
@@ -774,8 +797,8 @@ if args.no_storage:
     print "  Skipping storage calculations"
 if args.no_computing:
     print "  Skipping computing calculations"
-if args.no_consulting:
-    print "  Skipping consulting calculations"
+#if args.no_consulting:
+#    print "  Skipping consulting calculations"
 if args.all_jobs_billable:
     print "  All jobs billable."
 print "  BillingDetailsFile: %s" % (details_wkbk_pathname)
@@ -799,9 +822,9 @@ if not args.no_computing:
 #
 # Compute consulting charges.
 #
-if not args.no_consulting:
-    compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp,
-                               sheet_name_to_sheet['Consulting'])
+# if not args.no_consulting:
+#     compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp,
+#                                sheet_name_to_sheet['Consulting'])
 
 #
 # Close the output workbook and write the .xlsx file.

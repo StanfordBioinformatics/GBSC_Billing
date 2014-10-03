@@ -63,7 +63,7 @@ BILLING_CONFIG_SHEET_COLUMNS = {
 BILLING_DETAILS_SHEET_COLUMNS = OrderedDict((
     ('Storage'   , ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used')),
     ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID')),
-    ('Consulting', ('Work Date', 'Item', 'Hours', 'PI')),
+#    ('Consulting', ('Work Date', 'Item', 'Hours', 'PI')),
     ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Reason')),
     ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Failed Code'))
 ) )
@@ -78,7 +78,8 @@ BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
 
 # Mapping from sheet name in BillingAggregate workbook to the column headers within that sheet.
 BILLING_AGGREG_SHEET_COLUMNS = OrderedDict( [
-    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges') )
+    #('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges') )
+    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Total Charges') )
 ] )
 
 # OGE accounting file column info:
@@ -101,6 +102,8 @@ ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,18,19,20,21,26,27,28,29,36,38)
 # List of hostname prefixes to use for billing purposes.
 BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1']
 
+# Beginning of billing process.
+EARLIEST_VALID_DATE_TIMESTAMP = 1377993600  # 9/1/13 00:00:00 GMT
 
 #=====
 #

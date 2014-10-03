@@ -8,7 +8,7 @@
 #   1st: the BillingConfig spreadsheet.
 #
 # SWITCHES:
-#   --billing_details_file: Location of the BillingDetails.xlsx file (default=look in BillingRoot/<year>/<month>
+#   --billing_details_file: Location of the BillingDetails.xlsx file (default=look in BillingRoot/<year>/<month>)
 #   --accounting_file: Location of accounting file (overrides BillingConfig.xlsx)
 #   --billing_root:    Location of BillingRoot directory (overrides BillingConfig.xlsx)
 #                      [default if no BillingRoot in BillingConfig.xlsx or switch given: CWD]
@@ -290,7 +290,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     for (pi_tag, date_added, date_removed) in pi_tags_and_dates_added:
 
         # Convert the Excel dates to timestamps.
-        date_added_timestamp   = from_excel_date_to_timestamp(date_added)
+        date_added_timestamp = from_excel_date_to_timestamp(date_added)
         if date_removed != '':
             date_removed_timestamp = from_excel_date_to_timestamp(date_removed)
         else:
@@ -520,7 +520,7 @@ def read_computing_sheet(wkbk):
 
             for (pi_tag, pctage) in pi_tag_pctages:
 
-                if pctage == 0.0: continue
+                # if pctage == 0.0: continue
 
                 #
                 # Increment this user's CPU-core-hrs.
@@ -555,8 +555,8 @@ def read_computing_sheet(wkbk):
 
 
 # Reads the Consulting sheet of the BillingDetails workbook (someday).
-def read_consulting_sheet(wkbk):
-    pass
+#def read_consulting_sheet(wkbk):
+#    pass
 
 
 # Generates the Billing sheet of a BillingNotifications (or BillingAggregate) workbook for a particular pi_tag.
@@ -925,55 +925,55 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     curr_row += 1
 
     #
-    # CONSULTING
+    # CONSULTING subtable
     #
     # Skip row before Bioinformatics Consulting header.
-    sheet.write(curr_row, 1, None, left_border_fmt)
-    sheet.write(curr_row, 4, None, right_border_fmt)
-    curr_row += 1
-    # Write the Bioinformatics Consulting line.
-    sheet.write(curr_row, 1, "Bioinformatics Consulting", header_fmt)
-    sheet.write(curr_row, 4, None, right_border_fmt)
-    curr_row += 1
-    # Write the consulting headers.
-    sheet.write(curr_row, 1, "Job", sub_header_left_fmt)
-    sheet.write(curr_row, 2, "Quantity", sub_header_fmt)
-    sheet.write(curr_row, 3, "Hours", sub_header_fmt)
-    sheet.write(curr_row, 4, "Charge", sub_header_right_fmt)
-    curr_row += 1
-
-    total_consulting_hours = 0.0
-    total_consulting_charges = 0.0
-
-    # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting')
-
-    # TODO: finish this part.
-    sheet.write(curr_row, 1, "No consulting", item_entry_fmt)
-    sheet.write(curr_row, 4, 0.0, charge_fmt)
-    curr_row += 1
-
-    # Skip the line before Total Consulting.
-    sheet.write(curr_row, 1, None, left_border_fmt)
-    sheet.write(curr_row, 4, None, right_border_fmt)
-    curr_row += 1
-
-    # Write the Total Consulting line.
-    sheet.write(curr_row, 1, "Total Consulting", bot_header_fmt)
-    sheet.write(curr_row, 3, total_consulting_hours, float_entry_fmt)
-    sheet.write(curr_row, 4, total_consulting_charges, charge_fmt)
-
-    # Save reference to this cell for use in Summary subtable.
-    total_consulting_charges_a1_cell = xl_rowcol_to_cell(curr_row, 4)
-
-    curr_row += 1
-
-    # Skip the next line and draw line under this row.
-    sheet.write(curr_row, 1, None, lower_left_border_fmt)
-    sheet.write(curr_row, 2, None, bottom_border_fmt)
-    sheet.write(curr_row, 3, None, bottom_border_fmt)
-    sheet.write(curr_row, 4, None, lower_right_border_fmt)
-    curr_row += 1
+    # sheet.write(curr_row, 1, None, left_border_fmt)
+    # sheet.write(curr_row, 4, None, right_border_fmt)
+    # curr_row += 1
+    # # Write the Bioinformatics Consulting line.
+    # sheet.write(curr_row, 1, "Bioinformatics Consulting", header_fmt)
+    # sheet.write(curr_row, 4, None, right_border_fmt)
+    # curr_row += 1
+    # # Write the consulting headers.
+    # sheet.write(curr_row, 1, "Job", sub_header_left_fmt)
+    # sheet.write(curr_row, 2, "Quantity", sub_header_fmt)
+    # sheet.write(curr_row, 3, "Hours", sub_header_fmt)
+    # sheet.write(curr_row, 4, "Charge", sub_header_right_fmt)
+    # curr_row += 1
+    #
+    # total_consulting_hours = 0.0
+    # total_consulting_charges = 0.0
+    #
+    # # Get the rate from the Rates sheet of the BillingConfig workbook.
+    # rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting')
+    #
+    # # TODO: finish this part.
+    # sheet.write(curr_row, 1, "No consulting", item_entry_fmt)
+    # sheet.write(curr_row, 4, 0.0, charge_fmt)
+    # curr_row += 1
+    #
+    # # Skip the line before Total Consulting.
+    # sheet.write(curr_row, 1, None, left_border_fmt)
+    # sheet.write(curr_row, 4, None, right_border_fmt)
+    # curr_row += 1
+    #
+    # # Write the Total Consulting line.
+    # sheet.write(curr_row, 1, "Total Consulting", bot_header_fmt)
+    # sheet.write(curr_row, 3, total_consulting_hours, float_entry_fmt)
+    # sheet.write(curr_row, 4, total_consulting_charges, charge_fmt)
+    #
+    # # Save reference to this cell for use in Summary subtable.
+    # total_consulting_charges_a1_cell = xl_rowcol_to_cell(curr_row, 4)
+    #
+    # curr_row += 1
+    #
+    # # Skip the next line and draw line under this row.
+    # sheet.write(curr_row, 1, None, lower_left_border_fmt)
+    # sheet.write(curr_row, 2, None, bottom_border_fmt)
+    # sheet.write(curr_row, 3, None, bottom_border_fmt)
+    # sheet.write(curr_row, 4, None, lower_right_border_fmt)
+    # curr_row += 1
 
     #
     # Summary of Charges table (B6:E11)
@@ -999,11 +999,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write_formula(curr_row, 4, '=%s' % total_computing_charges_a1_cell, big_charge_fmt, total_computing_charges)
     curr_row += 1
     # Write the Consulting line.
-    sheet.write(curr_row, 1, "Bioinformatics Consulting", header_no_ul_fmt)
-    sheet.write(curr_row, 2, total_consulting_hours, float_entry_fmt)
-    #sheet.write(curr_row, 4, total_consulting_charges, big_charge_fmt)
-    sheet.write_formula(curr_row, 4, '=%s' % total_consulting_charges_a1_cell, big_charge_fmt, total_consulting_charges)
-    curr_row += 1
+    # sheet.write(curr_row, 1, "Bioinformatics Consulting", header_no_ul_fmt)
+    # sheet.write(curr_row, 2, total_consulting_hours, float_entry_fmt)
+    # #sheet.write(curr_row, 4, total_consulting_charges, big_charge_fmt)
+    # sheet.write_formula(curr_row, 4, '=%s' % total_consulting_charges_a1_cell, big_charge_fmt, total_consulting_charges)
+    # curr_row += 1
     # Skip a line.
     sheet.write(curr_row, 1, None, left_border_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
@@ -1012,16 +1012,19 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 1, "Total Charges", bot_header_border_fmt)
     sheet.write(curr_row, 2, None, bottom_border_fmt)
     sheet.write(curr_row, 3, None, bottom_border_fmt)
-    total_charges = total_storage_charges + total_computing_charges + total_consulting_charges
+    total_charges = total_storage_charges + total_computing_charges # + total_consulting_charges
     #sheet.write(curr_row, 4, total_charges, big_bold_charge_fmt)
-    sheet.write_formula(curr_row, 4, '=%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell, total_consulting_charges_a1_cell),
+    #sheet.write_formula(curr_row, 4, '=%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell, total_consulting_charges_a1_cell),
+    sheet.write_formula(curr_row, 4, '=%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell),
                         big_bold_charge_fmt, total_charges)
     curr_row += 1
 
     #
     # Fill in row in pi_tag -> charges hash.
     #
-    pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_consulting_charges, total_charges)
+    pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges,
+                                 #total_consulting_charges,
+                                 total_charges)
 
 
 # Copies the Rates sheet from the Rates sheet in the BillingConfig workbook to
@@ -1155,12 +1158,13 @@ def generate_aggregrate_sheet(sheet):
     # Compute column numbers for various columns.
     storage_column_num = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Storage')
     computing_column_num = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Computing')
-    consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting')
+    #consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting')
 
     curr_row = 1
     for pi_tag in sorted(pi_tag_to_charges.iterkeys()):
 
-        (storage, computing, consulting, total_charges) = pi_tag_to_charges[pi_tag]
+        #(storage, computing, consulting, total_charges) = pi_tag_to_charges[pi_tag]
+        (storage, computing, total_charges) = pi_tag_to_charges[pi_tag]
         (pi_first_name, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
 
         curr_col = 0
@@ -1174,29 +1178,29 @@ def generate_aggregrate_sheet(sheet):
         curr_col += 1
         sheet.write(curr_row, curr_col, computing, charge_fmt)
         curr_col += 1
-        sheet.write(curr_row, curr_col, consulting, charge_fmt)
+        #sheet.write(curr_row, curr_col, consulting, charge_fmt)
 
         #curr_col += 1
         #sheet.write(curr_row, curr_col, total_charges, charge_fmt)
 
         storage_a1_cell = xl_rowcol_to_cell(curr_row, storage_column_num)
-        #computing_a1_cell = xl_rowcol_to_cell(curr_row, computing_column_num)
-        consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
+        computing_a1_cell = xl_rowcol_to_cell(curr_row, computing_column_num)
+        #consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
 
-        curr_col += 1
-        sheet.write_formula(curr_row, curr_col, '=SUM(%s:%s)' % (storage_a1_cell, consulting_a1_cell),
+        #curr_col += 1
+        sheet.write_formula(curr_row, curr_col, '=SUM(%s:%s)' % (storage_a1_cell, computing_a1_cell), # consulting_a1_cell),
                             charge_fmt, total_charges)
 
         sub_total_storage += storage
         sub_total_computing += computing
-        sub_total_consulting += consulting
+        #sub_total_consulting += consulting
         grand_total_charges += total_charges
 
         curr_row += 1
 
     storage_a1_cell = xl_rowcol_to_cell(curr_row, storage_column_num)
     computing_a1_cell = xl_rowcol_to_cell(curr_row, computing_column_num)
-    consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
+    #consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
 
     sheet.write(curr_row, 0, "TOTAL")
     #sheet.write(curr_row, storage_column_num, sub_total_storage, sub_total_charge_fmt)
@@ -1210,12 +1214,13 @@ def generate_aggregrate_sheet(sheet):
     sheet.write_formula(curr_row, computing_column_num, '=SUM(%s:%s)' % (top_computing_a1_cell, bot_computing_a1_cell),
                         sub_total_charge_fmt, sub_total_computing)
     #sheet.write(curr_row, consulting_column_num, sub_total_consulting, sub_total_charge_fmt)
-    top_consulting_a1_cell = xl_rowcol_to_cell(1, consulting_column_num)
-    bot_consulting_a1_cell = xl_rowcol_to_cell(curr_row - 1, consulting_column_num)
-    sheet.write_formula(curr_row, consulting_column_num, '=SUM(%s:%s)' % (top_consulting_a1_cell, bot_consulting_a1_cell),
-                        sub_total_charge_fmt, sub_total_consulting)
+    # top_consulting_a1_cell = xl_rowcol_to_cell(1, consulting_column_num)
+    # bot_consulting_a1_cell = xl_rowcol_to_cell(curr_row - 1, consulting_column_num)
+    # sheet.write_formula(curr_row, consulting_column_num, '=SUM(%s:%s)' % (top_consulting_a1_cell, bot_consulting_a1_cell),
+    #                     sub_total_charge_fmt, sub_total_consulting)
 
-    sheet.write_formula(curr_row, 6, '=%s+%s+%s' % (storage_a1_cell, computing_a1_cell, consulting_a1_cell),
+    #sheet.write_formula(curr_row, consulting_column_num+1, '=%s+%s+%s' % (storage_a1_cell, computing_a1_cell), consulting_a1_cell),
+    sheet.write_formula(curr_row, computing_column_num+1, '=%s+%s' % (storage_a1_cell, computing_a1_cell),
                         grand_charge_fmt, grand_total_charges)
 
 #=====
@@ -1352,8 +1357,8 @@ print "Reading computing sheet."
 read_computing_sheet(billing_details_wkbk)
 
 # Read in its Consulting sheet and generate output data.
-print "Reading consulting sheet."
-read_consulting_sheet(billing_details_wkbk)
+#print "Reading consulting sheet."
+#read_consulting_sheet(billing_details_wkbk)
 
 ###
 #
