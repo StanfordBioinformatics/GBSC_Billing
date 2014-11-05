@@ -722,7 +722,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_storage_sizes   = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_tb_per_month = get_rates(billing_config_wkbk, 'Storage')
+    rate_tb_per_month = get_rates(billing_config_wkbk, 'Local Storage')
 
     starting_storage_row = curr_row
     ending_storage_row   = curr_row
@@ -745,7 +745,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
         size_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
         pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
         sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (size_a1_cell, pctage_a1_cell,
-                                                        get_rate_a1_cell(billing_config_wkbk, 'Storage')),
+                                                        get_rate_a1_cell(billing_config_wkbk, 'Local Storage')),
                             charge_fmt, charge)
 
         # Keep track of last row with storage values.
@@ -809,7 +809,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_computing_cpuhrs  = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Computing')
+    rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Local Computing')
 
     # Get the job details for the users associated with this PI.
     starting_computing_row = curr_row
@@ -840,7 +840,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
             pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
             sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell,
-                                                            get_rate_a1_cell(billing_config_wkbk, 'Computing')),
+                                                            get_rate_a1_cell(billing_config_wkbk, 'Local Computing')),
                                 charge_fmt, charge)
 
             # Keep track of last row with computing values.
@@ -880,7 +880,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
             pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
             sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell,
-                                                            get_rate_a1_cell(billing_config_wkbk, 'Computing')),
+                                                            get_rate_a1_cell(billing_config_wkbk, 'Local Computing')),
                                 charge_fmt, charge)
 
             # Keep track of last row with computing values.
@@ -1152,7 +1152,7 @@ def generate_aggregrate_sheet(sheet):
 
     sub_total_storage = 0.0
     sub_total_computing = 0.0
-    sub_total_consulting = 0.0
+    #sub_total_consulting = 0.0
     grand_total_charges = 0.0
 
     # Compute column numbers for various columns.
