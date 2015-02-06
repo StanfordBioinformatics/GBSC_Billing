@@ -54,13 +54,16 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 # CONSTANTS
 #
 #=====
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))  # The directory of this script.
 
 # These scripts are assumed to live in SCRIPT_DIR.
 SNAPSHOT_ACCT_SCRIPT = "snapshot_accounting.py"
 CHECK_CONFIG_SCRIPT  = "check_config.py"
 GEN_DETAILS_SCRIPT   = "gen_details.py"
 GEN_NOTIFS_SCRIPT    = "gen_notifs.py"
+ILAB_EXPORT_SCRIPT   = "gen_ilab_upload.py"
+
+ILAB_AVAILABLE_SERVICES_FILE = "available_services_list_150106.csv"
+ILAB_EXPORT_TEMPLATE_FILE    = "charges_upload_template.csv"
 
 #=====
 #
@@ -238,8 +241,8 @@ if not args.force:
 snapshot_script_path = os.path.join(SCRIPT_DIR, SNAPSHOT_ACCT_SCRIPT)
 snapshot_cmd = [snapshot_script_path] + year_month_args + billing_root_args + ['-c', billing_config_file]
 
-print "RUNNING SNAPSHOT ACCOUNTING:"
-print >> billing_log_file, "RUNNING SNAPSHOT ACCOUNTING:"
+print "SNAPSHOTTING ACCOUNTING:"
+print >> billing_log_file, "SNAPSHOTTING ACCOUNTING:"
 if args.verbose: print >> billing_log_file, snapshot_cmd
 try:
     subprocess.check_call(snapshot_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
@@ -266,8 +269,8 @@ if args.no_computing:      details_cmd += ['--no_computing']
 if args.no_consulting:     details_cmd += ['--no_consulting']
 if args.all_jobs_billable: details_cmd += ['--all_jobs_billable']
 
-print "RUNNING GENERATE DETAILS:"
-print >> billing_log_file, "RUNNING GENERATE DETAILS:"
+print "GENERATING DETAILS:"
+print >> billing_log_file, "GENERATING DETAILS:"
 if args.verbose: print >> billing_log_file, details_cmd
 try:
     subprocess.check_call(details_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
@@ -290,13 +293,40 @@ notifs_cmd = [notifs_script_path] + year_month_args + billing_root_args + [billi
 # Add the --pi_sheets switch, if requested.
 if args.pi_sheets: notifs_cmd += ['--pi_sheets']
 
-print "RUNNING GENERATE NOTIFICATIONS:"
-print >> billing_log_file, "RUNNING GENERATE NOTIFICATIONS:"
+print "GENERATING NOTIFICATIONS:"
+print >> billing_log_file, "GENERATING NOTIFICATIONS:"
 if args.verbose: print >> billing_log_file, notifs_cmd
 try:
     notifs_output = subprocess.check_call(notifs_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
     print >> sys.stderr, "Generate Notifications on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
+    print >> sys.stderr, " Output: %s" % (cpe.output)
+    sys.exit(-1)
+
+print
+print >> billing_log_file
+
+###
+#
+# Generate the BillingiLab file.
+#
+###
+ilab_export_script_path = os.path.join(SCRIPT_DIR, ILAB_EXPORT_SCRIPT)
+ilab_available_services_path = os.path.join(SCRIPT_DIR, 'iLab', ILAB_AVAILABLE_SERVICES_FILE)
+ilab_export_template_path    = os.path.join(SCRIPT_DIR, 'iLab', ILAB_EXPORT_TEMPLATE_FILE)
+
+ilab_export_cmd = [ilab_export_script_path] + year_month_args + billing_root_args + [billing_config_file]
+
+ilab_export_cmd += ['--ilab_template', ilab_export_template_path]
+ilab_export_cmd += ['--ilab_available_services', ilab_available_services_path]
+
+print "EXPORTING TO ILAB:"
+print >> billing_log_file, "EXPORTING TO ILAB:"
+if args.verbose: print >> billing_log_file, ilab_export_cmd
+try:
+    ilab_export_output = subprocess.check_call(ilab_export_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
+except subprocess.CalledProcessError as cpe:
+    print >> sys.stderr, "iLab Export on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
     print >> sys.stderr, " Output: %s" % (cpe.output)
     sys.exit(-1)
 
