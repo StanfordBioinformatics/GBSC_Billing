@@ -560,9 +560,9 @@ parser.add_argument("-r", "--billing_root",
 parser.add_argument("-t", "--ilab_template",
                     default=None,
                     help='The iLab export file template [default = None]')
-parser.add_argument("-s", "--ilab_core_services",
+parser.add_argument("-a", "--ilab_available_services",
                     default=None,
-                    help='The iLab core services file [default = None]')
+                    help='The iLab available services file [default = None]')
 parser.add_argument("-p", "--pi_files", action="store_true",
                     default=False,
                     help='Output PI-specific CSV files [default = False]')
@@ -704,23 +704,23 @@ else:
 #   ilab_service_id_local_storage
 #
 ###
-if args.ilab_core_services is not None:
+if args.ilab_available_services is not None:
 
-    ilab_core_services_file = open(args.ilab_core_services)
+    ilab_available_services_file = open(args.ilab_available_services)
 
-    csv_dictreader = csv.DictReader(ilab_core_services_file)
+    csv_dictreader = csv.DictReader(ilab_available_services_file)
 
-    for core_services_row_dict in csv_dictreader:
+    for available_services_row_dict in csv_dictreader:
 
-        row_name_col = core_services_row_dict.get(CORE_SERVICES_COLUMN_NAME)
+        row_name_col = available_services_row_dict.get(CORE_SERVICES_COLUMN_NAME)
         if row_name_col is not None:
 
             if row_name_col == CORE_SERVICES_NAME_LOCAL_COMPUTING:
-                ilab_service_id_local_computing = core_services_row_dict[CORE_SERVICES_COLUMN_SERVICE_ID]
+                ilab_service_id_local_computing = available_services_row_dict[CORE_SERVICES_COLUMN_SERVICE_ID]
             elif row_name_col == CORE_SERVICES_NAME_LOCAL_STORAGE:
-                ilab_service_id_local_storage   = core_services_row_dict[CORE_SERVICES_COLUMN_SERVICE_ID]
+                ilab_service_id_local_storage   = available_services_row_dict[CORE_SERVICES_COLUMN_SERVICE_ID]
 
-    ilab_core_services_file.close()
+    ilab_available_services_file.close()
 
 else:
     ilab_service_id_local_computing = DEFAULT_SERVICE_ID_LOCAL_COMPUTING
