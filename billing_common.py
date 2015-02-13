@@ -103,7 +103,11 @@ ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,18,19,20,21,26,27,28,29,36,38)
 BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1']
 
 # Beginning of billing process.
-EARLIEST_VALID_DATE_TIMESTAMP = 1377993600  # 9/1/13 00:00:00 GMT
+# 8/31/13 00:00:00 GMT (one day before 9/1/13, to represent things that existed before billing started).
+EARLIEST_VALID_DATE_EXCELDATE = 41517.0
+
+# Pathname to root of PI project directories.
+PI_PROJECT_ROOT_DIR = '/srv/gsfs0/projects'
 
 #=====
 #
