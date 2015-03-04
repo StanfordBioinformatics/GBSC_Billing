@@ -351,6 +351,12 @@ if len(details_billable_symdiff_notifs) > 0:
     print
 
 if len(accounting_symdiff_details) > 0 or len(details_billable_symdiff_notifs) > 0:
+    print
+    print "JOBS INCONSISTENT AMONG FILES"
+
     sys.exit(-1)
 else:
+    print
+    print "ALL JOBS ARE IN ALL FILES"
+
     sys.exit(0)
