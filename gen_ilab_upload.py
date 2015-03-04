@@ -436,11 +436,17 @@ def generate_ilab_csv_file(csv_dictwriter, pi_tag,
                            storage_service_id, computing_service_id,
                            begin_month_timestamp, end_month_timestamp):
 
+    # If this PI doesn't have a service request ID, skip them.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
+        print "  Skipping %s: no service request ID" % (pi_tag)
+        return
+
+    # Create a dictionary to be written out as CSV.
     csv_dict = dict()
     csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][2]
     csv_dict['pi_email']    = ''
     csv_dict['service_request_id'] = pi_tag_to_ilab_service_req_id[pi_tag]
-    csv_dict['purchased_on'] = from_timestamp_to_excel_date(end_month_timestamp-1) # Last date of billing period.
+    csv_dict['purchased_on'] = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
 
     ###
     #
