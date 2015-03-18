@@ -262,20 +262,17 @@ def check_groups(sheet, current_pi_tag_list):
     return groups_all_OK
 
 
-def check_folders(sheet, current_folder_list):
-
-    folders = sheet_get_named_column(sheet, 'Folder')
+def check_folders(current_folder_list):
 
     # Convert folder list to a set to eliminate duplicates.
-    folder_set = set(folders)
+    folder_set = set(current_folder_list)
 
     folders_all_OK = True
 
     for folder in folder_set:
 
-        # Ignore non-current folders.
-        if folder not in current_folder_list:
-            continue
+        # Skip folders named "None".
+        if folder == "None": continue
 
         # Split folder into machine:dir components.
         if folder.find(':') >= 0:
@@ -334,23 +331,6 @@ def check_folder_methods(sheet):
     return folder_methods_all_OK
 
 
-def check_pi_folders(sheet, col_name, pi_tag_list):
-
-    folder_column = sheet_get_named_column(sheet, col_name)
-
-    folder_set = set(folder_column)
-
-    pi_folders_all_OK = True
-
-    for pi_tag in pi_tag_list:
-        pi_project_dir = os.path.join(PI_PROJECT_ROOT_DIR,pi_tag)
-        if pi_project_dir not in folder_set:
-            print "check_pi_folders: PI Tag %s does not have corresponding project dir" % pi_tag
-            pi_folders_all_OK = False
-
-    return pi_folders_all_OK
-
-
 def get_pi_tag_list(sheet):
     return sheet_get_named_column(sheet, 'PI Tag')
 
@@ -376,6 +356,7 @@ def check_pis_sheet(wkbk, current_pi_tag_list):
         print "CHECKING PI SHEET"
 
     pis_sheet = wkbk.sheet_by_name('PIs')
+    folder_col_name = 'PI Folder'
 
     # Check: all the groups are valid.
     if args.verbose:
@@ -388,42 +369,45 @@ def check_pis_sheet(wkbk, current_pi_tag_list):
     #if args.verbose:
     #    print " Checking PI email addresses"
 
+
+    # Get list of current folders.
+    current_folder_list = get_valid_objs_by_date(pis_sheet, folder_col_name, today)
+
+    # Check: all the folders exist.
+    if args.verbose:
+        print " Checking that all folders exist"
+    folders_OK = check_folders(current_folder_list)
+
     # Check: all the dates and %ages are valid.
     if args.verbose:
         print " Checking PI dates and percentages."
     dates_pctages_OK = check_dates_pctages(pis_sheet, 'PI Tag')
 
-    return (groups_OK and dates_pctages_OK)
+    return (groups_OK and folders_OK and dates_pctages_OK)
 
 
-def check_folders_sheet(wkbk, pi_tag_list, current_pi_tag_list):
+def check_folders_sheet(wkbk, pi_tag_list):
 
     if args.verbose:
         print "CHECKING FOLDERS SHEET"
 
     folders_sheet = wkbk.sheet_by_name('Folders')
+    folder_col_name = 'Folder'
 
     # TODO: Check: All expected headers are present.
 
     # Get list of current folders.
-    current_folder_list = get_valid_objs_by_date(folders_sheet, 'Folder', today)
-
-    folder_col_name = 'Folder'
+    current_folder_list = get_valid_objs_by_date(folders_sheet, folder_col_name, today)
 
     # Check: all the folders exist.
     if args.verbose:
         print " Checking that all folders exist"
-    folders_OK = check_folders(folders_sheet, current_folder_list)
+    folders_OK = check_folders(current_folder_list)
 
     # Check: all the PI tags are valid.
     if args.verbose:
         print " Checking that all PI tags are valid"
     pi_tags_OK = check_pi_tags(folders_sheet, folder_col_name, pi_tag_list)
-
-    # Check: is there at least one entry for each PI tag?
-    # if args.verbose:
-    #     print " Checking that a project folder exists for each PI tag"
-    # pi_folders_OK = check_pi_folders(folders_sheet, folder_col_name, pi_tag_list)
 
     # Check: all the Methods for a folder are the same and are valid.
     if args.verbose:
@@ -536,7 +520,7 @@ if sheets_are_OK:
     pis_sheet_is_OK     = check_pis_sheet(billing_config_wkbk, current_pi_tag_list)
 
     # Check Folders sheet.
-    folders_sheet_is_OK = check_folders_sheet(billing_config_wkbk, pi_tag_list, current_pi_tag_list)
+    folders_sheet_is_OK = check_folders_sheet(billing_config_wkbk, pi_tag_list)
 
     # Check JobTags sheet.
     job_tag_sheet_is_OK = check_jobtags_sheet(billing_config_wkbk, pi_tag_list)

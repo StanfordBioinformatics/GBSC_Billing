@@ -178,7 +178,7 @@ def get_folder_quota(machine, folder, pi_tag):
     # Find the fileset to get the quota of, from the folder name.
     device_and_fileset = get_device_and_fileset_from_folder(folder)
     if device_and_fileset is None:
-        print >> sys.stderr, "ERROR: No fileset for folder %s; ignoring..."
+        print >> sys.stderr, "ERROR: No fileset for folder %s; ignoring..." % (folder)
         return None
 
     (device, fileset) = device_and_fileset
@@ -327,20 +327,36 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
 
     print "Computing storage charges..."
 
+    # Lists of folders to measure come from:
+    #  "PI Folder" column of "PIs" sheet, and
+    #  "Folder" column of "Folders" sheet.
+
+    # Get lists of folders, quota booleans.
+    pis_sheet = config_wkbk.sheet_by_name('PIs')
+
+    folders     = sheet_get_named_column(pis_sheet, 'PI Folder')
+    pi_tags     = sheet_get_named_column(pis_sheet, 'PI Tag')
+    quota_bools = ['quota'] * len(folders)   # All PI folders are measured by quota.
+    dates_added = sheet_get_named_column(pis_sheet, 'Date Added')
+    dates_remvd = sheet_get_named_column(pis_sheet, 'Date Removed')
+
     # Get lists of folders, quota booleans.
     folder_sheet = config_wkbk.sheet_by_name('Folders')
 
-    folders     = sheet_get_named_column(folder_sheet, 'Folder')
-    pi_tags     = sheet_get_named_column(folder_sheet, 'PI Tag')
-    quota_bools = sheet_get_named_column(folder_sheet, 'Method')
-    dates_added = sheet_get_named_column(folder_sheet, 'Date Added')
-    dates_remvd = sheet_get_named_column(folder_sheet, 'Date Removed')
+    folders     += sheet_get_named_column(folder_sheet, 'Folder')
+    pi_tags     += sheet_get_named_column(folder_sheet, 'PI Tag')
+    quota_bools += sheet_get_named_column(folder_sheet, 'Method')
+    dates_added += sheet_get_named_column(folder_sheet, 'Date Added')
+    dates_remvd += sheet_get_named_column(folder_sheet, 'Date Removed')
 
     # Mapping from folders to [timestamp, total, used].
     folder_size_dict = collections.OrderedDict()
 
     # Create mapping from folders to space used.
     for (folder, pi_tag, quota_bool, date_added, date_removed) in zip(folders, pi_tags, quota_bools, dates_added, dates_remvd):
+
+        # Skip measuring this folder entry if the folder is None.
+        if folder == 'None': continue
 
         # Skip measuring this folder if we have already done it.
         if folder_size_dict.get(folder) is not None: continue

@@ -369,9 +369,15 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     #
     global folder_to_pi_tag_pctages
 
-    folders = sheet_get_named_column(folders_sheet, "Folder")
-    pi_tags = sheet_get_named_column(folders_sheet, "PI Tag")
-    pctages = sheet_get_named_column(folders_sheet, "%age")
+    # Folders from PI Sheet
+    folders = sheet_get_named_column(pis_sheet, "PI Folder")
+    pi_tags = sheet_get_named_column(pis_sheet, "PI Tag")
+    pctages = [1.0] * len(folders)
+
+    # Folders from Folder sheet
+    folders += sheet_get_named_column(folders_sheet, "Folder")
+    pi_tags += sheet_get_named_column(folders_sheet, "PI Tag")
+    pctages += sheet_get_named_column(folders_sheet, "%age")
 
     folder_rows = zip(folders, pi_tags, pctages)
 
