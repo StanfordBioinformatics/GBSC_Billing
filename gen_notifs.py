@@ -744,7 +744,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
         else:
             charge = "No rate"
 
-        total_storage_sizes += size
+        total_storage_sizes += size * pctage
 
         #sheet.write(curr_row, 4, charge, charge_fmt)
 
@@ -768,10 +768,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # Write the Total Storage line.
     sheet.write(curr_row, 1, "Total Storage", bot_header_fmt)
     #sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
-    top_sizes_a1_cell = xl_rowcol_to_cell(starting_storage_row, 2)
-    bot_sizes_a1_cell = xl_rowcol_to_cell(ending_storage_row, 2)
-    sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell),
-                        float_entry_fmt, total_storage_sizes)
+    #top_sizes_a1_cell = xl_rowcol_to_cell(starting_storage_row, 2)
+    #bot_sizes_a1_cell = xl_rowcol_to_cell(ending_storage_row, 2)
+    #sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell),
+    #                    float_entry_fmt, total_storage_sizes)  # This line doesn't factor in %ages.
+    sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
     #sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
     top_charges_a1_cell = xl_rowcol_to_cell(starting_storage_row, 4)
     bot_charges_a1_cell = xl_rowcol_to_cell(ending_storage_row, 4)
@@ -831,7 +832,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
             if rate_cpu_per_hour is not None:
                 charge = cpu_core_hrs * pctage * rate_cpu_per_hour
-                total_computing_charges += charge
+                total_computing_charges += charge * pctage
             else:
                 charge = "No rate"
 
@@ -839,7 +840,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             if charge > 500:
                 print "  *** User %s (%s) for PI %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, charge)
 
-            total_computing_cpuhrs += cpu_core_hrs
+            total_computing_cpuhrs += cpu_core_hrs * pctage
 
             #sheet.write(curr_row, 4, charge, charge_fmt)
 
@@ -875,11 +876,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
             if rate_cpu_per_hour is not None:
                 charge = cpu_core_hrs * pctage * rate_cpu_per_hour
-                total_computing_charges += charge
+                total_computing_charges += charge * pctage
             else:
                 charge = "No rate"
 
-            total_computing_cpuhrs += cpu_core_hrs
+            total_computing_cpuhrs += cpu_core_hrs * pctage
 
             #sheet.write(curr_row, 4, charge, charge_fmt)
 
@@ -908,10 +909,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # Write the Total Computing line.
     sheet.write(curr_row, 1, "Total Computing", bot_header_fmt)
     #sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
-    top_cpu_a1_cell = xl_rowcol_to_cell(starting_computing_row, 2)
-    bot_cpu_a1_cell = xl_rowcol_to_cell(ending_computing_row, 2)
-    sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_cpu_a1_cell, bot_cpu_a1_cell),
-                        float_entry_fmt, total_computing_cpuhrs)
+    #top_cpu_a1_cell = xl_rowcol_to_cell(starting_computing_row, 2)
+    #bot_cpu_a1_cell = xl_rowcol_to_cell(ending_computing_row, 2)
+    #sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_cpu_a1_cell, bot_cpu_a1_cell),
+    #                    float_entry_fmt, total_computing_cpuhrs) # This line doesn't factor in %ages.
+    sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
     #sheet.write(curr_row, 4, total_computing_charges, charge_fmt)
     top_charges_a1_cell = xl_rowcol_to_cell(starting_computing_row, 4)
     bot_charges_a1_cell = xl_rowcol_to_cell(ending_computing_row, 4)
