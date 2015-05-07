@@ -744,7 +744,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
         else:
             charge = "No rate"
 
-        total_storage_sizes += size * pctage
+        total_storage_sizes += size
 
         #sheet.write(curr_row, 4, charge, charge_fmt)
 
