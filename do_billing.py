@@ -220,8 +220,8 @@ if not args.force:
     check_config_script_path = os.path.join(SCRIPT_DIR, CHECK_CONFIG_SCRIPT)
     check_config_cmd = [check_config_script_path, billing_config_file]
 
-    print 'RUNNING CHECK CONFIG:'
-    print >> billing_log_file, 'RUNNING CHECK CONFIG:'
+    print 'CHECKING BILLING CONFIG:'
+    print >> billing_log_file, 'CHECKING BILLING CONFIG:'
     if args.verbose: print >> billing_log_file, check_config_cmd
     try:
         subprocess.check_call(check_config_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
