@@ -51,6 +51,7 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 # From billing_common.py
 global BILLING_NOTIFS_SHEET_COLUMNS
 global BILLING_AGGREG_SHEET_COLUMNS
+global BILLING_DETAILS_PREFIX
 global BILLING_NOTIFS_PREFIX
 
 # Prefix for the iLab Export CSV filename.
@@ -657,7 +658,7 @@ if not os.path.exists(year_month_dir):
 if args.billing_details_file is not None:
     billing_details_file = args.billing_details_file
 else:
-    billing_details_file = os.path.join(year_month_dir, "BillingDetails.%s-%02d.xlsx" % (year, month))
+    billing_details_file = os.path.join(year_month_dir, "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month))
 
 #
 # Output the state of arguments.
