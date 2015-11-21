@@ -42,10 +42,14 @@ import xlsxwriter
 #
 # Prefix of SGE accounting snapshot file name.
 SGEACCOUNTING_PREFIX = "SGEAccounting"
+# Prefix of the Google Invoice CSV file name.
+GOOGLE_INVOICE_PREFIX = "GoogleInvoice"
 # Prefix of BillingDetails spreadsheet file name.
 BILLING_DETAILS_PREFIX = "BillingDetails"
 # Prefix of the BillingNotifs spreadsheets file names.
 BILLING_NOTIFS_PREFIX = "GBSCBilling"
+# Prefix of the iLab expoer file.
+ILAB_EXPORT_PREFIX = "BillingiLab"
 
 #
 # Mapping from BillingConfig sheets to their column headers.
@@ -65,21 +69,23 @@ BILLING_DETAILS_SHEET_COLUMNS = OrderedDict((
     ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID')),
 #    ('Consulting', ('Work Date', 'Item', 'Hours', 'PI')),
     ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Reason')),
-    ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Failed Code'))
-) )
+    ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Failed Code')),
+    ('Cloud', ('Platform', 'Account', 'Project', 'Description', 'Dates', 'Quantity', 'Unit of Measure', 'Charge')) )
+)
 
 # Mapping from sheet name to the column headers within that sheet.
 BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
-    ('Billing'    , () ),  # Billing sheet is not columnar.
-    ('Lab Users'  , ('Username', 'Full Name', 'Email', 'Date Added', 'Date Removed') ),
+    ('Billing',   () ),  # Billing sheet is not columnar.
+    ('Lab Users', ('Username', 'Full Name', 'Email', 'Date Added', 'Date Removed') ),
     ('Computing Details' , ('Job Date', 'Username', 'Job Name', 'Job Tag', 'CPU-core Hours', 'Job ID', '%age') ),
+    ('Cloud Details', ('Platform', 'Project', 'Description', 'Dates', 'Quantity', 'Unit of Measure', 'Charge', '%age', 'Lab Cost') ),
     ('Rates'      , ('Type', 'Amount', 'Unit', 'Time' ) )
 ) )
 
 # Mapping from sheet name in BillingAggregate workbook to the column headers within that sheet.
 BILLING_AGGREG_SHEET_COLUMNS = OrderedDict( [
     #('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges') )
-    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Total Charges') )
+    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Cloud', 'Total Charges') )
 ] )
 
 # OGE accounting file column info:
