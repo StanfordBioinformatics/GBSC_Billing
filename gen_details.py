@@ -43,8 +43,11 @@
 #
 #=====
 import argparse
+import codecs
 import collections
+import csv
 import datetime
+import locale
 import os
 import os.path
 import subprocess
@@ -72,6 +75,7 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 #=====
 # In billing_common.py
 global SGEACCOUNTING_PREFIX
+global GOOGLE_INVOICE_PREFIX
 global BILLING_DETAILS_PREFIX
 
 # Commands for determining folder quotas and usages.
@@ -88,6 +92,9 @@ INT_FORMAT  = None
 FLOAT_FORMAT = None
 MONEY_FORMAT = None
 PERCENT_FORMAT = None
+
+# Set locale to be US english for converting strings with commas into floats.
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 #=====
 #
@@ -131,7 +138,7 @@ def init_billing_details_wkbk(workbook):
     MONEY_FORMAT = workbook.add_format({'num_format' : '$0.00'})
     PERCENT_FORMAT = workbook.add_format({'num_format' : '0%'})
 
-    sheet_name_to_sheet = dict()
+    sheet_name_to_sheet_map = dict()
 
     for sheet_name in BILLING_DETAILS_SHEET_COLUMNS:
 
@@ -139,12 +146,12 @@ def init_billing_details_wkbk(workbook):
         for col in range(0, len(BILLING_DETAILS_SHEET_COLUMNS[sheet_name])):
             sheet.write(0, col, BILLING_DETAILS_SHEET_COLUMNS[sheet_name][col], BOLD_FORMAT)
 
-        sheet_name_to_sheet[sheet_name] = sheet
+        sheet_name_to_sheet_map[sheet_name] = sheet
 
     # Make the Storage sheet the active one.
-    sheet_name_to_sheet['Storage'].activate()
+    sheet_name_to_sheet_map['Storage'].activate()
 
-    return sheet_name_to_sheet
+    return sheet_name_to_sheet_map
 
 # Deduces the fileset that a folder being measured by quota lives in.
 def get_device_and_fileset_from_folder(folder):
@@ -321,6 +328,22 @@ def write_job_details(sheet, job_details):
         if args.verbose: print
 
     print
+
+#
+# Reads a subtable from the CSVFile fileobject, which is all the lines
+# between blank lines.
+#
+def get_google_invoice_csv_subtable_lines(csvfile_obj):
+
+    subtable = []
+
+    line = csvfile_obj.readline()
+    while not line.startswith(',') and line != '' and line != '\n':
+        subtable.append(line)
+        line = csvfile_obj.readline()
+
+    return subtable
+
 
 # Generates the Storage sheet data from folder quotas and usages.
 def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage_sheet):
@@ -711,6 +734,110 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, consulting_sheet):
     pass
 
+# Generates the "Cloud" sheet.
+def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
+
+    ###
+    # Read the Google Invoice CSV File
+    ###
+
+    # Google Invoice CSV files are Unicode with BOM.
+    google_invoice_csv_file_obj = codecs.open(google_invoice_csv, 'rU', encoding='utf-8-sig')
+
+    #  Read the header subtable
+    google_invoice_header_subtable = get_google_invoice_csv_subtable_lines(google_invoice_csv_file_obj)
+
+    google_invoice_header_csvreader = csv.DictReader(google_invoice_header_subtable, fieldnames=['key','value'])
+
+    for row in google_invoice_header_csvreader:
+
+        #   Extract invoice date from "Issue Date".
+        if row['key'] == 'Issue date':
+            google_invoice_issue_date = row['value']
+        #   Extract the "Amount Due" value.
+        elif row['key'] == 'Amount due':
+            google_invoice_amount_due = locale.atof(row['value'])
+
+    #print >> sys.stderr, "  Amount due: $%0.2f" % (google_invoice_amount_due)
+
+    # Accumulate the total amount of charges while processing each line,
+    #  to compare with total amount in header.
+    google_invoice_total_amount = 0.0
+
+    row = 1  # Keeps track of output row in Cloud sheet; starts at 1, below header.
+    col = 0  # Keeps track of output col.
+
+    #  While there are still more subtables...
+    while True:
+
+        #   Read subtable.
+        google_invoice_subtable = get_google_invoice_csv_subtable_lines(google_invoice_csv_file_obj)
+
+        #   No more subtables?!  Let's get out of here!
+        if len(google_invoice_subtable) == 0:
+            break
+
+        #   Create CSVReader from subtable
+        google_invoice_subtable_csvreader = csv.DictReader(google_invoice_subtable)
+
+        #   Foreach row in CSVReader
+        for row_dict in google_invoice_subtable_csvreader:
+
+            # Write Google data into Cloud sheet.
+
+            # Output 'Platform' field.
+            cloud_sheet.write(row, col, row_dict['Product'])
+            col += 1
+
+            # Output 'Account' Field.
+            cloud_sheet.write(row, col, row_dict['Order'])
+            col += 1
+
+            # Output 'Project' field.
+            cloud_sheet.write(row, col, row_dict['Source'])
+            col += 1
+
+            # Output 'Description' field.
+            cloud_sheet.write(row, col, row_dict['Description'])
+            col += 1
+
+            # Output 'Dates' field.
+            cloud_sheet.write(row, col, row_dict['Interval'])
+            col += 1
+
+            # Parse quantity.
+            if len(row_dict['Quantity']) > 0:
+                quantity = locale.atof(row_dict['Quantity'])
+            else:
+                quantity = ''
+
+            # Output 'Quantity' field.
+            cloud_sheet.write(row, col, quantity, FLOAT_FORMAT)
+            col += 1
+
+            # Output 'Unit of Measure' field.
+            cloud_sheet.write(row, col, row_dict['UOM'])
+            col += 1
+
+            # Parse charge.
+            amount = locale.atof(row_dict['Amount'])
+            # Accumulate total charges.
+            google_invoice_total_amount += amount
+
+            # Output 'Charge' field.
+            cloud_sheet.write(row, col, amount, MONEY_FORMAT)
+            col += 1
+
+            # Move to beginning of next row.
+            row += 1
+            col = 0
+
+    # Compare total charges to "Amount Due".
+    if abs(google_invoice_total_amount - google_invoice_amount_due) >= 0.01:  # Ignore differences less than a penny.
+        print >> sys.stderr, "  WARNING: Google accumulated amounts do not equal amount due: ($%.2f != $%.2f)" % (google_invoice_total_amount,
+                                                                                                           google_invoice_amount_due)
+
+
 #=====
 #
 # SCRIPT BODY
@@ -724,6 +851,9 @@ parser.add_argument("billing_config_file",
 parser.add_argument("-a", "--accounting_file",
                     default=None,
                     help='The SGE accounting file to read [default = None]')
+parser.add_argument("-g", "--google_invoice_csv",
+                    default=None,
+                    help="The Google Invoice CSV file")
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
@@ -742,6 +872,9 @@ parser.add_argument("--no_computing", action="store_true",
 #parser.add_argument("--no_consulting", action="store_true",
 #                    default=False,
 #                    help="Don't run consulting calculations [default = false]")
+parser.add_argument("--no_cloud", action="store_true",
+                    default=False,
+                    help="Don't run cloud calculations [default = false]")
 parser.add_argument("--all_jobs_billable", action="store_true",
                     default=False,
                     help="Consider all jobs to be billable [default = false]")
@@ -825,12 +958,24 @@ else:
     accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
     accounting_file = os.path.join(year_month_dir, accounting_filename)
 
-# Initialize the BillingDetails spreadsheet.
+# Use switch arg for google_invoice_file if present, else use file in BillingRoot.
+if args.google_invoice_csv is not None:
+    google_invoice_csv = args.google_invoice_csv
+else:
+    google_invoice_filename = "%s.%d-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month)
+    google_invoice_csv = os.path.join(year_month_dir, google_invoice_filename)
+
+# Confirm that Google Invoice CSV file exists.
+if not os.path.exists(google_invoice_csv):
+    google_invoice_csv = None
+
+# Initialize the BillingDetails output spreadsheet.
 details_wkbk_filename = "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month)
 details_wkbk_pathname = os.path.join(year_month_dir, details_wkbk_filename)
 
 billing_details_wkbk = xlsxwriter.Workbook(details_wkbk_pathname)
-sheet_name_to_sheet = init_billing_details_wkbk(billing_details_wkbk)
+# Create all the sheets in the output spreadsheet.
+sheet_name_to_sheet_map = init_billing_details_wkbk(billing_details_wkbk)
 
 #
 # Output the state of arguments.
@@ -845,6 +990,10 @@ if args.no_computing:
     print "  Skipping computing calculations"
 #if args.no_consulting:
 #    print "  Skipping consulting calculations"
+if args.no_cloud:
+    print "  Skipping cloud calculations"
+else:
+    print "  Google Invoice File: %s" % google_invoice_csv
 if args.all_jobs_billable:
     print "  All jobs billable."
 print "  BillingDetailsFile: %s" % (details_wkbk_pathname)
@@ -855,22 +1004,28 @@ print
 #
 if not args.no_storage:
     compute_storage_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp,
-                            sheet_name_to_sheet['Storage'])
+                            sheet_name_to_sheet_map['Storage'])
 
 #
 # Compute computing charges.
 #
 if not args.no_computing:
     compute_computing_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, accounting_file,
-                              sheet_name_to_sheet['Computing'],
-                              sheet_name_to_sheet['Nonbillable Jobs'], sheet_name_to_sheet['Failed Jobs'])
+                              sheet_name_to_sheet_map['Computing'],
+                              sheet_name_to_sheet_map['Nonbillable Jobs'], sheet_name_to_sheet_map['Failed Jobs'])
 
 #
 # Compute consulting charges.
 #
 # if not args.no_consulting:
 #     compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp,
-#                                sheet_name_to_sheet['Consulting'])
+#                                sheet_name_to_sheet_map['Consulting'])
+
+#
+# Compute cloud charges.
+#
+if not args.no_cloud and google_invoice_csv is not None:
+    compute_cloud_charges(billing_details_wkbk, google_invoice_csv, sheet_name_to_sheet_map['Cloud'])
 
 #
 # Close the output workbook and write the .xlsx file.

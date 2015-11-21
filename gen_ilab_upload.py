@@ -31,9 +31,11 @@
 #
 #=====
 import argparse
+import codecs
 from collections import defaultdict
 import csv
 import datetime
+import locale  # for converting strings with commas into floats
 import os
 import sys
 
@@ -53,26 +55,27 @@ global BILLING_NOTIFS_SHEET_COLUMNS
 global BILLING_AGGREG_SHEET_COLUMNS
 global BILLING_DETAILS_PREFIX
 global BILLING_NOTIFS_PREFIX
-
-# Prefix for the iLab Export CSV filename.
-ILAB_EXPORT_PREFIX = 'BillingiLab'
+global GOOGLE_INVOICE_PREFIX
+global ILAB_EXPORT_PREFIX
 
 # Default headers for the ilab Export CSV file (if not read in from iLab template file).
 DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
                        'service_request_id','owner_email','pi_email']
 
-# Default service IDs (if not read in from iLab Core Services file).
-DEFAULT_SERVICE_ID_LOCAL_STORAGE   = 1991
-DEFAULT_SERVICE_ID_LOCAL_COMPUTING = 1992
-DEFAULT_SERVICE_ID_GOOGLE_STORAGE  = 2191
-DEFAULT_SERVICE_ID_GOOGLE_EGRESS   = 2192
+# Default available services table (to be used if no available services file given).
+DEFAULT_AVAILABLE_SERVICES_ID_DICT = {
+    'Local Storage'   : ['Local Cluster Storage', 1991],
+    'Local Computing' : ['Local Cluster Computing', 1992],
+    'Google Cloud Storage' : ['Google Cloud Storage (Backup)', 2191],
+    'Google Cloud Egress' :  ['Google Cloud Egress', 2192],
+    'Cloud Services' : ['Cloud Services (Passthrough)', 2355],
+    'Consulting' : ['Consulting - Work on a Project beyond 3 hours (Units are hours)', 2350],
+    'Consulting Resources' : ['Consulting Compute Cost (Passthrough)', 2356]
+}
 
-# Service ID names (for reading in service IDs from iLab Core Services file).
-CORE_SERVICES_COLUMN_NAME = 'Name'
-CORE_SERVICES_COLUMN_SERVICE_ID = 'Service ID'
-
-CORE_SERVICES_NAME_LOCAL_STORAGE = 'Local Storage'
-CORE_SERVICES_NAME_LOCAL_COMPUTING = 'Local Cluster Computing'
+# Available Service ID names (for reading in available service info from iLab Available Services file).
+AVAILABLE_SERVICES_COLUMN_NAME       = 'Name'
+AVAILABLE_SERVICES_COLUMN_SERVICE_ID = 'Service ID'
 
 #=====
 #
@@ -96,15 +99,14 @@ username_to_user_details = defaultdict(list)
 # Mapping from pi_tags to list of [first_name, last_name, email].
 pi_tag_to_names_email = defaultdict(list)
 
+# Mapping from pi_tags to iLab service request IDs (1-to-1 mapping).
+pi_tag_to_ilab_service_req_id = dict()
+
 # Mapping from job_tags to list of [pi_tag, %age].
 job_tag_to_pi_tag_pctages = defaultdict(list)
 
 # Mapping from folders to list of [pi_tag, %age].
 folder_to_pi_tag_pctages = defaultdict(list)
-
-#
-# These globals are data structures used to write the BillingNotification workbooks.
-#
 
 # Mapping from pi_tag to list of [folder, size, %age].
 pi_tag_to_folder_sizes = defaultdict(list)
@@ -121,6 +123,18 @@ pi_tag_to_sge_job_details = defaultdict(list)
 # Mapping from pi_tag to list of [username, date_added, date_removed, %age].
 pi_tag_to_user_details = defaultdict(list)
 
+# Mapping from pi_tag to list of (cloud project, %age) tuples.
+pi_tag_to_cloud_project_pctages = defaultdict(list)
+
+# Mapping from cloud project to cloud account (1-to-1 mapping).
+cloud_project_to_cloud_acct = dict()
+
+# Mapping from cloud project to lists of (account, description, dates, quantity, UOM, charge) tuples.
+cloud_project_to_cloud_details = defaultdict(list)
+
+
+# Set locale to be US english for converting strings with commas into floats.
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 #=====
 #
@@ -157,11 +171,26 @@ def get_pi_tags_for_username_by_date(username, date_timestamp):
 
     return pi_tag_list
 
+#
+# Reads a subtable from the CSVFile file-object, which is all the lines
+# between blank lines.
+#
+def get_google_invoice_csv_subtable_lines(csvfile_obj):
+
+    subtable = []
+
+    line = csvfile_obj.readline()
+    while not line.startswith(',') and line != '' and line != '\n':
+        subtable.append(line)
+        line = csvfile_obj.readline()
+
+    return subtable
+
 
 # Creates all the data structures used to write the BillingNotification workbook.
 # The overall goal is to mimic the tables of the notification sheets so that
 # to build the table, all that is needed is to print out one of these data structures.
-def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
+def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data):
 
     pis_sheet      = wkbk.sheet_by_name("PIs")
     folders_sheet  = wkbk.sheet_by_name("Folders")
@@ -195,7 +224,45 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
     pi_ilab_ids = sheet_get_named_column(pis_sheet,"iLab Service Request ID")
 
-    pi_tag_to_ilab_service_req_id = dict(zip(pi_tag_list,pi_ilab_ids))
+    pi_tag_to_ilab_service_req_id = dict(zip(pi_tag_list, pi_ilab_ids))
+
+    # Organize data from the Cloud sheet, if present.
+    if read_cloud_data:
+        cloud_sheet = wkbk.sheet_by_name("Cloud")
+
+        #
+        # Create mapping from pi_tag to cloud project from the BillingConfig PIs sheet.
+        # Create mapping from cloud project to list of (pi_tag, %age) tuples.
+        # Create mapping from cloud project to cloud account (1-to-1).
+        #
+        global pi_tag_to_cloud_project_pctages
+        global cloud_project_to_cloud_acct
+
+        cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
+        cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
+        cloud_accounts    = sheet_get_named_column(cloud_sheet, "Account")
+        cloud_pctage      = sheet_get_named_column(cloud_sheet, "%age")
+        cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
+        cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
+
+        cloud_table = zip(cloud_pi_tags, cloud_projects, cloud_accounts, cloud_pctage,
+                          cloud_dates_added, cloud_dates_remvd)
+
+        for (pi_tag, project, account, pctage, date_added, date_remvd) in cloud_table:
+
+            # Convert the Excel dates to timestamps.
+            date_added_timestamp = from_excel_date_to_timestamp(date_added)
+            if date_remvd != '':
+                date_remvd_timestamp = from_excel_date_to_timestamp(date_remvd)
+            else:
+                date_remvd_timestamp = end_month_timestamp + 1  # Not in this month.
+
+            # If the date added is BEFORE the end of this month, and
+            #  the date removed is AFTER the beginning of this month,
+            # then save the account information in the mappings.
+            if date_added_timestamp < end_month_timestamp and date_remvd_timestamp >= begin_month_timestamp:
+                pi_tag_to_cloud_project_pctages[pi_tag].append((project, pctage))
+                cloud_project_to_cloud_acct[project] = account
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -305,11 +372,9 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
 # Reads the Storage sheet of the BillingDetails workbook given, and populates
 # the pi_tag_to_folder_sizes dict with the folder measurements for each PI.
-def read_storage_sheet(wkbk):
+def read_storage_sheet(storage_sheet):
 
     global pi_tag_to_folder_sizes
-
-    storage_sheet = wkbk.sheet_by_name("Storage")
 
     for row in range(1,storage_sheet.nrows):
 
@@ -325,13 +390,11 @@ def read_storage_sheet(wkbk):
 # Reads the Computing sheet of the BillingDetails workbook given, and populates
 # the job_tag_to_pi_tag_cpus, pi_tag_to_job_tag_cpus, pi_tag_to_username_cpus, and
 # pi_tag_to_sge_job_details dicts.
-def read_computing_sheet(wkbk):
+def read_computing_sheet(computing_sheet):
 
     global pi_tag_to_sge_job_details
     global pi_tag_to_job_tag_cpus
     global pi_tag_to_username_cpus
-
-    computing_sheet = wkbk.sheet_by_name("Computing")
 
     for row in range(1,computing_sheet.nrows):
 
@@ -434,26 +497,102 @@ def read_computing_sheet(wkbk):
                 pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
 
 
+# Read the Cloud sheet from the BillingDetails workbook.
+def read_cloud_sheet(cloud_sheet):
+
+    for row in range(1,cloud_sheet.nrows):
+
+        (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
+
+        # Save the cloud item in a list of charges for that PI.
+        cloud_project_to_cloud_details[project].append((account, description, dates, quantity, uom, charge))
+
+
+def read_google_invoice(google_invoice_csv_file):
+
+    ###
+    # Read the Google Invoice CSV File
+    ###
+
+    # Google Invoice CSV files are Unicode with BOM.
+    google_invoice_csv_file_obj = codecs.open(google_invoice_csv_file, 'rU', encoding='utf-8-sig')
+
+    #  Read the header subtable
+    google_invoice_header_subtable = get_google_invoice_csv_subtable_lines(google_invoice_csv_file_obj)
+
+    google_invoice_header_csvreader = csv.DictReader(google_invoice_header_subtable, fieldnames=['key', 'value'])
+
+    for row in google_invoice_header_csvreader:
+
+        #   Extract invoice date from "Issue Date".
+        if row['key'] == 'Issue date':
+            google_invoice_issue_date = row['value']
+        #   Extract the "Amount Due" value.
+        elif row['key'] == 'Amount due':
+            google_invoice_amount_due = locale.atof(row['value'])
+
+    print >> sys.stderr, "  Amount due: $%0.2f" % (google_invoice_amount_due)
+
+    # Accumulate the total amount of charges while processing each line,
+    #  to compare with total amount in header.
+    google_invoice_total_amount = 0.0
+
+    #  While there are still more subtables...
+    while True:
+
+        #   Read subtable.
+        google_invoice_subtable = get_google_invoice_csv_subtable_lines(google_invoice_csv_file_obj)
+
+        #   No more subtables?!  Let's get out of here!
+        if len(google_invoice_subtable) == 0:
+            break
+
+        #   Create CSVReader from subtable
+        google_invoice_subtable_csvreader = csv.DictReader(google_invoice_subtable)
+
+        #   Foreach row in CSVReader
+        for row_dict in google_invoice_subtable_csvreader:
+
+            #     Accumulate total charges.
+            amount = locale.atof(row_dict['Amount'])
+            google_invoice_total_amount += amount
+
+            google_account = row_dict['Order']
+
+            #     Construct note for ilab entry.
+            google_project = row_dict['Source']
+            google_item    = row_dict['Description']
+            google_quantity = row_dict['Quantity']
+            google_uom     = row_dict['UOM']
+            google_dates   = row_dict['Interval']
+
+            # Save the cloud details with the appropriate PI.
+            cloud_project_to_cloud_details[google_project].append((google_account, google_item, google_dates,
+                                                                   google_quantity, google_uom, amount))
+
+    # Compare total charges to "Amount Due".
+    if abs(google_invoice_total_amount - google_invoice_amount_due) >= 0.01:  # Ignore differences less than a penny.
+        print >> sys.stderr, "  WARNING: Accumulated amounts do not equal amount due: ($%.2f != $%.2f)" % (google_invoice_total_amount,
+                                                                                                           google_invoice_amount_due)
+    else:
+        print >> sys.stderr, "  VERIFIED: Sum of individual transactions equals Amount due."
+
+
 #
 # Generates the iLab CSV entries for a particular pi_tag.
 #
 # It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_job_tag_cpus.
 #
-def generate_ilab_csv_file(csv_dictwriter, pi_tag,
-                           storage_service_id, computing_service_id,
-                           begin_month_timestamp, end_month_timestamp):
+def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
+                                     storage_service_id, computing_service_id,
+                                     begin_month_timestamp, end_month_timestamp):
 
     # If this PI doesn't have a service request ID, skip them.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id == 'N/A':
-        print "  Skipping %s: no service request ID" % (pi_tag)
-        return
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+        print "  Skipping %s: no iLab service request ID" % (pi_tag)
+        return False
 
-    # Create a dictionary to be written out as CSV.
-    csv_dict = dict()
-    csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][2]
-    csv_dict['pi_email']    = ''
-    csv_dict['service_request_id'] = pi_tag_to_ilab_service_req_id[pi_tag]
-    csv_dict['purchased_on'] = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
+    purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
 
     ###
     #
@@ -464,8 +603,6 @@ def generate_ilab_csv_file(csv_dictwriter, pi_tag,
     #
     # Get the Service ID for "Local Storage".
     #
-    csv_dict['service_id'] = storage_service_id
-
     total_storage_sizes = 0.0
 
     for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
@@ -478,11 +615,8 @@ def generate_ilab_csv_file(csv_dictwriter, pi_tag,
 
         quantity = size * pctage
 
-        csv_dict['note'] = note
-        csv_dict['service_quantity'] = quantity
-
         if quantity > 0.0:
-            csv_dictwriter.writerow(csv_dict)
+            output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, storage_service_id, note, quantity)
 
             total_storage_sizes += size
 
@@ -496,8 +630,6 @@ def generate_ilab_csv_file(csv_dictwriter, pi_tag,
     #
     # Get the Service ID for "Local Cluster Computing".
     #
-    csv_dict['service_id'] = computing_service_id
-
     total_computing_cpuhrs  = 0.0
 
     # Get the job details for the users associated with this PI.
@@ -515,11 +647,8 @@ def generate_ilab_csv_file(csv_dictwriter, pi_tag,
 
             quantity = cpu_core_hrs * pctage
 
-            csv_dict['note'] = note
-            csv_dict['service_quantity'] = quantity
-
             if quantity > 0.0:
-                csv_dictwriter.writerow(csv_dict)
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, computing_service_id, note, quantity)
 
                 total_computing_cpuhrs += cpu_core_hrs
 
@@ -536,15 +665,12 @@ def generate_ilab_csv_file(csv_dictwriter, pi_tag,
             note = "Job Tag %s" % (job_tag)
 
             if pctage < 1.0:
-                note += " [%d%%]" % (pctage)
+                note += " [%d%%]" % (pctage * 100)
 
             quantity = cpu_core_hrs * pctage
 
-            csv_dict['note'] = note
-            csv_dict['service_quantity'] = quantity
-
             if quantity > 0.0:
-                csv_dictwriter.writerow(csv_dict)
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, computing_service_id, note, quantity)
 
                 total_computing_cpuhrs += cpu_core_hrs
 
@@ -552,6 +678,68 @@ def generate_ilab_csv_file(csv_dictwriter, pi_tag,
         # No job tags for this PI.
         pass
 
+    return True
+
+
+def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
+                                   begin_month_timestamp, end_month_timestamp):
+
+    # If this PI doesn't have a service request ID, skip them.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+        print "  Skipping %s: no iLab service request ID" % (pi_tag)
+        return False
+
+    purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
+
+    # Get list of (project, %ages) tuples for given PI.
+    project_pctage_tuples = pi_tag_to_cloud_project_pctages[pi_tag]
+
+    for (project, pctage) in project_pctage_tuples:
+
+        # Get list of cloud items to charge PI for.
+        cloud_details = cloud_project_to_cloud_details[project]
+
+        for (account, description, dates, quantity, uom, amount) in cloud_details:
+
+            # If the quantity is given, make a string of it and its unit-of-measure.
+            if quantity != '':
+                quantity_str = " @ %s %s" % (quantity, uom)
+            else:
+                quantity_str = ''
+
+            note = "Google :: %s : %s%s" % (project, description, quantity_str)
+
+            if pctage < 1.0:
+                note += " [%d%%]" % (pctage * 100)
+
+            # Calculate the amount to charge the PI based on their percentage.
+            pi_amount = amount * pctage
+
+            # Write out the iLab export line.
+            output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note, pi_amount)
+
+    return True
+
+
+def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_id, note, amount):
+
+    # If this PI doesn't have a service request ID, skip them.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+        print "  Skipping %s: no iLab service request ID" % (pi_tag)
+        return
+
+    # Create a dictionary to be written out as CSV.
+    csv_dict = dict()
+    csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][2]
+    csv_dict['pi_email']    = ''
+    csv_dict['service_request_id'] = int(pi_tag_to_ilab_service_req_id[pi_tag])
+    csv_dict['purchased_on'] = end_month_string  # Last date of billing period.
+    csv_dict['service_id'] = service_id
+
+    csv_dict['note'] = note
+    csv_dict['service_quantity'] = amount
+
+    csv_dictwriter.writerow(csv_dict)
 
 
 #=====
@@ -567,6 +755,9 @@ parser.add_argument("billing_config_file",
 parser.add_argument("-d","--billing_details_file",
                     default=None,
                     help='The BillingDetails file')
+parser.add_argument("-g", "--google_invoice_csv",
+                    default=None,
+                    help="The Google Invoice CSV file")
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
@@ -576,6 +767,12 @@ parser.add_argument("-t", "--ilab_template",
 parser.add_argument("-a", "--ilab_available_services",
                     default=None,
                     help='The iLab available services file [default = None]')
+parser.add_argument("-c", "--skip_cluster", action="store_true",
+                    default=False,
+                    help="Don't output cluster iLab file. [default = False]")
+parser.add_argument("-l", "--skip_cloud", action="store_true",
+                    default=False,
+                    help="Don't output cloud iLab file. [default = False]")
 parser.add_argument("-p", "--pi_files", action="store_true",
                     default=False,
                     help='Output PI-specific CSV files [default = False]')
@@ -660,6 +857,21 @@ if args.billing_details_file is not None:
 else:
     billing_details_file = os.path.join(year_month_dir, "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month))
 
+# Confirm that BillingDetails file exists.
+if not os.path.exists(billing_details_file):
+    billing_details_file = None
+
+# If Google Invoice CSV given, use that, else look in BillingRoot.
+if args.google_invoice_csv is not None:
+    google_invoice_csv = args.google_invoice_csv
+else:
+    google_invoice_filename = "%s.%d-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month)
+    google_invoice_csv = os.path.join(year_month_dir, google_invoice_filename)
+
+# Confirm that Google Invoice CSV file exists.
+if not os.path.exists(google_invoice_csv):
+    google_invoice_csv = None
+
 #
 # Output the state of arguments.
 #
@@ -667,35 +879,50 @@ print "GENERATING ILAB EXPORT FOR %02d/%d:" % (month, year)
 print "  BillingConfigFile: %s" % (args.billing_config_file)
 print "  BillingRoot: %s" % billing_root
 print "  BillingDetailsFile: %s" % (billing_details_file)
+print "  GoogleInvoiceCSV: %s" % (google_invoice_csv)
 print
 
 #
 # Build data structures.
 #
 print "Building configuration data structures."
-build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp)
+
+# Determine whether we should read in Cloud data from the BillingConfig spreadsheet.
+# We should if the BillingConfig spreadsheet has a Cloud sheet.
+read_cloud_data = ("Cloud" in billing_config_wkbk.sheet_names())
+
+build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data)
+
+if billing_details_file is not None:
+    ###
+    #
+    # Read the BillingDetails workbook, and create output data structures.
+    #
+    ###
+
+    # Open the BillingDetails workbook.
+    print "Opening BillingDetails workbook..."
+    billing_details_wkbk = xlrd.open_workbook(billing_details_file)
+
+    # Read in its Storage sheet and generate output data.
+    print "Reading storage sheet."
+    storage_sheet = billing_details_wkbk.sheet_by_name("Storage")
+    read_storage_sheet(storage_sheet)
+
+    # Read in its Computing sheet and generate output data.
+    print "Reading computing sheet."
+    computing_sheet = billing_details_wkbk.sheet_by_name("Computing")
+    read_computing_sheet(computing_sheet)
+
+    # Read in the Cloud sheet, if present.
+    if google_invoice_csv is None and "Cloud" in billing_details_wkbk.sheet_names():
+        print "Reading cloud sheet."
+        cloud_sheet = billing_details_wkbk.sheet_by_name("Cloud")
+        read_cloud_sheet(cloud_sheet)
 
 ###
 #
-# Read the BillingDetails workbook, and create output data structures.
-#
-###
-
-# Open the BillingDetails workbook.
-print "Read in BillingDetails workbook."
-billing_details_wkbk = xlrd.open_workbook(billing_details_file)
-
-# Read in its Storage sheet and generate output data.
-print "Reading storage sheet."
-read_storage_sheet(billing_details_wkbk)
-
-# Read in its Computing sheet and generate output data.
-print "Reading computing sheet."
-read_computing_sheet(billing_details_wkbk)
-
-###
-#
-# Read in the iLab File template, if available.
+# Read in the iLab Export File template, if available.
 #
 ###
 if args.ilab_template is not None:
@@ -717,6 +944,10 @@ else:
 #   ilab_service_id_local_storage
 #
 ###
+ilab_service_id_local_computing = None
+ilab_service_id_local_storage   = None
+ilab_service_id_google_passthrough = None
+
 if args.ilab_available_services is not None:
 
     ilab_available_services_file = open(args.ilab_available_services)
@@ -725,50 +956,110 @@ if args.ilab_available_services is not None:
 
     for available_services_row_dict in csv_dictreader:
 
-        row_name_col = available_services_row_dict.get(CORE_SERVICES_COLUMN_NAME)
+        row_name_col = available_services_row_dict.get(AVAILABLE_SERVICES_COLUMN_NAME)
         if row_name_col is not None:
 
-            if row_name_col == CORE_SERVICES_NAME_LOCAL_COMPUTING:
-                ilab_service_id_local_computing = available_services_row_dict[CORE_SERVICES_COLUMN_SERVICE_ID]
-            elif row_name_col == CORE_SERVICES_NAME_LOCAL_STORAGE:
-                ilab_service_id_local_storage   = available_services_row_dict[CORE_SERVICES_COLUMN_SERVICE_ID]
+            if row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Computing'][0]:
+                ilab_service_id_local_computing = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
+            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Storage'][0]:
+                ilab_service_id_local_storage   = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
+            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Cloud Services'][0]:
+                ilab_service_id_google_passthrough = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
 
     ilab_available_services_file.close()
 
+    # If we can't find the entries we need from the given available services file,
+    #  mention that and exit.
+    end_run = False
+    if ilab_service_id_local_computing is None:
+        print >> sys.stderr, "available services list: No entry for Local Computing"
+        end_run = True
+    if ilab_service_id_local_storage is None:
+        print >> sys.stderr, "available services list: No entry for Local Storage"
+        end_run = True
+    if ilab_service_id_google_passthrough is None:
+        print >> sys.stderr, "available services list: No entry for Cloud Services"
+        end_run = True
+
+    if end_run:
+        print >> sys.stderr, "Problems with available services file: ending run."
+        sys.exit(-1)
+
 else:
-    ilab_service_id_local_computing = DEFAULT_SERVICE_ID_LOCAL_COMPUTING
-    ilab_service_id_local_storage   = DEFAULT_SERVICE_ID_LOCAL_STORAGE
+    # Use default values if no available services file.
+    ilab_service_id_local_computing = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Computing'][1]
+    ilab_service_id_local_storage   = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Storage'][1]
+    ilab_service_id_google_passthrough = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Cloud Services'][1]
 
 
-###
+#####
 #
-# Open the iLab CSV file for writing out.
+# Read the Billing Details file, if given.
 #
-###
+####
+if billing_details_file is not None and not args.skip_cluster:
 
-ilab_csv_filename = "%s.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
-ilab_csv_pathname = os.path.join(year_month_dir, ilab_csv_filename)
+    ###
+    #
+    # Write iLab export CSV file from output data structures.
+    #
+    ###
+    print "Writing out BillingDetails lines for Cluster into iLab export CSV file."
 
-csv_file = open(ilab_csv_pathname, "w")
+    ###
+    #
+    # Open the iLab CSV file for writing out.
+    #
+    ###
 
-csv_dictwriter = csv.DictWriter(csv_file, fieldnames=ilab_csv_headers)
+    ilab_export_csv_filename = "%s-Cluster.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
+    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
 
-###
-#
-# Write iLab export CSV file from output data structures.
-#
-###
+    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
 
-csv_dictwriter.writeheader()
+    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
 
-print "Writing iLab export CSV file:"
-for pi_tag in sorted(pi_tag_list):
+    ilab_export_csv_dictwriter.writeheader()
 
-    print " %s" % pi_tag
+    # Write out cluster data to iLab export CSV file.
+    for pi_tag in sorted(pi_tag_list):
+        print " %s" % pi_tag
 
-    generate_ilab_csv_file(csv_dictwriter, pi_tag,
-                           ilab_service_id_local_storage, ilab_service_id_local_computing,
-                           begin_month_timestamp, end_month_timestamp)
+        ret_val = output_ilab_csv_data_for_cluster(ilab_export_csv_dictwriter, pi_tag,
+                                                   ilab_service_id_local_storage, ilab_service_id_local_computing,
+                                                   begin_month_timestamp, end_month_timestamp)
 
-csv_file.close()
+    # Close the iLab export CSV file.
+    ilab_export_csv_file.close()
 
+if not args.skip_cloud:
+
+    if google_invoice_csv is not None:
+
+        ###
+        # Read in Google Cloud Invoice data, potentially overwriting data from BillingDetails.
+        ###
+
+        print "Reading Google Invoice."
+        read_google_invoice(google_invoice_csv)
+
+    print "Writing out Cloud details into iLab export CSV file."
+
+    # Open the iLab CSV file for writing out.
+    ilab_export_csv_filename = "%s-Cloud.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
+    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
+
+    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
+
+    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
+
+    ilab_export_csv_dictwriter.writeheader()
+
+    for pi_tag in pi_tag_list:
+        print " %s" % pi_tag
+
+        ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag, ilab_service_id_google_passthrough,
+                                                 begin_month_timestamp, end_month_timestamp)
+
+    # Close the iLab export CSV file.
+    ilab_export_csv_file.close()
