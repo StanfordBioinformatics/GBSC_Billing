@@ -62,7 +62,7 @@ GEN_DETAILS_SCRIPT   = "gen_details.py"
 GEN_NOTIFS_SCRIPT    = "gen_notifs.py"
 ILAB_EXPORT_SCRIPT   = "gen_ilab_upload.py"
 
-ILAB_AVAILABLE_SERVICES_FILE = "available_services_list_150106.csv"
+ILAB_AVAILABLE_SERVICES_FILE = "available_services_list_151012.csv"
 ILAB_EXPORT_TEMPLATE_FILE    = "charges_upload_template.csv"
 
 #=====
@@ -71,7 +71,11 @@ ILAB_EXPORT_TEMPLATE_FILE    = "charges_upload_template.csv"
 #
 #=====
 # From billing_common.py
+global GOOGLE_INVOICE_PREFIX
+
 global read_config_sheet
+
+
 
 #=====
 #
@@ -87,6 +91,9 @@ parser.add_argument("--billing_config_file",
 parser.add_argument("--billing_root",
                     default=None,
                     help='The BillingRoot directory [default = None]')
+parser.add_argument("-g", "--google_invoice_csv",
+                    default=None,
+                    help="The Google Invoice CSV file")
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
@@ -132,7 +139,11 @@ else:
 
 # Do month now, and decrement year if want last month and this month is Dec.
 if args.month is None:
+    #
     # No month given: use last month.
+    #
+
+    # Get this month to then calculate last month.
     this_month = datetime.date.today().month
 
     # If this month is Jan, last month was Dec. of previous year.
@@ -182,24 +193,57 @@ else:
         # Use billing_root given as argument.
         billing_root = args.billing_root
 
+if args.google_invoice_csv is None:
 
-if not os.path.exists(billing_config_file):
+    if args.billing_root is None:
+        # ERROR: Need google_invoice_csv OR billing_root.
+        parser.exit(-1, "Need either google_invoice_csv or billing_root\n")
+
+    else:
+        # Use billing_root given as argument.
+        billing_root = args.billing_root
+
+        # Look for google_invoice_csv in given billing_root dir.
+        google_invoice_filename = "%s.%d-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month)
+        google_invoice_csv = os.path.join(billing_root, google_invoice_filename)
+else:
+    google_invoice_csv = args.google_invoice_csv
+
+if os.path.exists(billing_config_file):
+    # Get absolute path for billing_config_file.
+    billing_config_file = os.path.abspath(billing_config_file)
+else:
     # ERROR: Can't find billing_config_file
     parser.exit(-2, "Can't find billing config file %s\n" % billing_config_file)
 
-if not os.path.exists(billing_root):
+if os.path.exists(billing_root):
+    # Get absolute path for billing_root.
+    billing_root = os.path.abspath(billing_root)
+else:
     # ERROR: Can't find billing_root
     parser.exit(-3, "Can't find billing root dir %s\n" % billing_root)
 
-# Add the year/month dir hierarchy to billing_root.
+if os.path.exists(google_invoice_csv):
+    google_invoice_csv = os.path.abspath(google_invoice_csv)
+else:
+    google_invoice_csv = None
+
+# Create the year/month dir hierarchy in billing_root.
 year_month_root = os.path.join(billing_root, year_month_dir)
 if not os.path.exists(year_month_root):
     os.makedirs(year_month_root, 0770)
 
 # Copy billing config file into year_month_root, unless they are the same file.
-billing_config_file_copy = os.path.join(billing_root,year_month_dir,"BillingConfig.%s-%02d.xlsx" % (year,month))
+billing_config_file_copy = os.path.join(billing_root, year_month_dir, "BillingConfig.%s-%02d.xlsx" % (year,month))
 if billing_config_file != billing_config_file_copy:
     shutil.copyfile(billing_config_file, billing_config_file_copy)
+
+# Move the Google Invoice CSV file into the year_month_root.
+if google_invoice_csv is not None:
+    google_invoice_csv_root = os.path.join(billing_root, year_month_dir, "%s.%s-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month))
+    if google_invoice_csv_root != google_invoice_csv:
+        shutil.move(google_invoice_csv, google_invoice_csv_root)
+    google_invoice_csv = google_invoice_csv_root
 
 # Save year and month arguments, which appear in almost every command.
 year_month_args = ['-y', str(year), '-m', str(month)]
@@ -262,6 +306,9 @@ print >> billing_log_file
 details_script_path = os.path.join(SCRIPT_DIR, GEN_DETAILS_SCRIPT)
 details_cmd = [details_script_path] + year_month_args + billing_root_args + [billing_config_file]
 
+# Add the switch defining the Google Invoice CSV, if given.
+if google_invoice_csv is not None: details_cmd += ['--google_invoice_csv', google_invoice_csv]
+
 # Add the switches concerning details.
 if args.no_storage:        details_cmd += ['--no_storage']
 if args.no_usage:          details_cmd += ['--no_usage']
@@ -308,10 +355,10 @@ print >> billing_log_file
 
 ###
 #
-# Generate the BillingiLab file.
+# Generate the BillingiLab files.
 #
 ###
-ilab_export_script_path = os.path.join(SCRIPT_DIR, ILAB_EXPORT_SCRIPT)
+ilab_export_script_path      = os.path.join(SCRIPT_DIR, ILAB_EXPORT_SCRIPT)
 ilab_available_services_path = os.path.join(SCRIPT_DIR, 'iLab', ILAB_AVAILABLE_SERVICES_FILE)
 ilab_export_template_path    = os.path.join(SCRIPT_DIR, 'iLab', ILAB_EXPORT_TEMPLATE_FILE)
 
