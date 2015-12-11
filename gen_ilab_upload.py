@@ -151,6 +151,22 @@ global sheet_get_named_column
 global read_config_sheet
 global config_sheet_get_dict
 
+# Filters a list of lists using a parallel list of [date_added, date_removed]'s.
+# Returns the elements in the first list which are valid with the month date range given.
+def filter_by_dates(obj_list, date_list, begin_month_exceldate, end_month_exceldate):
+
+    output_list = []
+
+    for (obj, (date_added, date_removed)) in zip(obj_list, date_list):
+
+        # If the date added is BEFORE the end of this month, and
+        #    the date removed is AFTER the beginning of this month,
+        # then save the account information in the mappings.
+        if date_added < end_month_exceldate and date_removed >= begin_month_exceldate:
+            output_list.append(obj)
+
+    return output_list
+
 
 # This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
 # for the PIs that the given user was working for on the given date.
@@ -197,6 +213,9 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     users_sheet    = wkbk.sheet_by_name("Users")
     job_tags_sheet = wkbk.sheet_by_name("JobTags")
 
+    begin_month_exceldate = from_timestamp_to_excel_date(begin_month_timestamp)
+    end_month_exceldate   = from_timestamp_to_excel_date(end_month_timestamp)
+
     #
     # Create list of pi_tags.
     #
@@ -240,29 +259,29 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
 
         cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
         cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
+        cloud_projnums    = sheet_get_named_column(cloud_sheet, "Project Number")
         cloud_accounts    = sheet_get_named_column(cloud_sheet, "Account")
         cloud_pctage      = sheet_get_named_column(cloud_sheet, "%age")
+
         cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
         cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
-        cloud_table = zip(cloud_pi_tags, cloud_projects, cloud_accounts, cloud_pctage,
-                          cloud_dates_added, cloud_dates_remvd)
+        cloud_rows = filter_by_dates(zip(cloud_pi_tags, cloud_projects, cloud_projnums,
+                                     cloud_accounts, cloud_pctage),
+                                     zip(cloud_dates_added, cloud_dates_remvd),
+                                     begin_month_exceldate, end_month_exceldate)
 
-        for (pi_tag, project, account, pctage, date_added, date_remvd) in cloud_table:
+        for (pi_tag, project, projnum, account, pctage) in cloud_rows:
 
-            # Convert the Excel dates to timestamps.
-            date_added_timestamp = from_excel_date_to_timestamp(date_added)
-            if date_remvd != '':
-                date_remvd_timestamp = from_excel_date_to_timestamp(date_remvd)
-            else:
-                date_remvd_timestamp = end_month_timestamp + 1  # Not in this month.
+            # Associate the project name and percentage to be charged with the pi_tag.
+            pi_tag_to_cloud_project_pctages[pi_tag].append((project, pctage))
 
-            # If the date added is BEFORE the end of this month, and
-            #  the date removed is AFTER the beginning of this month,
-            # then save the account information in the mappings.
-            if date_added_timestamp < end_month_timestamp and date_remvd_timestamp >= begin_month_timestamp:
-                pi_tag_to_cloud_project_pctages[pi_tag].append((project, pctage))
-                cloud_project_to_cloud_acct[project] = account
+            # Associate the project number with the pi_tag also, in case the project is deleted and loses its name.
+            pi_tag_to_cloud_project_pctages[pi_tag].append((projnum, pctage))
+
+            # Associate the account with the project name and with the project number.
+            cloud_project_to_cloud_acct[project] = account
+            cloud_project_to_cloud_acct[projnum] = account
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -344,7 +363,11 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     pi_tags  = sheet_get_named_column(job_tags_sheet, "PI Tag")
     pctages  = sheet_get_named_column(job_tags_sheet, "%age")
 
-    job_tag_rows = zip(job_tags, pi_tags, pctages)
+    dates_added   = sheet_get_named_column(job_tags_sheet, "Date Added")
+    dates_removed = sheet_get_named_column(job_tags_sheet, "Date Removed")
+
+    job_tag_rows = filter_by_dates(zip(job_tags, pi_tags, pctages), zip(dates_added, dates_removed),
+                                   begin_month_exceldate, end_month_exceldate)
 
     for (job_tag, pi_tag, pctage) in job_tag_rows:
         job_tag_to_pi_tag_pctages[job_tag].append([pi_tag, pctage])
@@ -354,17 +377,25 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     #
     global folder_to_pi_tag_pctages
 
-    # Folders from PI Sheet
+    # Get the Folders from PI Sheet
     folders = sheet_get_named_column(pis_sheet, "PI Folder")
     pi_tags = sheet_get_named_column(pis_sheet, "PI Tag")
     pctages = [1.0] * len(folders)
 
-    # Folders from Folder sheet
+    dates_added   = sheet_get_named_column(pis_sheet, "Date Added")
+    dates_removed = sheet_get_named_column(pis_sheet, "Date Removed")
+
+
+    # Add the Folders from Folder sheet
     folders += sheet_get_named_column(folders_sheet, "Folder")
     pi_tags += sheet_get_named_column(folders_sheet, "PI Tag")
     pctages += sheet_get_named_column(folders_sheet, "%age")
 
-    folder_rows = zip(folders, pi_tags, pctages)
+    dates_added   += sheet_get_named_column(folders_sheet, "Date Added")
+    dates_removed += sheet_get_named_column(folders_sheet, "Date Removed")
+
+    folder_rows = filter_by_dates(zip(folders, pi_tags, pctages), zip(dates_added, dates_removed),
+                                  begin_month_exceldate, end_month_exceldate)
 
     for (folder, pi_tag, pctage) in folder_rows:
         folder_to_pi_tag_pctages[folder].append([pi_tag, pctage])
