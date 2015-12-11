@@ -60,6 +60,7 @@ BILLING_CONFIG_SHEET_COLUMNS = {
     'Folders' : ['Folder', 'PI Tag', '%age', 'Method', 'Date Added', 'Date Removed'],
     'Users'   : ['PI Tag', 'Username', 'Email', 'Full Name', 'Date Added', 'Date Removed'],
     'JobTags' : ['Job Tag', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
+    'Cloud'   : ['Platform', 'Project', 'Project Number', 'Account', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
     'Config'  : ['Key', 'Value']
 }
 
