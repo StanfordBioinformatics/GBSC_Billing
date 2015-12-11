@@ -128,6 +128,8 @@ cloud_project_to_cloud_details = defaultdict(list)
 # Mapping from cloud project to total charge.
 cloud_project_to_total_charges = defaultdict(float)
 
+# Mapping from cloud project number to cloud project (1-to-1 mapping).
+cloud_projnum_to_cloud_project = dict()
 
 #=====
 #
@@ -241,6 +243,22 @@ def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
 
     return sheet_name_to_sheet
 
+# Filters a list of lists using a parallel list of [date_added, date_removed]'s.
+# Returns the elements in the first list which are valid with the month date range given.
+def filter_by_dates(obj_list, date_list, begin_month_exceldate, end_month_exceldate):
+
+    output_list = []
+
+    for (obj, (date_added, date_removed)) in zip(obj_list, date_list):
+
+        # If the date added is BEFORE the end of this month, and
+        #    the date removed is AFTER the beginning of this month,
+        # then save the account information in the mappings.
+        if date_added < end_month_exceldate and date_removed >= begin_month_exceldate:
+            output_list.append(obj)
+
+    return output_list
+
 
 # This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
 # for the PIs that the given user was working for on the given date.
@@ -272,6 +290,9 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     users_sheet    = wkbk.sheet_by_name("Users")
     job_tags_sheet = wkbk.sheet_by_name("JobTags")
 
+    begin_month_exceldate = from_timestamp_to_excel_date(begin_month_timestamp)
+    end_month_exceldate   = from_timestamp_to_excel_date(end_month_timestamp)
+
     #
     # Create list of pi_tags.
     #
@@ -301,35 +322,39 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     # Create mapping from pi_tag to cloud project from the BillingConfig PIs sheet.
     # Create mapping from cloud project to list of (pi_tag, %age) tuples.
     # Create mapping from cloud project to cloud account (1-to-1).
+    # Create mapping from cloud project to cloud project number (1-to-1).
     #
     global pi_tag_to_cloud_project_pctages
     global cloud_project_to_cloud_acct
 
     cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
     cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
+    cloud_projnums    = sheet_get_named_column(cloud_sheet, "Project Number")
     cloud_accounts    = sheet_get_named_column(cloud_sheet, "Account")
     cloud_pctage      = sheet_get_named_column(cloud_sheet, "%age")
+
     cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
     cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
-    cloud_table = zip(cloud_pi_tags, cloud_projects, cloud_accounts, cloud_pctage,
-                      cloud_dates_added, cloud_dates_remvd)
+    cloud_rows = filter_by_dates(zip(cloud_pi_tags, cloud_projects, cloud_projnums,
+                                     cloud_accounts, cloud_pctage),
+                                 zip(cloud_dates_added, cloud_dates_remvd),
+                                 begin_month_exceldate, end_month_exceldate)
 
-    for (pi_tag, project, account, pctage, date_added, date_remvd) in cloud_table:
+    for (pi_tag, project, projnum, account, pctage) in cloud_rows:
 
-        # Convert the Excel dates to timestamps.
-        date_added_timestamp = from_excel_date_to_timestamp(date_added)
-        if date_remvd != '':
-            date_remvd_timestamp = from_excel_date_to_timestamp(date_remvd)
-        else:
-            date_remvd_timestamp = end_month_timestamp + 1  # Not in this month.
+        # Associate the project name and percentage to be charged with the pi_tag.
+        pi_tag_to_cloud_project_pctages[pi_tag].append((project, pctage))
 
-        # If the date added is BEFORE the end of this month, and
-        #  the date removed is AFTER the beginning of this month,
-        # then save the account information in the mappings.
-        if date_added_timestamp < end_month_timestamp and date_remvd_timestamp >= begin_month_timestamp:
-            pi_tag_to_cloud_project_pctages[pi_tag].append((project, pctage))
-            cloud_project_to_cloud_acct[project] = account
+        # Associate the project number with the pi_tag also, in case the project is deleted and loses its name.
+        pi_tag_to_cloud_project_pctages[pi_tag].append((projnum, pctage))
+
+        # Associate the account with the project name and with the project number.
+        cloud_project_to_cloud_acct[project] = account
+        cloud_project_to_cloud_acct[projnum] = account
+
+        # Associate the project with its project number.
+        cloud_projnum_to_cloud_project[projnum] = project
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -411,7 +436,11 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     pi_tags  = sheet_get_named_column(job_tags_sheet, "PI Tag")
     pctages  = sheet_get_named_column(job_tags_sheet, "%age")
 
-    job_tag_rows = zip(job_tags, pi_tags, pctages)
+    dates_added   = sheet_get_named_column(job_tags_sheet, "Date Added")
+    dates_removed = sheet_get_named_column(job_tags_sheet, "Date Removed")
+
+    job_tag_rows = filter_by_dates(zip(job_tags, pi_tags, pctages), zip(dates_added, dates_removed),
+                                   begin_month_exceldate, end_month_exceldate)
 
     for (job_tag, pi_tag, pctage) in job_tag_rows:
         job_tag_to_pi_tag_pctages[job_tag].append([pi_tag, pctage])
@@ -421,17 +450,25 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     #
     global folder_to_pi_tag_pctages
 
-    # Folders from PI Sheet
+    # Get the Folders from PI Sheet
     folders = sheet_get_named_column(pis_sheet, "PI Folder")
     pi_tags = sheet_get_named_column(pis_sheet, "PI Tag")
     pctages = [1.0] * len(folders)
 
-    # Folders from Folder sheet
+    dates_added   = sheet_get_named_column(pis_sheet, "Date Added")
+    dates_removed = sheet_get_named_column(pis_sheet, "Date Removed")
+
+
+    # Add the Folders from Folder sheet
     folders += sheet_get_named_column(folders_sheet, "Folder")
     pi_tags += sheet_get_named_column(folders_sheet, "PI Tag")
     pctages += sheet_get_named_column(folders_sheet, "%age")
 
-    folder_rows = zip(folders, pi_tags, pctages)
+    dates_added   += sheet_get_named_column(folders_sheet, "Date Added")
+    dates_removed += sheet_get_named_column(folders_sheet, "Date Removed")
+
+    folder_rows = filter_by_dates(zip(folders, pi_tags, pctages), zip(dates_added, dates_removed),
+                                  begin_month_exceldate, end_month_exceldate)
 
     for (folder, pi_tag, pctage) in folder_rows:
         folder_to_pi_tag_pctages[folder].append([pi_tag, pctage])
@@ -1033,7 +1070,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
         project_cost = cloud_project_to_total_charges[project]
 
         if project_cost > 0.0:
-            sheet.write(curr_row, 1, project, item_entry_fmt)
+            # If we have the project number here, use the project name.
+            if project[0].isdigit():
+                sheet.write(curr_row, 1, cloud_projnum_to_cloud_project[project], item_entry_fmt)
+            else:
+                sheet.write(curr_row, 1, project, item_entry_fmt)
             sheet.write(curr_row, 2, project_cost, cost_fmt)
             sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
 
@@ -1243,7 +1284,9 @@ def generate_computing_details_sheet(sheet, pi_tag):
 
 
 # Generates the Lab Users sheet for a BillingNotification workbook with
-# username details for a particular PI.  It reads from dicts
+# username details for a particular PI.  It reads from dicts:
+#  cloud_project_to_cloud_details
+#  pi_tag_to_cloud_project_pctages
 def generate_cloud_details_sheet(sheet, pi_tag):
 
     # Get the list of projects associated with this PI.
@@ -1254,7 +1297,11 @@ def generate_cloud_details_sheet(sheet, pi_tag):
         for (platform, account, description, dates, quantity, uom, charge) in cloud_project_to_cloud_details[project]:
 
             sheet.write(curr_row, 0, platform)
-            sheet.write(curr_row, 1, project)
+            # If we have the project number here, use the project name.
+            if project[0].isdigit():
+                sheet.write(curr_row, 1, cloud_projnum_to_cloud_project[project])
+            else:
+                sheet.write(curr_row, 1, project)
             sheet.write(curr_row, 2, description)
             sheet.write(curr_row, 3, dates)
             sheet.write(curr_row, 4, quantity, FLOAT_FORMAT)
