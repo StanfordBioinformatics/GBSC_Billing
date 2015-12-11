@@ -154,17 +154,32 @@ def init_billing_details_wkbk(workbook):
     return sheet_name_to_sheet_map
 
 # Deduces the fileset that a folder being measured by quota lives in.
+#
+# Patterns:
+#  /srv/gsfs0/DIR1      - Device "gsfs0", Fileset "DIR1"
+#  /srv/gsfs0/DIR1/DIR2 - Device "gsfs0", Fileset "DIR1.DIR2"
+#  /srv/gsfs0/BaaS/Labs/DIR1 - Device "gsfs0", Fileset "BaaS.DIR1"
+#
 def get_device_and_fileset_from_folder(folder):
+
+    # We only know about "/srv/gsfs0" paths.
+    if not folder.startswith("/srv/gsfs0"):
+        print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s: doesn't start with /srv/gsfs0" % folder
+        return None
 
     # Find the two path elements after "/srv/gsfs0/".
     path_elts = os.path.normpath(folder).split(os.path.sep)
 
-    if (len(path_elts) >= 4 and
-        path_elts[0] == '' and
-        path_elts[1] == 'srv'):
+    # Expect at least ['', 'srv', 'gsfs0', DIR1].
+    if len(path_elts) >= 4:
 
-        return (path_elts[2], ".".join(path_elts[3:5]))
+        # Pattern "/srv/gsfs0/BaaS/Labs/DIR1" ?
+        if path_elts[3] == 'BaaS' and path_elts[4] == 'Labs':
+            return (path_elts[2], ".".join([path_elts[3],path_elts[5]]))
+        else:  # Other two patterns above.
+            return (path_elts[2], ".".join(path_elts[3:5]))
     else:
+        print >> sys.stderr, "get_device_and_fileset_from_folder(): Path %s is not long enough" % folder
         return None
 
 
