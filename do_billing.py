@@ -238,11 +238,11 @@ billing_config_file_copy = os.path.join(billing_root, year_month_dir, "BillingCo
 if billing_config_file != billing_config_file_copy:
     shutil.copyfile(billing_config_file, billing_config_file_copy)
 
-# Move the Google Invoice CSV file into the year_month_root.
+# Copy the Google Invoice CSV file into the year_month_root.
 if google_invoice_csv is not None:
     google_invoice_csv_root = os.path.join(billing_root, year_month_dir, "%s.%s-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month))
     if google_invoice_csv_root != google_invoice_csv:
-        shutil.move(google_invoice_csv, google_invoice_csv_root)
+        shutil.copyfile(google_invoice_csv, google_invoice_csv_root)
     google_invoice_csv = google_invoice_csv_root
 
 # Save year and month arguments, which appear in almost every command.
