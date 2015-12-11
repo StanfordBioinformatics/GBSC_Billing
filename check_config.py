@@ -358,7 +358,7 @@ def check_pis_sheet(wkbk, current_pi_tag_list):
     pis_sheet = wkbk.sheet_by_name('PIs')
     folder_col_name = 'PI Folder'
 
-    # Check: all the groups are valid.
+    # CHECK: all the groups are valid.
     if args.verbose:
         print " Checking PI groups"
     groups_OK = check_groups(pis_sheet, current_pi_tag_list)
@@ -370,20 +370,50 @@ def check_pis_sheet(wkbk, current_pi_tag_list):
     #    print " Checking PI email addresses"
 
 
-    # Get list of current folders.
+    # Get list of current PI folders.
     current_folder_list = get_valid_objs_by_date(pis_sheet, folder_col_name, today)
 
-    # Check: all the folders exist.
+    # CHECK: all the PI folders exist.
     if args.verbose:
         print " Checking that all folders exist"
     folders_OK = check_folders(current_folder_list)
 
-    # Check: all the dates and %ages are valid.
+    # CHECK: all the dates and %ages are valid.
     if args.verbose:
         print " Checking PI dates and percentages."
     dates_pctages_OK = check_dates_pctages(pis_sheet, 'PI Tag')
 
-    return (groups_OK and folders_OK and dates_pctages_OK)
+    #
+    # CHECK: All iLab Service Request ID are numbers and unique.
+    #
+    iLab_service_req_IDs = sheet_get_named_column(pis_sheet,"iLab Service Request ID")
+
+    if iLab_service_req_IDs is not None:
+
+        if args.verbose:
+            print " Checking iLab Service Request IDs."
+
+        iLab_service_req_IDs_nonnumeric = []
+
+        # Look in IDs for any which are not numbers.
+        for id in iLab_service_req_IDs:
+            id_str = str(id)
+            if id_str != '' and not id_str.isdigit():
+                iLab_service_req_IDs_nonnumeric.append(id_str)
+
+        iLab_service_req_IDs_numbers_OK = len(iLab_service_req_IDs_nonnumeric) > 0
+
+        if not iLab_service_req_IDs_numbers_OK:
+            print "  check_iLab_service_req_IDs: The following IDs are not numbers:"
+            print "   ",
+            for id in iLab_service_req_IDs_nonnumeric:
+                print id,
+            print
+    else:
+        iLab_service_req_IDs_numbers_OK = True  # No IDs, no problem.
+
+    return (groups_OK and folders_OK and dates_pctages_OK and
+            iLab_service_req_IDs_numbers_OK)
 
 
 def check_folders_sheet(wkbk, pi_tag_list):
@@ -536,19 +566,22 @@ if (sheets_are_OK and
     folders_sheet_is_OK and
     job_tag_sheet_is_OK and
     users_sheet_is_OK):
+
+    print
+    print "+++ BILLING CONFIGURATION CONFIRMED +++"
     sys.exit(0)
+else:
+    print
+    print "*** PROBLEMS WITH BILLING CONFIGURATION ***"
+    if not sheets_are_OK:
+        print "  Sheets are missing."
+    if not pis_sheet_is_OK:
+        print "  Problems with PI sheet"
+    if not folders_sheet_is_OK:
+        print "  Problems with Folders sheet"
+    if not job_tag_sheet_is_OK:
+        print "  Problems with Job Tag sheet"
+    if not users_sheet_is_OK:
+        print "  Problems with Users sheet"
 
-print
-print "PROBLEMS WITH BILLING CONFIGURATION"
-if not sheets_are_OK:
-    print "  Sheets are missing."
-if not pis_sheet_is_OK:
-    print "  Problems with PI sheet"
-if not folders_sheet_is_OK:
-    print "  Problems with Folders sheet"
-if not job_tag_sheet_is_OK:
-    print "  Problems with Job Tag sheet"
-if not users_sheet_is_OK:
-    print "  Problems with Users sheet"
-
-sys.exit(-1)
+    sys.exit(-1)
