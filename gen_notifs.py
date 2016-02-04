@@ -1064,7 +1064,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_cloud_charges = 0.0
 
     starting_cloud_row = curr_row
-    ending_cloud_row   = curr_row
+    ending_cloud_row   = curr_row - 1 # Inverted order means no projects found.
     for (project, pctage) in pi_tag_to_cloud_project_pctages[pi_tag]:
 
         project_cost = cloud_project_to_total_charges[project]
@@ -1089,16 +1089,18 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             sheet.write_formula(curr_row, 4, '=%s*%s' % (cost_a1_cell, pctage_a1_cell),
                                 charge_fmt, charge)
 
-            # Keep track of last row with storage values.
+            # Keep track of last row with cloud project values.
             ending_cloud_row = curr_row
 
             # Advance to the next row.
             curr_row += 1
 
     # If there were no projects, put a row saying so.
-    if starting_cloud_row == ending_cloud_row:
+    if starting_cloud_row > ending_cloud_row:
         sheet.write(curr_row, 1, "No Project", item_entry_fmt)
+        sheet.write(curr_row, 4, 0.0, charge_fmt)
         curr_row += 1
+        ending_cloud_row = starting_cloud_row
 
     # Skip the line before "Total Cloud Services".
     sheet.write(curr_row, 1, None, left_border_fmt)
