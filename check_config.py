@@ -250,7 +250,7 @@ def check_groups(sheet, current_pi_tag_list):
             continue
 
         # "none" is a valid group name; check for it first.
-        if group == "none":
+        if group.lower() == "none":
             continue
 
         try:
