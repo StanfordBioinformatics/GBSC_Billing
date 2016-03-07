@@ -1220,7 +1220,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 1, "Total Charges", bot_header_border_fmt)
     sheet.write(curr_row, 2, None, bottom_border_fmt)
     sheet.write(curr_row, 3, None, bottom_border_fmt)
-    total_charges = total_storage_charges + total_computing_charges # + total_consulting_charges
+    total_charges = total_storage_charges + total_computing_charges + total_cloud_charges # + total_consulting_charges
     #sheet.write(curr_row, 4, total_charges, big_bold_charge_fmt)
     #sheet.write_formula(curr_row, 4, '=%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell, total_consulting_charges_a1_cell),
     sheet.write_formula(curr_row, 4, '=%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell, total_cloud_charges_a1_cell),
