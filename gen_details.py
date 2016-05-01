@@ -77,6 +77,7 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 global SGEACCOUNTING_PREFIX
 global GOOGLE_INVOICE_PREFIX
 global BILLING_DETAILS_PREFIX
+global CONSULTING_PREFIX
 
 # Commands for determining folder quotas and usages.
 QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
@@ -112,6 +113,7 @@ global from_timestamp_to_date_string
 global from_excel_date_to_date_string
 global from_ymd_date_to_timestamp
 global remove_unicode_chars
+global filter_by_dates
 
 # Initialize the output BillingDetails workbook, given as argument.
 # It creates all the formats used within the workbook, and saves them
@@ -369,7 +371,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
     #  "PI Folder" column of "PIs" sheet, and
     #  "Folder" column of "Folders" sheet.
 
-    # Get lists of folders, quota booleans.
+    # Get lists of folders, quota booleans from PIs sheet.
     pis_sheet = config_wkbk.sheet_by_name('PIs')
 
     folders     = sheet_get_named_column(pis_sheet, 'PI Folder')
@@ -378,7 +380,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
     dates_added = sheet_get_named_column(pis_sheet, 'Date Added')
     dates_remvd = sheet_get_named_column(pis_sheet, 'Date Removed')
 
-    # Get lists of folders, quota booleans.
+    # Get lists of folders, quota booleans from Folders sheet.
     folder_sheet = config_wkbk.sheet_by_name('Folders')
 
     folders     += sheet_get_named_column(folder_sheet, 'Folder')
@@ -745,9 +747,69 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
     print "Computing charges computed."
 
-# Generates the "Consulting" sheet (someday).
-def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, consulting_sheet):
-    pass
+# Generates the "Consulting" sheet.
+def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, consulting_timesheet, consulting_sheet):
+
+    print "Computing consulting charges..."
+
+    ###
+    # Read the config workbook to get a list of active PIs
+    ###
+    pis_sheet = config_wkbk.sheet_by_name("PIs")
+
+    pis_list    = sheet_get_named_column(pis_sheet, "PI Tag")
+    dates_added = sheet_get_named_column(pis_sheet, "Date Added")
+    dates_remvd = sheet_get_named_column(pis_sheet, "Date Removed")
+
+    active_pis_list = filter_by_dates(pis_list, zip(dates_added, dates_remvd), begin_timestamp, end_timestamp)
+
+    ###
+    # Read the Consulting Timesheet.
+    ###
+
+    consulting_workbook = xlrd.open_workbook(consulting_timesheet)
+
+    hours_sheet = consulting_workbook.sheet_by_name("Hours")
+
+    dates   = sheet_get_named_column(hours_sheet, "Date")
+    pi_tags = sheet_get_named_column(hours_sheet, "PI Tag")
+    hours   = sheet_get_named_column(hours_sheet, "Hours")
+    participants = sheet_get_named_column(hours_sheet, "Participants")
+    summaries = sheet_get_named_column(hours_sheet, "Summary")
+    notes   = sheet_get_named_column(hours_sheet, "Notes")
+    cumul_hours = sheet_get_named_column(hours_sheet, "Cumul Hours")
+
+    row = 1
+    for (date, pi_tag, hours_spent, participant, summary, note, cumul_hours_spent) in zip(dates, pi_tags, hours, participants,
+                                                                                          summaries, notes, cumul_hours):
+        # Confirm date is within this month.
+        date_timestamp = from_excel_date_to_timestamp(date)
+        # If date is before beginning of the month or after the end of the month, skip this entry.
+        if begin_timestamp > date_timestamp or date_timestamp >= end_timestamp: continue
+
+        # Confirm that pi_tag is in the list of active PIs for this month.
+        if pi_tag not in active_pis_list:
+            print "  PI %s not in active PI list...skipping" % pi_tag
+
+        # Copy the entry into the output consulting sheet.
+        col = 0
+        consulting_sheet.write(row, col, date, DATE_FORMAT)
+        col += 1
+        consulting_sheet.write(row, col, pi_tag)
+        col += 1
+        consulting_sheet.write(row, col, hours_spent)
+        col += 1
+        consulting_sheet.write(row, col, participant)
+        col += 1
+        consulting_sheet.write(row, col, summary)
+        col += 1
+        consulting_sheet.write(row, col, note)
+        col += 1
+        consulting_sheet.write(row, col, cumul_hours_spent)
+        col += 1
+
+        row += 1
+
 
 # Generates the "Cloud" sheet.
 def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
@@ -869,6 +931,9 @@ parser.add_argument("-a", "--accounting_file",
 parser.add_argument("-g", "--google_invoice_csv",
                     default=None,
                     help="The Google Invoice CSV file")
+parser.add_argument("-c", "--consulting_timesheet",
+                    default=None,
+                    help="The consulting timesheet XSLX file.")
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
@@ -884,9 +949,9 @@ parser.add_argument("--no_usage", action="store_true",
 parser.add_argument("--no_computing", action="store_true",
                     default=False,
                     help="Don't run computing calculations [default = false]")
-#parser.add_argument("--no_consulting", action="store_true",
-#                    default=False,
-#                    help="Don't run consulting calculations [default = false]")
+parser.add_argument("--no_consulting", action="store_true",
+                    default=False,
+                    help="Don't run consulting calculations [default = false]")
 parser.add_argument("--no_cloud", action="store_true",
                     default=False,
                     help="Don't run cloud calculations [default = false]")
@@ -984,6 +1049,14 @@ else:
 if not os.path.exists(google_invoice_csv):
     google_invoice_csv = None
 
+# Use switch arg for consulting_timesheet if present, else use file in BillingRoot.
+if args.consulting_timesheet is not None:
+    consulting_timesheet = args.consulting_timesheet
+else:
+    consulting_filename = "%s.%d-%02d.xlsx" % (CONSULTING_PREFIX, year, month)
+    consulting_timesheet = os.path.join(year_month_dir, consulting_filename)
+
+
 # Initialize the BillingDetails output spreadsheet.
 details_wkbk_filename = "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month)
 details_wkbk_pathname = os.path.join(year_month_dir, details_wkbk_filename)
@@ -996,22 +1069,24 @@ sheet_name_to_sheet_map = init_billing_details_wkbk(billing_details_wkbk)
 # Output the state of arguments.
 #
 print "GETTING DETAILS FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % (args.billing_config_file)
+print "  BillingConfigFile: %s" % args.billing_config_file
 print "  BillingRoot: %s" % billing_root
 print "  SGEAccountingFile: %s" % accounting_file
 if args.no_storage:
     print "  Skipping storage calculations"
 if args.no_computing:
     print "  Skipping computing calculations"
-#if args.no_consulting:
-#    print "  Skipping consulting calculations"
+if args.no_consulting:
+    print "  Skipping consulting calculations"
+else:
+    print "  Consulting timesheet: %s" % consulting_timesheet
 if args.no_cloud:
     print "  Skipping cloud calculations"
 else:
     print "  Google Invoice File: %s" % google_invoice_csv
 if args.all_jobs_billable:
     print "  All jobs billable."
-print "  BillingDetailsFile: %s" % (details_wkbk_pathname)
+print "  BillingDetailsFile: %s" % details_wkbk_pathname
 print
 
 #
@@ -1032,9 +1107,9 @@ if not args.no_computing:
 #
 # Compute consulting charges.
 #
-# if not args.no_consulting:
-#     compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp,
-#                                sheet_name_to_sheet_map['Consulting'])
+if not args.no_consulting:
+     compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, consulting_timesheet,
+                                sheet_name_to_sheet_map['Consulting'])
 
 #
 # Compute cloud charges.
