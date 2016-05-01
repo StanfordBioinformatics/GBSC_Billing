@@ -145,6 +145,7 @@ global from_ymd_date_to_timestamp
 global sheet_get_named_column
 global read_config_sheet
 global config_sheet_get_dict
+global filter_by_dates
 
 # This function takes an arbitrary number of dicts with
 # xlsxwriter Format properties in them, adds the format to the given workbook,
@@ -242,22 +243,6 @@ def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
     sheet_name_to_sheet['Totals'].activate()
 
     return sheet_name_to_sheet
-
-# Filters a list of lists using a parallel list of [date_added, date_removed]'s.
-# Returns the elements in the first list which are valid with the month date range given.
-def filter_by_dates(obj_list, date_list, begin_month_exceldate, end_month_exceldate):
-
-    output_list = []
-
-    for (obj, (date_added, date_removed)) in zip(obj_list, date_list):
-
-        # If the date added is BEFORE the end of this month, and
-        #    the date removed is AFTER the beginning of this month,
-        # then save the account information in the mappings.
-        if date_added < end_month_exceldate and date_removed >= begin_month_exceldate:
-            output_list.append(obj)
-
-    return output_list
 
 
 # This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
@@ -1291,11 +1276,12 @@ def generate_computing_details_sheet(sheet, pi_tag):
 #  pi_tag_to_cloud_project_pctages
 def generate_cloud_details_sheet(sheet, pi_tag):
 
+    curr_row = 1
+
     # Get the list of projects associated with this PI.
     for (project, pctage) in pi_tag_to_cloud_project_pctages[pi_tag]:
 
         # Write the cloud details.
-        curr_row = 1
         for (platform, account, description, dates, quantity, uom, charge) in cloud_project_to_cloud_details[project]:
 
             sheet.write(curr_row, 0, platform)
@@ -1477,9 +1463,6 @@ parser.add_argument("billing_config_file",
 parser.add_argument("-d","--billing_details_file",
                     default=None,
                     help='The BillingDetails file')
-parser.add_argument("-g", "--google_invoice_csv",
-                    default=None,
-                    help="The Google Invoice CSV file")
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
