@@ -57,6 +57,7 @@ global BILLING_DETAILS_PREFIX
 global BILLING_NOTIFS_PREFIX
 global GOOGLE_INVOICE_PREFIX
 global ILAB_EXPORT_PREFIX
+global CONSULTING_HOURS_FREE
 
 # Default headers for the ilab Export CSV file (if not read in from iLab template file).
 DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
@@ -69,7 +70,8 @@ DEFAULT_AVAILABLE_SERVICES_ID_DICT = {
     'Google Cloud Storage' : ['Google Cloud Storage (Backup)', 2191],
     'Google Cloud Egress' :  ['Google Cloud Egress', 2192],
     'Cloud Services' : ['Cloud Services (Passthrough)', 2355],
-    'Consulting' : ['Consulting - Work on a Project beyond 3 hours (Units are hours)', 2350],
+    'Consulting Free' : ['Consulting - First 3 hours (Units are hours)', 2349],
+    'Consulting Paid' : ['Consulting - Work on a Project beyond 3 hours (Units are hours)', 2350],
     'Consulting Resources' : ['Consulting Compute Cost (Passthrough)', 2356]
 }
 
@@ -132,6 +134,9 @@ cloud_project_to_cloud_acct = dict()
 # Mapping from cloud project to lists of (account, description, dates, quantity, UOM, charge) tuples.
 cloud_project_to_cloud_details = defaultdict(list)
 
+# Mapping from pi_tag to list of (date, summary, hours, cumul_hours)
+consulting_details = defaultdict(list)
+
 
 # Set locale to be US english for converting strings with commas into floats.
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
@@ -147,6 +152,7 @@ global from_excel_date_to_timestamp
 global from_timestamp_to_date_string
 global from_excel_date_to_date_string
 global from_ymd_date_to_timestamp
+global from_date_string_to_timestamp
 global sheet_get_named_column
 global read_config_sheet
 global config_sheet_get_dict
@@ -610,7 +616,22 @@ def read_google_invoice(google_invoice_csv_file):
 
 
 #
-# Generates the iLab CSV entries for a particular pi_tag.
+# Read in the Consulting sheet.
+#
+# It fills in the dict consulting_details.
+#
+def read_consulting_sheet(consulting_sheet):
+
+    for row in range(1, consulting_sheet.nrows):
+
+        (date, pi_tag, hours, participants, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
+
+        # Save the consulting item in a list of charges for that PI.
+        consulting_details[pi_tag].append((date, summary, float(hours), float(cumul_hours)))
+
+
+#
+# Generates the iLab Cluster CSV entries for a particular pi_tag.
 #
 # It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_job_tag_cpus.
 #
@@ -620,7 +641,7 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
 
     # If this PI doesn't have a service request ID, skip them.
     if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
-        print "  Skipping %s: no iLab service request ID" % (pi_tag)
+        print "  Skipping cluster for %s: no iLab service request ID" % (pi_tag)
         return False
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
@@ -711,13 +732,17 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
 
     return True
 
-
+#
+# Generates the iLab Cloud CSV entries for a particular pi_tag.
+#
+# It uses dicts pi_tag_to_cloud_project_pctages and cloud_project_to_cloud_details.
+#
 def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                                    begin_month_timestamp, end_month_timestamp):
 
     # If this PI doesn't have a service request ID, skip them.
     if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
-        print "  Skipping %s: no iLab service request ID" % (pi_tag)
+        print "  Skipping cloud for %s: no iLab service request ID" % (pi_tag)
         return False
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
@@ -750,6 +775,51 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
             output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note, pi_amount)
 
     return True
+
+
+def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
+                                        consulting_free_service_id, consulting_paid_service_id,
+                                        begin_month_timestamp, end_month_timestamp):
+
+    # If this PI doesn't have a service request ID, skip them.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+        print "  Skipping consulting for %s: no iLab service request ID" % (pi_tag)
+        return False
+
+    for (date, summary, hours, cumul_hours) in consulting_details[pi_tag]:
+
+        date_timestamp = from_excel_date_to_timestamp(date)
+        purchased_on_date = from_excel_date_to_date_string(date)
+
+        # If this transaction occurred within this month:
+        if begin_month_timestamp <= date_timestamp < end_month_timestamp:
+
+            #
+            # Calculate the number of free hours and paid hours in this transaction.
+            #
+            start_hours_used = cumul_hours - hours
+
+            if start_hours_used < CONSULTING_HOURS_FREE:
+                free_hours_remaining = CONSULTING_HOURS_FREE - start_hours_used
+            else:
+                free_hours_remaining = 0
+
+            if hours < free_hours_remaining:
+                free_hours_used = hours
+            else:
+                free_hours_used = free_hours_remaining
+
+            paid_hours_used = hours - free_hours_used
+
+            # Write out the iLab export line for the free hours used.
+            if free_hours_used > 0:
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, consulting_free_service_id,
+                                         summary, free_hours_used)
+
+            # Write out the iLab export line for the paid hours used.
+            if paid_hours_used > 0:
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, consulting_paid_service_id,
+                                         summary, paid_hours_used)
 
 
 def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_id, note, amount):
@@ -804,9 +874,9 @@ parser.add_argument("-c", "--skip_cluster", action="store_true",
 parser.add_argument("-l", "--skip_cloud", action="store_true",
                     default=False,
                     help="Don't output cloud iLab file. [default = False]")
-parser.add_argument("-p", "--pi_files", action="store_true",
+parser.add_argument("-n", "--skip_consulting", action="store_true",
                     default=False,
-                    help='Output PI-specific CSV files [default = False]')
+                    help="Don't output consulting iLab file. [default = False]")
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
@@ -935,12 +1005,12 @@ if billing_details_file is not None:
     print "Opening BillingDetails workbook..."
     billing_details_wkbk = xlrd.open_workbook(billing_details_file)
 
-    # Read in its Storage sheet and generate output data.
+    # Read in its Storage sheet.
     print "Reading storage sheet."
     storage_sheet = billing_details_wkbk.sheet_by_name("Storage")
     read_storage_sheet(storage_sheet)
 
-    # Read in its Computing sheet and generate output data.
+    # Read in its Computing sheet.
     print "Reading computing sheet."
     computing_sheet = billing_details_wkbk.sheet_by_name("Computing")
     read_computing_sheet(computing_sheet)
@@ -950,6 +1020,14 @@ if billing_details_file is not None:
         print "Reading cloud sheet."
         cloud_sheet = billing_details_wkbk.sheet_by_name("Cloud")
         read_cloud_sheet(cloud_sheet)
+
+    # Read in its Consulting sheet.
+    if "Consulting" in billing_details_wkbk.sheet_names():
+        print "Reading consulting sheet."
+        consulting_sheet = billing_details_wkbk.sheet_by_name("Consulting")
+        read_consulting_sheet(consulting_sheet)
+    else:
+        print "No consulting sheet in BillingDetails: skipping"
 
 ###
 #
@@ -970,14 +1048,14 @@ else:
 #
 # Read in the iLab Core Service file, if available.
 #
-# Set the variables:
-#   ilab_service_id_local_computing
-#   ilab_service_id_local_storage
+# Set the variables as seen below:
 #
 ###
 ilab_service_id_local_computing = None
 ilab_service_id_local_storage   = None
 ilab_service_id_google_passthrough = None
+ilab_service_id_consulting_free = None
+ilab_service_id_consulting_paid = None
 
 if args.ilab_available_services is not None:
 
@@ -987,6 +1065,7 @@ if args.ilab_available_services is not None:
 
     for available_services_row_dict in csv_dictreader:
 
+        # Examine the "Name" column from the available services table.
         row_name_col = available_services_row_dict.get(AVAILABLE_SERVICES_COLUMN_NAME)
         if row_name_col is not None:
 
@@ -996,6 +1075,10 @@ if args.ilab_available_services is not None:
                 ilab_service_id_local_storage   = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
             elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Cloud Services'][0]:
                 ilab_service_id_google_passthrough = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
+            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Free'][0]:
+                ilab_service_id_consulting_free = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
+            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Paid'][0]:
+                ilab_service_id_consulting_paid = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
 
     ilab_available_services_file.close()
 
@@ -1011,6 +1094,12 @@ if args.ilab_available_services is not None:
     if ilab_service_id_google_passthrough is None:
         print >> sys.stderr, "available services list: No entry for Cloud Services"
         end_run = True
+    if ilab_service_id_consulting_free is None:
+        print >> sys.stderr, "available services list: No entry for Consulting Free"
+        end_run = True
+    if ilab_service_id_consulting_paid is None:
+        print >> sys.stderr, "available services list: No entry for Consulting Paid"
+        end_run = True
 
     if end_run:
         print >> sys.stderr, "Problems with available services file: ending run."
@@ -1021,11 +1110,13 @@ else:
     ilab_service_id_local_computing = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Computing'][1]
     ilab_service_id_local_storage   = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Storage'][1]
     ilab_service_id_google_passthrough = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Cloud Services'][1]
+    ilab_service_id_consulting_free = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Free'][1]
+    ilab_service_id_consulting_paid = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Paid'][1]
 
 
 #####
 #
-# Read the Billing Details file, if given.
+# Output Cluster data into iLab Cluster export file, if requested.
 #
 ####
 if billing_details_file is not None and not args.skip_cluster:
@@ -1063,6 +1154,12 @@ if billing_details_file is not None and not args.skip_cluster:
     # Close the iLab export CSV file.
     ilab_export_csv_file.close()
 
+###
+#
+# Output Cloud data into iLab Cloud export file, if requested.
+#   Read Google Invoice, if given, else use data from BillingDetails file.
+#
+###
 if not args.skip_cloud:
 
     if google_invoice_csv is not None:
@@ -1091,6 +1188,35 @@ if not args.skip_cloud:
 
         ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag, ilab_service_id_google_passthrough,
                                                  begin_month_timestamp, end_month_timestamp)
+
+    # Close the iLab export CSV file.
+    ilab_export_csv_file.close()
+
+#####
+#
+# Output Consulting data into iLab Cluster export file, if requested.
+#
+####
+if not args.skip_consulting:
+
+    print "Writing out Cloud details into iLab export CSV file."
+
+    # Open the iLab CSV file for writing out.
+    ilab_export_csv_filename = "%s-Consulting.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
+    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
+
+    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
+
+    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
+
+    ilab_export_csv_dictwriter.writeheader()
+
+    for pi_tag in pi_tag_list:
+        print " %s" % pi_tag
+
+        ret_val = output_ilab_csv_data_for_consulting(ilab_export_csv_dictwriter, pi_tag,
+                                                      ilab_service_id_consulting_free, ilab_service_id_consulting_paid,
+                                                      begin_month_timestamp, end_month_timestamp)
 
     # Close the iLab export CSV file.
     ilab_export_csv_file.close()
