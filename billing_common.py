@@ -48,8 +48,10 @@ GOOGLE_INVOICE_PREFIX = "GoogleInvoice"
 BILLING_DETAILS_PREFIX = "BillingDetails"
 # Prefix of the BillingNotifs spreadsheets file names.
 BILLING_NOTIFS_PREFIX = "GBSCBilling"
-# Prefix of the iLab expoer file.
+# Prefix of the iLab export files.
 ILAB_EXPORT_PREFIX = "BillingiLab"
+# Prefix of the consulting spreadsheet.
+CONSULTING_PREFIX = "BaaSTimesheet"
 
 #
 # Mapping from BillingConfig sheets to their column headers.
@@ -68,10 +70,10 @@ BILLING_CONFIG_SHEET_COLUMNS = {
 BILLING_DETAILS_SHEET_COLUMNS = OrderedDict((
     ('Storage'   , ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used')),
     ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID')),
-#    ('Consulting', ('Work Date', 'Item', 'Hours', 'PI')),
     ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Reason')),
     ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Failed Code')),
-    ('Cloud', ('Platform', 'Account', 'Project', 'Description', 'Dates', 'Quantity', 'Unit of Measure', 'Charge')) )
+    ('Cloud', ('Platform', 'Account', 'Project', 'Description', 'Dates', 'Quantity', 'Unit of Measure', 'Charge')),
+    ('Consulting', ('Date', 'PI Tag', 'Hours', 'Participants', 'Summary', 'Notes', 'Cumul Hours')) )
 )
 
 # Mapping from sheet name to the column headers within that sheet.
@@ -119,6 +121,9 @@ EARLIEST_VALID_DATE_EXCELDATE = 41517.0
 
 # Pathname to root of PI project directories.
 PI_PROJECT_ROOT_DIR = '/srv/gsfs0/projects'
+
+# How many hours of consulting are free.
+CONSULTING_HOURS_FREE = 3
 
 #=====
 #
@@ -170,7 +175,7 @@ def read_config_sheet(wkbk):
 def from_timestamp_to_excel_date(timestamp):
     return timestamp/86400.0 + 25569
 def from_excel_date_to_timestamp(excel_date):
-    return (excel_date - 25569) * 86400.0
+    return int((excel_date - 25569) * 86400.0)
 def from_timestamp_to_date_string(timestamp):
     return datetime.datetime.utcfromtimestamp(timestamp).strftime("%m/%d/%Y")
 def from_excel_date_to_date_string(excel_date):
@@ -178,9 +183,27 @@ def from_excel_date_to_date_string(excel_date):
 
 def from_ymd_date_to_timestamp(year, month, day):
     return int(calendar.timegm(datetime.date(year, month, day).timetuple()))
+def from_date_string_to_timestamp(date_str):
+    return int(calendar.timegm(datetime.datetime.strptime(date_str, "%m/%d/%y").timetuple()))
 
 #
 # This function removes the Unicode characters from a string.
 #
 def remove_unicode_chars(s):
     return "".join(i for i in s if ord(i)<128)
+
+# Filters a list of lists using a parallel list of [date_added, date_removed]'s.
+# Returns the elements in the first list which are valid with the month date range given.
+def filter_by_dates(obj_list, date_list, begin_month_exceldate, end_month_exceldate):
+
+    output_list = []
+
+    for (obj, (date_added, date_removed)) in zip(obj_list, date_list):
+
+        # If the date added is BEFORE the end of this month, and
+        #    the date removed is AFTER the beginning of this month,
+        # then save the account information in the mappings.
+        if date_added < end_month_exceldate and (date_removed == '' or date_removed >= begin_month_exceldate):
+            output_list.append(obj)
+
+    return output_list
