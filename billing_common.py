@@ -52,6 +52,8 @@ BILLING_NOTIFS_PREFIX = "GBSCBilling"
 ILAB_EXPORT_PREFIX = "BillingiLab"
 # Prefix of the consulting spreadsheet.
 CONSULTING_PREFIX = "BaaSTimesheet"
+# Prefix of the storage usage CSV file.
+STORAGE_PREFIX = "StorageUsage"
 
 #
 # Mapping from BillingConfig sheets to their column headers.
@@ -118,6 +120,11 @@ IGNORED_JOB_TAGS = ['large_mem']
 # Beginning of billing process.
 # 8/31/13 00:00:00 GMT (one day before 9/1/13, to represent things that existed before billing started).
 EARLIEST_VALID_DATE_EXCELDATE = 41517.0
+
+# Commands for determining folder quotas and usages.
+QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
+USAGE_EXECUTABLE = ['du', '-s']
+STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in both above commands.
 
 # Pathname to root of PI project directories.
 PI_PROJECT_ROOT_DIR = '/srv/gsfs0/projects'

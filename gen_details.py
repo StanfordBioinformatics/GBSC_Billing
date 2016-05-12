@@ -79,10 +79,9 @@ global GOOGLE_INVOICE_PREFIX
 global BILLING_DETAILS_PREFIX
 global CONSULTING_PREFIX
 
-# Commands for determining folder quotas and usages.
-QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
-USAGE_EXECUTABLE = ['du', '-s']
-STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in both above commands.
+global QUOTA_EXECUTABLE
+global USAGE_EXECUTABLE
+global STORAGE_BLOCK_SIZE_ARG
 
 #
 # Formats for the output workbook, to be initialized along with the workbook.
@@ -269,6 +268,7 @@ def get_folder_usage(machine, folder, pi_tag):
 
     return None
 
+
 # Given a list of tuples of job details, writes the job details to
 # the sheet given.  Possible sheets for use in this method are
 # typically the "Computing", "Nonbillable Jobs", and "Failed Jobs" sheets.
@@ -363,7 +363,8 @@ def get_google_invoice_csv_subtable_lines(csvfile_obj):
 
 
 # Generates the Storage sheet data from folder quotas and usages.
-def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage_sheet):
+# Returns mapping from folders to [timestamp, total, used]
+def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
     print "Computing storage charges..."
 
@@ -429,6 +430,33 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp, storage
             folder_size_dict[folder] = [time.time(), total, used]
         else:
             print "  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag)
+
+    return folder_size_dict
+
+
+# Read the Storage Usage file.
+# Returns mapping from folders to [timestamp, total, used]
+def read_storage_usage_file(storage_usage_file):
+    print "  Reading storage usage file"
+
+    # Mapping from folders to [timestamp, total, used].
+    folder_size_dict = collections.OrderedDict()
+
+    usage_fileobj = open(storage_usage_file)
+
+    usage_csvdict = csv.DictReader(usage_fileobj)
+
+    for row in usage_csvdict:
+        folder_size_dict[row['Folder']] = (int(row['Timestamp']), float(row['Size']), float(row['Used']))
+
+    return folder_size_dict
+
+
+# Write storage usage data into the Storage sheet of the BillingDetails file.
+# Takes in mapping from folders to [timestamp, total, used].
+def write_storage_usage_data(folder_size_dict, storage_sheet):
+
+    print "  Writing storage usage data"
 
     # Write space-used mapping into details workbook.
     row = 0
@@ -835,7 +863,8 @@ def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
         elif row['key'] == 'Amount due':
             google_invoice_amount_due = locale.atof(row['value'])
 
-    #print >> sys.stderr, "  Amount due: $%0.2f" % (google_invoice_amount_due)
+    if args.verbose:
+        print >> sys.stderr, "  Amount due: $%0.2f" % (google_invoice_amount_due)
 
     # Accumulate the total amount of charges while processing each line,
     #  to compare with total amount in header.
@@ -934,6 +963,9 @@ parser.add_argument("-g", "--google_invoice_csv",
 parser.add_argument("-c", "--consulting_timesheet",
                     default=None,
                     help="The consulting timesheet XSLX file.")
+parser.add_argument("-s", "--storage_usage_csv",
+                    default=None,
+                    help="The storage usage CSV file.")
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
@@ -1049,6 +1081,10 @@ else:
 if not os.path.exists(google_invoice_csv):
     google_invoice_csv = None
 
+# Use switch arg to read in storage usage file if given.
+#  If not given, generate storage data by analyzing folders.
+storage_usage_file = args.storage_usage_csv
+
 # Use switch arg for consulting_timesheet if present, else use file in BillingRoot.
 if args.consulting_timesheet is not None:
     consulting_timesheet = args.consulting_timesheet
@@ -1071,30 +1107,46 @@ sheet_name_to_sheet_map = init_billing_details_wkbk(billing_details_wkbk)
 print "GETTING DETAILS FOR %02d/%d:" % (month, year)
 print "  BillingConfigFile: %s" % args.billing_config_file
 print "  BillingRoot: %s" % billing_root
-print "  SGEAccountingFile: %s" % accounting_file
+
 if args.no_storage:
     print "  Skipping storage calculations"
+elif args.storage_usage_csv is not None:
+    print "  Storage usage file: %s" % args.storage_usage_csv
+else:
+    print "  Generating storage usage data"
+
 if args.no_computing:
     print "  Skipping computing calculations"
+else:
+    print "  SGEAccountingFile: %s" % accounting_file
+if args.all_jobs_billable:
+    print "  All jobs billable."
+
 if args.no_consulting:
     print "  Skipping consulting calculations"
 else:
-    print "  Consulting timesheet: %s" % consulting_timesheet
+    print "  Consulting Timesheet: %s" % consulting_timesheet
 if args.no_cloud:
     print "  Skipping cloud calculations"
 else:
     print "  Google Invoice File: %s" % google_invoice_csv
-if args.all_jobs_billable:
-    print "  All jobs billable."
-print "  BillingDetailsFile: %s" % details_wkbk_pathname
+
+print
+print "  BillingDetailsFile to be output: %s" % details_wkbk_pathname
 print
 
 #
 # Compute storage charges.
 #
 if not args.no_storage:
-    compute_storage_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp,
-                            sheet_name_to_sheet_map['Storage'])
+    # If storage usage CSV file is given, read data from it, else recompute storage usage data.
+    if storage_usage_file is not None:
+        folder_usage_dict = read_storage_usage_file(storage_usage_file)
+    else:
+        folder_usage_dict = compute_storage_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp)
+
+    # Write storage usage data to BillingDetails file.
+    write_storage_usage_data(folder_usage_dict, sheet_name_to_sheet_map['Storage'])
 
 #
 # Compute computing charges.
