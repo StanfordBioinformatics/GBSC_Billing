@@ -78,6 +78,7 @@ global SGEACCOUNTING_PREFIX
 global GOOGLE_INVOICE_PREFIX
 global BILLING_DETAILS_PREFIX
 global CONSULTING_PREFIX
+global STORAGE_PREFIX
 
 global QUOTA_EXECUTABLE
 global USAGE_EXECUTABLE
@@ -437,7 +438,6 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 # Read the Storage Usage file.
 # Returns mapping from folders to [timestamp, total, used]
 def read_storage_usage_file(storage_usage_file):
-    print "  Reading storage usage file"
 
     # Mapping from folders to [timestamp, total, used].
     folder_size_dict = collections.OrderedDict()
@@ -455,8 +455,6 @@ def read_storage_usage_file(storage_usage_file):
 # Write storage usage data into the Storage sheet of the BillingDetails file.
 # Takes in mapping from folders to [timestamp, total, used].
 def write_storage_usage_data(folder_size_dict, storage_sheet):
-
-    print "  Writing storage usage data"
 
     # Write space-used mapping into details workbook.
     row = 0
@@ -604,7 +602,10 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
             # The account is a valid job tag if it is either in the job_tag_list
             #  or the pi_tag_list.
-            account_is_valid_job_tag = (account in job_tag_list or account.lower() in pi_tag_list)
+            account_is_valid_job_tag = \
+                (account in job_tag_list or
+                 account.lower() in job_tag_list or
+                 account.lower() in pi_tag_list)
 
             if not account_is_valid_job_tag:
                 # If this account/job tag is unknown, save details for later output.
@@ -1083,7 +1084,15 @@ if not os.path.exists(google_invoice_csv):
 
 # Use switch arg to read in storage usage file if given.
 #  If not given, generate storage data by analyzing folders.
-storage_usage_file = args.storage_usage_csv
+if args.storage_usage_csv is not None:
+    storage_usage_file = args.storage_usage_csv
+else:
+    storage_usage_filename = "%s.%d-%02d.csv" % (STORAGE_PREFIX, year, month)
+    storage_usage_file = os.path.join(year_month_dir, storage_usage_filename)
+
+# Confirm that the storage usage file exists.
+if not os.path.exists(storage_usage_file):
+    storage_usage_file = None
 
 # Use switch arg for consulting_timesheet if present, else use file in BillingRoot.
 if args.consulting_timesheet is not None:
@@ -1110,8 +1119,8 @@ print "  BillingRoot: %s" % billing_root
 
 if args.no_storage:
     print "  Skipping storage calculations"
-elif args.storage_usage_csv is not None:
-    print "  Storage usage file: %s" % args.storage_usage_csv
+elif storage_usage_file is not None:
+    print "  Storage usage file: %s" % storage_usage_file
 else:
     print "  Generating storage usage data"
 
