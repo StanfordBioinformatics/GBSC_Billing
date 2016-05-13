@@ -89,7 +89,6 @@ BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
 
 # Mapping from sheet name in BillingAggregate workbook to the column headers within that sheet.
 BILLING_AGGREG_SHEET_COLUMNS = OrderedDict( [
-    #('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Consulting', 'Total Charges') )
     ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Cloud', 'Total Charges') )
 ] )
 
