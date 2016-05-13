@@ -2,15 +2,32 @@
 
 #===============================================================================
 #
-# snapshot_storage.py - Description of script
+# snapshot_storage.py - Measure the usage and quotas for all the folders in the
+#                         BillingConfig file and output them into a CSV file.
 #
 # ARGS:
+#   1st: BillingConfig.xlsx file
 #
 # SWITCHES:
+#     -h, --help            show this help message and exit
+#     -r BILLING_ROOT, --billing_root BILLING_ROOT
+#                         The Billing Root directory [default = None]
+#     --no_usage            Don't run storage usage calculations [default = false]
+#     -s STORAGE_USAGE_CSV, --storage_usage_csv STORAGE_USAGE_CSV
+#                         The storage usage CSV file.
+#     -y YEAR, --year YEAR
+#                         The year to be filtered out. [default = this year]
+#     -m {1,2,3,4,5,6,7,8,9,10,11,12}, --month {1,2,3,4,5,6,7,8,9,10,11,12}
+#                         The month to be filtered out. [default = last month]
+#     -v, --verbose         Get chatty [default = false]
+#     -d, --debug           Get REAL chatty [default = false]
 #
 # OUTPUT:
+#   <BillingRoot>/<year>/<month>/StorageUsage.<year>-<month>.csv file with
+#     rows of the form Date, Timestamp, Folder, Size, Used.
 #
 # ASSUMPTIONS:
+#   Script is run on a machine which can run the quota command.
 #
 # AUTHOR:
 #   Keith Bettinger
