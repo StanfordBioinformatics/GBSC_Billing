@@ -629,6 +629,136 @@ def read_consulting_sheet(consulting_sheet):
         # Save the consulting item in a list of charges for that PI.
         consulting_details[pi_tag].append((date, summary, float(hours), float(cumul_hours)))
 
+#
+# Digest cluster data and output Cluster iLab file.
+#
+def process_cluster_data():
+
+    # Read in its Storage sheet.
+    print "Reading storage sheet."
+    storage_sheet = billing_details_wkbk.sheet_by_name("Storage")
+    read_storage_sheet(storage_sheet)
+
+    # Read in its Computing sheet.
+    print "Reading computing sheet."
+    computing_sheet = billing_details_wkbk.sheet_by_name("Computing")
+    read_computing_sheet(computing_sheet)
+
+    ###
+    #
+    # Write iLab export CSV file from output data structures.
+    #
+    ###
+    print "Writing out BillingDetails lines for Cluster into iLab export CSV file."
+
+    ###
+    #
+    # Open the iLab CSV file for writing out.
+    #
+    ###
+
+    ilab_export_csv_filename = "%s-Cluster.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
+    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
+
+    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
+
+    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
+
+    ilab_export_csv_dictwriter.writeheader()
+
+    # Write out cluster data to iLab export CSV file.
+    for pi_tag in sorted(pi_tag_list):
+        print " %s" % pi_tag
+
+        _ = output_ilab_csv_data_for_cluster(ilab_export_csv_dictwriter, pi_tag,
+                                             ilab_service_id_local_storage, ilab_service_id_local_computing,
+                                             begin_month_timestamp, end_month_timestamp)
+
+    # Close the iLab export CSV file.
+    ilab_export_csv_file.close()
+
+#
+# Digest cloud data and output Cloud iLab file.
+#
+def process_cloud_data():
+
+    # Read in Cloud data from Google Invoice, if given as argument.
+    if args.google_invoice_csv is not None:
+
+        ###
+        # Read in Google Cloud Invoice data, ignoring data from BillingDetails.
+        ###
+        print "Reading Google Invoice."
+        read_google_invoice(google_invoice_csv)
+
+    # Read in the Cloud sheet from the BillingDetails file, if present.
+    elif "Cloud" in billing_details_wkbk.sheet_names():
+
+        print "Reading cloud sheet."
+        cloud_sheet = billing_details_wkbk.sheet_by_name("Cloud")
+        read_cloud_sheet(cloud_sheet)
+
+    else:
+        print "No Cloud sheet in BillingDetails nor Google Invoice file...skipping"
+        return
+
+    print "Writing out Cloud details into iLab export CSV file."
+
+    # Open the iLab CSV file for writing out.
+    ilab_export_csv_filename = "%s-Cloud.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
+    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
+
+    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
+
+    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
+
+    ilab_export_csv_dictwriter.writeheader()
+
+    for pi_tag in pi_tag_list:
+        print " %s" % pi_tag
+
+        ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag, ilab_service_id_google_passthrough,
+                                                 begin_month_timestamp, end_month_timestamp)
+
+    # Close the iLab export CSV file.
+    ilab_export_csv_file.close()
+
+#
+# Digest Consulting data and output Consulting iLab file.
+#
+def process_consulting_data():
+
+    # Read in its Consulting sheet.
+    if "Consulting" in billing_details_wkbk.sheet_names():
+        print "Reading consulting sheet."
+        consulting_sheet = billing_details_wkbk.sheet_by_name("Consulting")
+        read_consulting_sheet(consulting_sheet)
+    else:
+        print "No consulting sheet in BillingDetails: skipping"
+        return
+
+    print "Writing out Consulting details into iLab export CSV file."
+
+    # Open the iLab CSV file for writing out.
+    ilab_export_csv_filename = "%s-Consulting.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
+    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
+
+    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
+
+    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
+
+    ilab_export_csv_dictwriter.writeheader()
+
+    for pi_tag in pi_tag_list:
+        print " %s" % pi_tag
+
+        _ = output_ilab_csv_data_for_consulting(ilab_export_csv_dictwriter, pi_tag,
+                                                ilab_service_id_consulting_free, ilab_service_id_consulting_paid,
+                                                begin_month_timestamp, end_month_timestamp)
+
+    # Close the iLab export CSV file.
+    ilab_export_csv_file.close()
+
 
 #
 # Generates the iLab Cluster CSV entries for a particular pi_tag.
@@ -997,37 +1127,13 @@ build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestam
 if billing_details_file is not None:
     ###
     #
-    # Read the BillingDetails workbook, and create output data structures.
+    # Read the BillingDetails workbook.
     #
     ###
 
     # Open the BillingDetails workbook.
     print "Opening BillingDetails workbook..."
     billing_details_wkbk = xlrd.open_workbook(billing_details_file)
-
-    # Read in its Storage sheet.
-    print "Reading storage sheet."
-    storage_sheet = billing_details_wkbk.sheet_by_name("Storage")
-    read_storage_sheet(storage_sheet)
-
-    # Read in its Computing sheet.
-    print "Reading computing sheet."
-    computing_sheet = billing_details_wkbk.sheet_by_name("Computing")
-    read_computing_sheet(computing_sheet)
-
-    # Read in the Cloud sheet, if present.
-    if google_invoice_csv is None and "Cloud" in billing_details_wkbk.sheet_names():
-        print "Reading cloud sheet."
-        cloud_sheet = billing_details_wkbk.sheet_by_name("Cloud")
-        read_cloud_sheet(cloud_sheet)
-
-    # Read in its Consulting sheet.
-    if "Consulting" in billing_details_wkbk.sheet_names():
-        print "Reading consulting sheet."
-        consulting_sheet = billing_details_wkbk.sheet_by_name("Consulting")
-        read_consulting_sheet(consulting_sheet)
-    else:
-        print "No consulting sheet in BillingDetails: skipping"
 
 ###
 #
@@ -1120,39 +1226,7 @@ else:
 #
 ####
 if billing_details_file is not None and not args.skip_cluster:
-
-    ###
-    #
-    # Write iLab export CSV file from output data structures.
-    #
-    ###
-    print "Writing out BillingDetails lines for Cluster into iLab export CSV file."
-
-    ###
-    #
-    # Open the iLab CSV file for writing out.
-    #
-    ###
-
-    ilab_export_csv_filename = "%s-Cluster.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
-    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
-
-    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
-
-    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
-
-    ilab_export_csv_dictwriter.writeheader()
-
-    # Write out cluster data to iLab export CSV file.
-    for pi_tag in sorted(pi_tag_list):
-        print " %s" % pi_tag
-
-        ret_val = output_ilab_csv_data_for_cluster(ilab_export_csv_dictwriter, pi_tag,
-                                                   ilab_service_id_local_storage, ilab_service_id_local_computing,
-                                                   begin_month_timestamp, end_month_timestamp)
-
-    # Close the iLab export CSV file.
-    ilab_export_csv_file.close()
+    process_cluster_data()
 
 ###
 #
@@ -1160,37 +1234,9 @@ if billing_details_file is not None and not args.skip_cluster:
 #   Read Google Invoice, if given, else use data from BillingDetails file.
 #
 ###
-if not args.skip_cloud:
+if billing_details_file is not None and not args.skip_cloud:
+    process_cloud_data()
 
-    if google_invoice_csv is not None:
-
-        ###
-        # Read in Google Cloud Invoice data, potentially overwriting data from BillingDetails.
-        ###
-
-        print "Reading Google Invoice."
-        read_google_invoice(google_invoice_csv)
-
-    print "Writing out Cloud details into iLab export CSV file."
-
-    # Open the iLab CSV file for writing out.
-    ilab_export_csv_filename = "%s-Cloud.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
-    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
-
-    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
-
-    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
-
-    ilab_export_csv_dictwriter.writeheader()
-
-    for pi_tag in pi_tag_list:
-        print " %s" % pi_tag
-
-        ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag, ilab_service_id_google_passthrough,
-                                                 begin_month_timestamp, end_month_timestamp)
-
-    # Close the iLab export CSV file.
-    ilab_export_csv_file.close()
 
 #####
 #
@@ -1198,25 +1244,4 @@ if not args.skip_cloud:
 #
 ####
 if not args.skip_consulting:
-
-    print "Writing out Cloud details into iLab export CSV file."
-
-    # Open the iLab CSV file for writing out.
-    ilab_export_csv_filename = "%s-Consulting.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
-    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
-
-    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
-
-    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
-
-    ilab_export_csv_dictwriter.writeheader()
-
-    for pi_tag in pi_tag_list:
-        print " %s" % pi_tag
-
-        ret_val = output_ilab_csv_data_for_consulting(ilab_export_csv_dictwriter, pi_tag,
-                                                      ilab_service_id_consulting_free, ilab_service_id_consulting_paid,
-                                                      begin_month_timestamp, end_month_timestamp)
-
-    # Close the iLab export CSV file.
-    ilab_export_csv_file.close()
+    process_consulting_data()
