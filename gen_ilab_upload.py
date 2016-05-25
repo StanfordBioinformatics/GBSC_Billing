@@ -442,7 +442,7 @@ def read_computing_sheet(computing_sheet):
         cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
 
         # Rename this variable for easier understanding.
-        job_tag = account
+        job_tag = account.lower()
 
         # If there is a job_tag in the account field and the job tag is known, credit the job_tag with the job CPU time.
         # Else, credit the user with the job.
