@@ -110,7 +110,7 @@ ACCOUNTING_FIELDS = (
 ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,18,19,20,21,26,27,28,29,36,38)
 
 # List of hostname prefixes to use for billing purposes.
-BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2']
+BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4']
 NONBILLABLE_HOSTNAME_PREFIXES = ['greenie', 'scg3-0']
 
 # List of job tags to ignore.
