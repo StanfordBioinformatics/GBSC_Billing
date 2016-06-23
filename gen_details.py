@@ -447,7 +447,7 @@ def read_storage_usage_file(storage_usage_file):
     usage_csvdict = csv.DictReader(usage_fileobj)
 
     for row in usage_csvdict:
-        folder_size_dict[row['Folder']] = (int(row['Timestamp']), float(row['Size']), float(row['Used']))
+        folder_size_dict[row['Folder']] = (float(row['Timestamp']), float(row['Size']), float(row['Used']))
 
     return folder_size_dict
 
@@ -834,7 +834,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
         col += 1
         consulting_sheet.write(row, col, note)
         col += 1
-        consulting_sheet.write(row, col, cumul_hours_spent)
+        consulting_sheet.write(row, col, cumul_hours_spent, FLOAT_FORMAT)
         col += 1
 
         row += 1
