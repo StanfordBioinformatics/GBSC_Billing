@@ -84,12 +84,13 @@ BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
     ('Lab Users', ('Username', 'Full Name', 'Email', 'Date Added', 'Date Removed') ),
     ('Computing Details' , ('Job Date', 'Username', 'Job Name', 'Job Tag', 'CPU-core Hours', 'Job ID', '%age') ),
     ('Cloud Details', ('Platform', 'Project', 'Description', 'Dates', 'Quantity', 'Unit of Measure', 'Charge', '%age', 'Lab Cost') ),
+    ('Consulting Details', ('Date', 'Summary', 'Notes', 'Participants', 'Hours', 'Cumul Hours')),
     ('Rates'      , ('Type', 'Amount', 'Unit', 'Time' ) )
 ) )
 
 # Mapping from sheet name in BillingAggregate workbook to the column headers within that sheet.
 BILLING_AGGREG_SHEET_COLUMNS = OrderedDict( [
-    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Cloud', 'Total Charges') )
+    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Cloud', 'Consulting', 'Total Charges') )
 ] )
 
 # OGE accounting file column info:
