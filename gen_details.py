@@ -834,7 +834,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
         col += 1
         consulting_sheet.write(row, col, note)
         col += 1
-        consulting_sheet.write(row, col, cumul_hours_spent, FLOAT_FORMAT)
+        consulting_sheet.write(row, col, float(cumul_hours_spent), FLOAT_FORMAT)
         col += 1
 
         row += 1
