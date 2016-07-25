@@ -223,8 +223,8 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
     # List of dictionaries with keys from BILLING_DETAILS_SHEET_COLUMNS['Storage'].
     folder_size_dicts = []
-    # List of folders that have been measured
-    folders_measured = []
+    # Set of folders that have been measured
+    folders_measured = set()
 
     # Create mapping from folders to space used.
     for (folder, pi_tag, quota_bool, date_added, date_removed) in zip(folders, pi_tags, quota_bools, dates_added, dates_remvd):
@@ -268,6 +268,10 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
                                        'Folder' : folder,
                                        'Size' : total,
                                        'Used' :used })
+
+            # Add the folder measured to a set of folders we have measured.
+            folders_measured.add(folder)
+
         else:
             print "  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag)
 
