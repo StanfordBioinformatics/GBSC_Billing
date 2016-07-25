@@ -125,14 +125,17 @@ pi_tag_to_sge_job_details = defaultdict(list)
 # Mapping from pi_tag to list of [username, date_added, date_removed, %age].
 pi_tag_to_user_details = defaultdict(list)
 
-# Mapping from pi_tag to list of (cloud project, %age) tuples.
-pi_tag_to_cloud_project_pctages = defaultdict(list)
+# Mapping from pi_tag to set of (cloud account, %age) tuples.
+pi_tag_to_cloud_account_pctages = defaultdict(set)
 
-# Mapping from cloud project to cloud account (1-to-1 mapping).
-cloud_project_to_cloud_acct = dict()
+# Mapping from cloud account to set of cloud projects.
+cloud_account_to_cloud_projects = defaultdict(set)
 
-# Mapping from cloud project to lists of (account, description, dates, quantity, UOM, charge) tuples.
-cloud_project_to_cloud_details = defaultdict(list)
+# Mapping from cloud project to lists of (platform, account, description, dates, quantity, UOM, charge) tuples.
+cloud_project_account_to_cloud_details = defaultdict(list)
+
+# Mapping from cloud project to total charge.
+cloud_project_account_to_total_charges = defaultdict(float)
 
 # Mapping from pi_tag to list of (date, summary, hours, cumul_hours)
 consulting_details = defaultdict(list)
@@ -260,8 +263,8 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
         # Create mapping from cloud project to list of (pi_tag, %age) tuples.
         # Create mapping from cloud project to cloud account (1-to-1).
         #
-        global pi_tag_to_cloud_project_pctages
-        global cloud_project_to_cloud_acct
+        global pi_tag_to_cloud_account_pctages
+        global cloud_account_to_cloud_projects
 
         cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
         cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
@@ -280,14 +283,15 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
         for (pi_tag, project, projnum, account, pctage) in cloud_rows:
 
             # Associate the project name and percentage to be charged with the pi_tag.
-            pi_tag_to_cloud_project_pctages[pi_tag].append((project, pctage))
+            pi_tag_to_cloud_account_pctages[pi_tag].add((account, pctage))
 
             # Associate the project number with the pi_tag also, in case the project is deleted and loses its name.
-            pi_tag_to_cloud_project_pctages[pi_tag].append((projnum, pctage))
+            #pi_tag_to_cloud_account_pctages[pi_tag].append((projnum, pctage))
 
             # Associate the account with the project name and with the project number.
-            cloud_project_to_cloud_acct[project] = account
-            cloud_project_to_cloud_acct[projnum] = account
+            cloud_account_to_cloud_projects[account].add(project)
+            cloud_account_to_cloud_projects[account].add(projnum)
+            cloud_account_to_cloud_projects[account].add("")  # For credits to the account.
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -542,7 +546,10 @@ def read_cloud_sheet(cloud_sheet):
         (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
         # Save the cloud item in a list of charges for that PI.
-        cloud_project_to_cloud_details[project].append((account, description, dates, quantity, uom, charge))
+        cloud_project_account_to_cloud_details[(project, account)].append((platform, description, dates, quantity, uom, charge))
+
+        # Accumulate the total cost of a project.
+        cloud_project_account_to_total_charges[(project, account)] += float(charge)
 
 
 def read_google_invoice(google_invoice_csv_file):
@@ -597,6 +604,7 @@ def read_google_invoice(google_invoice_csv_file):
             google_account = row_dict['Order']
 
             #     Construct note for ilab entry.
+            google_platform = 'Google Cloud Platform, Firebase, and APIs'
             google_project = row_dict['Source']
             google_item    = row_dict['Description']
             google_quantity = row_dict['Quantity']
@@ -604,8 +612,8 @@ def read_google_invoice(google_invoice_csv_file):
             google_dates   = row_dict['Interval']
 
             # Save the cloud details with the appropriate PI.
-            cloud_project_to_cloud_details[google_project].append((google_account, google_item, google_dates,
-                                                                   google_quantity, google_uom, amount))
+            cloud_project_account_to_cloud_details[(google_project, google_account)].append((google_platform, google_item, google_dates,
+                                                                                             google_quantity, google_uom, amount))
 
     # Compare total charges to "Amount Due".
     if abs(google_invoice_total_amount - google_invoice_amount_due) >= 0.01:  # Ignore differences less than a penny.
@@ -865,7 +873,7 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
 #
 # Generates the iLab Cloud CSV entries for a particular pi_tag.
 #
-# It uses dicts pi_tag_to_cloud_project_pctages and cloud_project_to_cloud_details.
+# It uses dicts pi_tag_to_cloud_account_pctages and cloud_project_account_to_cloud_details.
 #
 def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                                    begin_month_timestamp, end_month_timestamp):
@@ -877,32 +885,42 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
 
-    # Get list of (project, %ages) tuples for given PI.
-    project_pctage_tuples = pi_tag_to_cloud_project_pctages[pi_tag]
+    # Get PI Last name for some situations below.
+    (_, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
 
-    for (project, pctage) in project_pctage_tuples:
+    # Get list of (account, %ages) tuples for given PI.
+    for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
 
-        # Get list of cloud items to charge PI for.
-        cloud_details = cloud_project_to_cloud_details[project]
+        for project in cloud_account_to_cloud_projects[account]:
 
-        for (account, description, dates, quantity, uom, amount) in cloud_details:
+            # Get list of cloud items to charge PI for.
+            cloud_details = cloud_project_account_to_cloud_details[(project, account)]
 
-            # If the quantity is given, make a string of it and its unit-of-measure.
-            if quantity != '':
-                quantity_str = " @ %s %s" % (quantity, uom)
-            else:
-                quantity_str = ''
+            print pi_tag, ':', project, ':', account
 
-            note = "Google :: %s : %s%s" % (project, description, quantity_str)
+            for (platform, description, dates, quantity, uom, amount) in cloud_details:
 
-            if pctage < 1.0:
-                note += " [%d%%]" % (pctage * 100)
+                # If the quantity is given, make a string of it and its unit-of-measure.
+                if quantity != '':
+                    quantity_str = " @ %s %s" % (quantity, uom)
+                else:
+                    quantity_str = ''
 
-            # Calculate the amount to charge the PI based on their percentage.
-            pi_amount = amount * pctage
+                if project != '':
+                    proj_str = project
+                else:
+                    proj_str = 'Misc charges/credits for %s' % pi_last_name
 
-            # Write out the iLab export line.
-            output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note, pi_amount)
+                note = "Google :: %s : %s%s" % (proj_str, description, quantity_str)
+
+                if pctage < 1.0:
+                    note += " [%d%%]" % (pctage * 100)
+
+                # Calculate the amount to charge the PI based on their percentage.
+                pi_amount = amount * pctage
+
+                # Write out the iLab export line.
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note, pi_amount)
 
     return True
 

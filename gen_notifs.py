@@ -117,17 +117,17 @@ pi_tag_to_user_details = defaultdict(list)
 # Mapping from pi_tag to list of [storage_charge, computing_charge, cloud_charge, consulting_charge, total_charge].
 pi_tag_to_charges = defaultdict(list)
 
-# Mapping from pi_tag to list of (cloud project, %age) tuples.
-pi_tag_to_cloud_project_pctages = defaultdict(list)
+# Mapping from pi_tag to set of (cloud account, %age) tuples.
+pi_tag_to_cloud_account_pctages = defaultdict(set)
 
-# Mapping from cloud project to cloud account (1-to-1 mapping).
-cloud_project_to_cloud_acct = dict()
+# Mapping from cloud account to set of cloud projects.
+cloud_account_to_cloud_projects = defaultdict(set)
 
 # Mapping from cloud project to lists of (platform, account, description, dates, quantity, UOM, charge) tuples.
-cloud_project_to_cloud_details = defaultdict(list)
+cloud_project_account_to_cloud_details = defaultdict(list)
 
 # Mapping from cloud project to total charge.
-cloud_project_to_total_charges = defaultdict(float)
+cloud_project_account_to_total_charges = defaultdict(float)
 
 # Mapping from cloud project number to cloud project (1-to-1 mapping).
 cloud_projnum_to_cloud_project = dict()
@@ -318,8 +318,8 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     # Create mapping from cloud project to cloud account (1-to-1).
     # Create mapping from cloud project to cloud project number (1-to-1).
     #
-    global pi_tag_to_cloud_project_pctages
-    global cloud_project_to_cloud_acct
+    global pi_tag_to_cloud_account_pctages
+    global cloud_account_to_cloud_projects
 
     cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
     cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
@@ -338,14 +338,15 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     for (pi_tag, project, projnum, account, pctage) in cloud_rows:
 
         # Associate the project name and percentage to be charged with the pi_tag.
-        pi_tag_to_cloud_project_pctages[pi_tag].append((project, pctage))
+        pi_tag_to_cloud_account_pctages[pi_tag].add((account, pctage))
 
         # Associate the project number with the pi_tag also, in case the project is deleted and loses its name.
-        pi_tag_to_cloud_project_pctages[pi_tag].append((projnum, pctage))
+        #pi_tag_to_cloud_account_pctages[pi_tag].add((projnum, pctage))
 
         # Associate the account with the project name and with the project number.
-        cloud_project_to_cloud_acct[project] = account
-        cloud_project_to_cloud_acct[projnum] = account
+        cloud_account_to_cloud_projects[account].add(project)
+        cloud_account_to_cloud_projects[account].add(projnum)
+        cloud_account_to_cloud_projects[account].add("")  # For credits to the account.
 
         # Associate the project with its project number.
         cloud_projnum_to_cloud_project[projnum] = project
@@ -653,10 +654,10 @@ def read_cloud_sheet(wkbk):
         (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
         # Save the cloud item in a list of charges for that PI.
-        cloud_project_to_cloud_details[project].append((platform, account, description, dates, quantity, uom, charge))
+        cloud_project_account_to_cloud_details[(project, account)].append((platform, description, dates, quantity, uom, charge))
 
         # Accumulate the total cost of a project.
-        cloud_project_to_total_charges[project] += float(charge)
+        cloud_project_account_to_total_charges[(project, account)] += float(charge)
 
 
 # Reads the Consulting sheet of the BillingDetails workbook.
@@ -1113,35 +1114,40 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     starting_cloud_row = curr_row
     ending_cloud_row   = curr_row - 1 # Inverted order means no projects found.
-    for (project, pctage) in pi_tag_to_cloud_project_pctages[pi_tag]:
+    for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
 
-        project_cost = cloud_project_to_total_charges[project]
+        for project in cloud_account_to_cloud_projects[account]:
 
-        if project_cost > 0.0:
-            # If we have the project number here, use the project name.
-            if project[0].isdigit():
-                sheet.write(curr_row, 1, cloud_projnum_to_cloud_project[project], item_entry_fmt)
-            else:
-                sheet.write(curr_row, 1, project, item_entry_fmt)
-            sheet.write(curr_row, 2, project_cost, cost_fmt)
-            sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
+            project_cost = cloud_project_account_to_total_charges[(project, account)]
 
-            # Calculate charges.
-            charge = project_cost * pctage
-            total_cloud_charges += charge
+            if project_cost != 0.0:
+                # A blank project name means (usually) a credit applied to the account.
+                if len(project) > 0:
+                    # If we have the project number here, use the project name.
+                    if project[0].isdigit():
+                        sheet.write(curr_row, 1, cloud_projnum_to_cloud_project[project], item_entry_fmt)
+                    else:
+                        sheet.write(curr_row, 1, project, item_entry_fmt)
+                else:
+                    sheet.write(curr_row, 1, "Misc charges/credits", item_entry_fmt)
+                sheet.write(curr_row, 2, project_cost, cost_fmt)
+                sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
 
-            #sheet.write(curr_row, 4, charge, charge_fmt)
+                # Calculate charges.
+                charge = project_cost * pctage
+                total_cloud_charges += charge
 
-            cost_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
-            pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-            sheet.write_formula(curr_row, 4, '=%s*%s' % (cost_a1_cell, pctage_a1_cell),
-                                charge_fmt, charge)
+                #sheet.write(curr_row, 4, charge, charge_fmt)
+                cost_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
+                pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
+                sheet.write_formula(curr_row, 4, '=%s*%s' % (cost_a1_cell, pctage_a1_cell),
+                                    charge_fmt, charge)
 
-            # Keep track of last row with cloud project values.
-            ending_cloud_row = curr_row
+                # Keep track of last row with cloud project values.
+                ending_cloud_row = curr_row
 
-            # Advance to the next row.
-            curr_row += 1
+                # Advance to the next row.
+                curr_row += 1
 
     # If there were no projects, put a row saying so.
     if starting_cloud_row > ending_cloud_row:
@@ -1377,36 +1383,38 @@ def generate_computing_details_sheet(sheet, pi_tag):
 
 # Generates the Lab Users sheet for a BillingNotification workbook with
 # username details for a particular PI.  It reads from dicts:
-#  cloud_project_to_cloud_details
-#  pi_tag_to_cloud_project_pctages
+#  cloud_project_account_to_cloud_details
+#  pi_tag_to_cloud_account_pctages
 def generate_cloud_details_sheet(sheet, pi_tag):
 
     curr_row = 1
 
-    # Get the list of projects associated with this PI.
-    for (project, pctage) in pi_tag_to_cloud_project_pctages[pi_tag]:
+    # Get the list of accounts associated with this PI.
+    for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
+
+        for project in cloud_account_to_cloud_projects[account]:
 
         # Write the cloud details.
-        for (platform, account, description, dates, quantity, uom, charge) in cloud_project_to_cloud_details[project]:
+            for (platform, description, dates, quantity, uom, charge) in cloud_project_account_to_cloud_details[(project, account)]:
 
-            sheet.write(curr_row, 0, platform)
-            # If we have the project number here, use the project name.
-            if project[0].isdigit():
-                sheet.write(curr_row, 1, cloud_projnum_to_cloud_project[project])
-            else:
-                sheet.write(curr_row, 1, project)
-            sheet.write(curr_row, 2, description)
-            sheet.write(curr_row, 3, dates)
-            sheet.write(curr_row, 4, quantity, FLOAT_FORMAT)
-            sheet.write(curr_row, 5, uom)
-            sheet.write(curr_row, 6, charge, MONEY_FORMAT)
-            sheet.write(curr_row, 7, pctage, PERCENT_FORMAT)
+                sheet.write(curr_row, 0, platform)
+                # If we have the project number here, use the project name.
+                if len(project) > 0 and project[0].isdigit():
+                    sheet.write(curr_row, 1, cloud_projnum_to_cloud_project[project])
+                else:
+                    sheet.write(curr_row, 1, project)
+                sheet.write(curr_row, 2, description)
+                sheet.write(curr_row, 3, dates)
+                sheet.write(curr_row, 4, quantity, FLOAT_FORMAT)
+                sheet.write(curr_row, 5, uom)
+                sheet.write(curr_row, 6, charge, MONEY_FORMAT)
+                sheet.write(curr_row, 7, pctage, PERCENT_FORMAT)
 
-            lab_cost = charge * pctage
-            sheet.write(curr_row, 8, lab_cost, MONEY_FORMAT)
+                lab_cost = charge * pctage
+                sheet.write(curr_row, 8, lab_cost, MONEY_FORMAT)
 
-            # Advance to the next row.
-            curr_row += 1
+                # Advance to the next row.
+                curr_row += 1
 
 
 # Generates the Consulting Details sheet for a BillingNotifications workbook with
