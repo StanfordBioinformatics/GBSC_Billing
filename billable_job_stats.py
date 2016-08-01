@@ -58,15 +58,15 @@ import sys
 # CONSTANTS
 #
 #=====
-NONBILLABLE_JOBS_EXIST = True   # If True, countenance the existence of nonbillable jobs.
+NONBILLABLE_JOBS_EXIST = False   # If True, countenance the existence of nonbillable jobs.
 
-SGE_ACCOUNTING_FILE = "/srv/gs1/software/oge2011.11p1/scg3-oge-new/common/accounting"
+SGE_ACCOUNTING_FILE = "/srv/gsfs0/admin_stuff/soge-8.1.8/scg4-feb2016/common/accounting"
 
 # OGE accounting failed codes which invalidate the accounting entry.
 # From http://docs.oracle.com/cd/E19080-01/n1.grid.eng6/817-6117/chp11-1/index.html
 ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,26,27,28)
 
-BILLING_RATE        = 0.10 # per CPU-hr
+BILLING_RATE        = 0.08 # per CPU-hr
 BILLING_FIRST_MONTH = 9    # Months before Sept 2013
 BILLING_FIRST_YEAR  = 2013 #  were not billed.
 
@@ -253,8 +253,8 @@ if is_billable_month:
         # Calculate this job's CPUslot-hrs.
         cpu_hrs = slots * wallclock / 3600.0
 
-        # Count billable jobs: hostname starts with 'scg1'.
-        if hostname.startswith('scg1') or hostname.startswith('scg3-1'):
+        # Count billable jobs: hostname does not start with 'scg3-0' or 'greenie'.
+        if not (hostname.startswith('greenie') or hostname.startswith('scg3-0')):
             this_month_billable_user_jobs.append(job_details)
             user_billable_cpu_hrs += cpu_hrs
         else:
