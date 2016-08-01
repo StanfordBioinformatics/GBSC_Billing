@@ -391,6 +391,18 @@ else:
     storage_usage_pathname = os.path.join(year_month_dir, storage_usage_filename)
 
 #
+# Output the state of arguments.
+#
+print "SNAPSHOTTING STORAGE FOR %02d/%d:" % (month, year)
+print "  BillingConfigFile: %s" % args.billing_config_file
+print "  BillingRoot: %s" % billing_root
+print
+if args.no_usage: print "  Not recording storage usage figures"
+print
+print "  Storage usage file to be output: %s" % storage_usage_pathname
+print
+
+#
 # Generate storage usage data.
 #
 folder_size_dicts = compute_storage_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp)
