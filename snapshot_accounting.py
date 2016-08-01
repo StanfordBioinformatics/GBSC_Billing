@@ -148,12 +148,16 @@ end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 
 #
 if args.billing_config_file is not None:
 
-    billing_config_wkbk = xlrd.open_workbook(args.billing_config_file)
+    # Get absolute path for billing_config_file.
+    billing_config_file = os.path.abspath(args.billing_config_file)
+
+    billing_config_wkbk = xlrd.open_workbook(billing_config_file)
     config_dict = config_sheet_get_dict(billing_config_wkbk)
 
     accounting_file = config_dict.get("SGEAccountingFile")
     billing_root    = config_dict.get("BillingRoot")
 else:
+    billing_config_file = None
     accounting_file = None
     billing_root    = None
 
@@ -164,6 +168,9 @@ if args.billing_root is not None:
 if billing_root is None:
     billing_root = os.getcwd()
 
+# Get absolute path for billing_root
+billing_root = os.path.abspath(billing_root)
+
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
 if not os.path.exists(year_month_dir):
@@ -173,22 +180,25 @@ if not os.path.exists(year_month_dir):
 if args.accounting_file is not None:
     accounting_file = args.accounting_file
 
+# Get absolute path for accounting_file
+accounting_file = os.path.abspath(accounting_file)
+
 if accounting_file is None:
     parser.exit(-1, "Need accounting file from BillingConfig file or command line switch.")
 
 #
 # Print summary of arguments.
 #
-
-print "TAKING SNAPSHOT OF %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % (args.billing_config_file)
-print "  BillingRoot: %s" % billing_root
-print "  SGEAccountingFile: %s" % accounting_file
+print "TAKING ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year)
+print "  BillingConfigFile: %s" % (billing_config_file)
+print "  BillingRoot: %s" % (billing_root)
+print "  SGEAccountingFile: %s" % (accounting_file)
 
 # Create output accounting pathname.
 new_accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
 new_accounting_pathname = os.path.join(year_month_dir, new_accounting_filename)
 
+print
 print "  OutputAccountingFile: %s" % (new_accounting_pathname)
 
 #

@@ -360,10 +360,13 @@ else:
 begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
 end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
+# Get absolute path for billing_config_file.
+billing_config_file = os.path.abspath(args.billing_config_file)
+
 #
 # Open the Billing Config workbook.
 #
-billing_config_wkbk = xlrd.open_workbook(args.billing_config_file)
+billing_config_wkbk = xlrd.open_workbook(billing_config_file)
 
 #
 # Get the location of the BillingRoot directory from the Config sheet.
@@ -377,6 +380,9 @@ if args.billing_root is not None:
 # If we still don't have a billing root dir, use the current directory.
 if billing_root is None:
     billing_root = os.getcwd()
+
+# Get absolute paths for billing_root.
+billing_root = os.path.abspath(billing_root)
 
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
@@ -394,11 +400,12 @@ else:
 # Output the state of arguments.
 #
 print "SNAPSHOTTING STORAGE FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % args.billing_config_file
+print "  BillingConfigFile: %s" % billing_config_file
 print "  BillingRoot: %s" % billing_root
 print
-if args.no_usage: print "  Not recording storage usage figures"
-print
+if args.no_usage:
+    print "  Not recording storage usage figures"
+    print
 print "  Storage usage file to be output: %s" % storage_usage_pathname
 print
 
