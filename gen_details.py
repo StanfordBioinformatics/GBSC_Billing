@@ -1041,10 +1041,13 @@ else:
 begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
 end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
+# Get absolute path for billing_config_file.
+billing_config_file = os.path.abspath(args.billing_config_file)
+
 #
 # Open the Billing Config workbook.
 #
-billing_config_wkbk = xlrd.open_workbook(args.billing_config_file)
+billing_config_wkbk = xlrd.open_workbook(billing_config_file)
 
 #
 # Get the location of the BillingRoot directory from the Config sheet.
@@ -1059,6 +1062,9 @@ if args.billing_root is not None:
 if billing_root is None:
     billing_root = os.getcwd()
 
+# Get absolute path for billing_root directory.
+billing_root = os.path.abspath(billing_root)
+
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
 if not os.path.exists(year_month_dir):
@@ -1071,12 +1077,18 @@ else:
     accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
     accounting_file = os.path.join(year_month_dir, accounting_filename)
 
+# Get absolute path for accounting_file.
+accounting_file = os.path.abspath(accounting_file)
+
 # Use switch arg for google_invoice_file if present, else use file in BillingRoot.
 if args.google_invoice_csv is not None:
     google_invoice_csv = args.google_invoice_csv
 else:
     google_invoice_filename = "%s.%d-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month)
     google_invoice_csv = os.path.join(year_month_dir, google_invoice_filename)
+
+# Get absolute path for google_invoice_csv file.
+google_invoice_csv = os.path.abspath(google_invoice_csv)
 
 # Confirm that Google Invoice CSV file exists.
 if not os.path.exists(google_invoice_csv):
@@ -1090,6 +1102,9 @@ else:
     storage_usage_filename = "%s.%d-%02d.csv" % (STORAGE_PREFIX, year, month)
     storage_usage_file = os.path.join(year_month_dir, storage_usage_filename)
 
+# Get absolute path for storage_usage_file.
+storage_usage_file = os.path.abspath(storage_usage_file)
+
 # Confirm that the storage usage file exists.
 if not os.path.exists(storage_usage_file):
     storage_usage_file = None
@@ -1101,6 +1116,12 @@ else:
     consulting_filename = "%s.%d-%02d.xlsx" % (CONSULTING_PREFIX, year, month)
     consulting_timesheet = os.path.join(year_month_dir, consulting_filename)
 
+# Get absolute path for consulting_timesheet file.
+consulting_timesheet = os.path.abspath(consulting_timesheet)
+
+# Confirm that the consulting_timesheet file exists.
+if not os.path.exists(consulting_timesheet):
+    consulting_timesheet = None
 
 # Initialize the BillingDetails output spreadsheet.
 details_wkbk_filename = "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month)
@@ -1114,7 +1135,7 @@ sheet_name_to_sheet_map = init_billing_details_wkbk(billing_details_wkbk)
 # Output the state of arguments.
 #
 print "GETTING DETAILS FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % args.billing_config_file
+print "  BillingConfigFile: %s" % billing_config_file
 print "  BillingRoot: %s" % billing_root
 
 if args.no_storage:
@@ -1168,7 +1189,7 @@ if not args.no_computing:
 #
 # Compute consulting charges.
 #
-if not args.no_consulting:
+if not args.no_consulting and consulting_timesheet is not None:
      compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, consulting_timesheet,
                                 sheet_name_to_sheet_map['Consulting'])
 
