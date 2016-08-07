@@ -55,6 +55,7 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 #
 #=====
 # From billing_common.py
+global BILLING_DETAILS_PREFIX
 global BILLING_NOTIFS_SHEET_COLUMNS
 global BILLING_AGGREG_SHEET_COLUMNS
 global BILLING_NOTIFS_PREFIX
@@ -582,9 +583,10 @@ def read_computing_sheet(wkbk):
                      # Find if job_tag is in list of job_tag/CPUs for this pi_tag.
                      for job_tag_cpu in job_tag_cpu_list:
                          pi_job_tag = job_tag_cpu[0]
+                         pi_pctage  = job_tag_cpu[2]
 
                          # Increment the job_tag's CPUs.
-                         if pi_job_tag == job_tag:
+                         if pi_job_tag == job_tag and pi_pctage == pctage:
                              job_tag_cpu[1] += cpu_core_hrs
                              break
                      else:
@@ -610,8 +612,6 @@ def read_computing_sheet(wkbk):
 
             for (pi_tag, pctage) in pi_tag_pctages:
 
-                # if pctage == 0.0: continue
-
                 #
                 # Increment this user's CPU-core-hrs.
                 #
@@ -621,12 +621,14 @@ def read_computing_sheet(wkbk):
 
                 # If pi_tag has an existing list of user/CPUs:
                 if username_cpu_list is not None:
+
                     # Find if job_username is in list of user/CPUs for this pi_tag.
                     for username_cpu in username_cpu_list:
                         username = username_cpu[0]
+                        user_pctage = username_cpu[2]
 
-                        # Increment the user's CPUs
-                        if username == job_username:
+                        # Increment the user's CPUs if they already exist in the list.
+                        if username == job_username and user_pctage == pctage:
                             username_cpu[1] += cpu_core_hrs
                             break
                     else:
@@ -1653,13 +1655,16 @@ else:
 begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
 end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
+# Get the absolute path for the billing_config_file.
+billing_config_file = os.path.abspath(args.billing_config_file)
+
 ###
 #
 # Read the BillingConfig workbook and build input data structures.
 #
 ###
 
-billing_config_wkbk = xlrd.open_workbook(args.billing_config_file)
+billing_config_wkbk = xlrd.open_workbook(billing_config_file)
 
 #
 # Get the location of the BillingRoot directory from the Config sheet.
@@ -1673,6 +1678,9 @@ if args.billing_root is not None:
 if billing_root is None:
     billing_root = os.getcwd()
 
+# Get the absolute path for the billing_root directory.
+billing_root = os.path.abspath(billing_root)
+
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
 if not os.path.exists(year_month_dir):
@@ -1682,14 +1690,17 @@ if not os.path.exists(year_month_dir):
 if args.billing_details_file is not None:
     billing_details_file = args.billing_details_file
 else:
-    billing_details_file = os.path.join(year_month_dir, "BillingDetails.%s-%02d.xlsx" % (year, month))
+    billing_details_file = os.path.join(year_month_dir, "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month))
+
+# Get the absolute path for the billing_details_file.
+billing_details_file = os.path.abspath(billing_details_file)
 
 #
 # Output the state of arguments.
 #
 print "GENERATING NOTIFICATIONS FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % (args.billing_config_file)
-print "  BillingRoot: %s" % billing_root
+print "  BillingConfigFile: %s" % (billing_config_file)
+print "  BillingRoot: %s" % (billing_root)
 print "  BillingDetailsFile: %s" % (billing_details_file)
 print
 
