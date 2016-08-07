@@ -896,8 +896,6 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
             # Get list of cloud items to charge PI for.
             cloud_details = cloud_project_account_to_cloud_details[(project, account)]
 
-            print pi_tag, ':', project, ':', account
-
             for (platform, description, dates, quantity, uom, amount) in cloud_details:
 
                 # If the quantity is given, make a string of it and its unit-of-measure.
@@ -1075,13 +1073,16 @@ else:
 begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
 end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
+# Get the absolute path for the billing_config_file.
+billing_config_file = os.path.abspath(args.billing_config_file)
+
 ###
 #
 # Read the BillingConfig workbook and build input data structures.
 #
 ###
 
-billing_config_wkbk = xlrd.open_workbook(args.billing_config_file)
+billing_config_wkbk = xlrd.open_workbook(billing_config_file)
 
 #
 # Get the location of the BillingRoot directory from the Config sheet.
@@ -1095,6 +1096,9 @@ if args.billing_root is not None:
 if billing_root is None:
     billing_root = os.getcwd()
 
+# Get the absolute path for the billing_root directory.
+billing_root = os.path.abspath(billing_root)
+
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
 if not os.path.exists(year_month_dir):
@@ -1105,6 +1109,9 @@ if args.billing_details_file is not None:
     billing_details_file = args.billing_details_file
 else:
     billing_details_file = os.path.join(year_month_dir, "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month))
+
+# Get the absolute path for the billing_details_file.
+billing_details_file = os.path.abspath(billing_details_file)
 
 # Confirm that BillingDetails file exists.
 if not os.path.exists(billing_details_file):
@@ -1117,6 +1124,9 @@ else:
     google_invoice_filename = "%s.%d-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month)
     google_invoice_csv = os.path.join(year_month_dir, google_invoice_filename)
 
+# Get absolute path for google_invoice_csv file.
+google_invoice_csv = os.path.abspath(google_invoice_csv)
+
 # Confirm that Google Invoice CSV file exists.
 if not os.path.exists(google_invoice_csv):
     google_invoice_csv = None
@@ -1125,7 +1135,7 @@ if not os.path.exists(google_invoice_csv):
 # Output the state of arguments.
 #
 print "GENERATING ILAB EXPORT FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % (args.billing_config_file)
+print "  BillingConfigFile: %s" % (billing_config_file)
 print "  BillingRoot: %s" % billing_root
 print "  BillingDetailsFile: %s" % (billing_details_file)
 print "  GoogleInvoiceCSV: %s" % (google_invoice_csv)
