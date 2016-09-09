@@ -655,6 +655,11 @@ def read_cloud_sheet(wkbk):
 
         (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
+        # If project is of the form "<project-name> (<project-id>)", remove the "(<project-id>)"
+        project_id_index = project.find(" (")
+        if project_id_index != -1:
+            project = project[:project_id_index]
+
         # Save the cloud item in a list of charges for that PI.
         cloud_project_account_to_cloud_details[(project, account)].append((platform, description, dates, quantity, uom, charge))
 
