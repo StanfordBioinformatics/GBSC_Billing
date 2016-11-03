@@ -803,16 +803,22 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
     dates   = sheet_get_named_column(hours_sheet, "Date")
     pi_tags = sheet_get_named_column(hours_sheet, "PI Tag")
     hours   = sheet_get_named_column(hours_sheet, "Hours")
+    travel_hours = sheet_get_named_column(hours_sheet, "Travel Hours")
     participants = sheet_get_named_column(hours_sheet, "Participants")
     summaries = sheet_get_named_column(hours_sheet, "Summary")
     notes   = sheet_get_named_column(hours_sheet, "Notes")
     cumul_hours = sheet_get_named_column(hours_sheet, "Cumul Hours")
 
+    # Convert empty travel hours to zeros.
+    travel_hours = map(lambda h: 0 if h=='' else h, travel_hours)
+
     row = 1
-    for (date, pi_tag, hours_spent, participant, summary, note, cumul_hours_spent) in zip(dates, pi_tags, hours, participants,
-                                                                                          summaries, notes, cumul_hours):
+    for (date, pi_tag, hours_spent, travel_hrs, participant, summary, note, cumul_hours_spent) in \
+            zip(dates, pi_tags, hours, travel_hours, participants, summaries, notes, cumul_hours):
+
         # Confirm date is within this month.
         date_timestamp = from_excel_date_to_timestamp(date)
+
         # If date is before beginning of the month or after the end of the month, skip this entry.
         if begin_timestamp > date_timestamp or date_timestamp >= end_timestamp: continue
 
@@ -826,7 +832,9 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
         col += 1
         consulting_sheet.write(row, col, pi_tag)
         col += 1
-        consulting_sheet.write(row, col, hours_spent)
+        consulting_sheet.write(row, col, float(hours_spent), FLOAT_FORMAT)
+        col += 1
+        consulting_sheet.write(row, col, float(travel_hrs), FLOAT_FORMAT)
         col += 1
         consulting_sheet.write(row, col, participant)
         col += 1
