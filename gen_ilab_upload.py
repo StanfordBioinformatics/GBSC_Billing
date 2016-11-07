@@ -58,6 +58,7 @@ global BILLING_NOTIFS_PREFIX
 global GOOGLE_INVOICE_PREFIX
 global ILAB_EXPORT_PREFIX
 global CONSULTING_HOURS_FREE
+global CONSULTING_TRAVEL_RATE_DISCOUNT
 
 # Default headers for the ilab Export CSV file (if not read in from iLab template file).
 DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
@@ -67,10 +68,8 @@ DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
 DEFAULT_AVAILABLE_SERVICES_ID_DICT = {
     'Local Storage'   : ['Local Cluster Storage', 1991],
     'Local Computing' : ['Local Cluster Computing', 1992],
-    'Google Cloud Storage' : ['Google Cloud Storage (Backup)', 2191],
-    'Google Cloud Egress' :  ['Google Cloud Egress', 2192],
     'Cloud Services' : ['Cloud Services (Passthrough)', 2355],
-    'Consulting Free' : ['Consulting - First 3 hours (Units are hours)', 2349],
+    'Consulting Free' : ['Consulting - First 1 hour (Units are hours)', 2349],
     'Consulting Paid' : ['Consulting - Work on a Project beyond 3 hours (Units are hours)', 2350],
     'Consulting Resources' : ['Consulting Compute Cost (Passthrough)', 2356]
 }
@@ -637,10 +636,10 @@ def read_consulting_sheet(consulting_sheet):
 
     for row in range(1, consulting_sheet.nrows):
 
-        (date, pi_tag, hours, participants, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
+        (date, pi_tag, hours, travel_hours, participants, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
 
         # Save the consulting item in a list of charges for that PI.
-        consulting_details[pi_tag].append((date, summary, float(hours), float(cumul_hours)))
+        consulting_details[pi_tag].append((date, summary, float(hours), float(travel_hours), float(cumul_hours)))
 
 #
 # Digest cluster data and output Cluster iLab file.
@@ -937,7 +936,7 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
         print "  Skipping consulting for %s: no iLab service request ID" % (pi_tag)
         return False
 
-    for (date, summary, hours, cumul_hours) in consulting_details[pi_tag]:
+    for (date, summary, hours, travel_hours, cumul_hours) in consulting_details[pi_tag]:
 
         date_timestamp = from_excel_date_to_timestamp(date)
         purchased_on_date = from_excel_date_to_date_string(date)
@@ -948,7 +947,7 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
             #
             # Calculate the number of free hours and paid hours in this transaction.
             #
-            start_hours_used = cumul_hours - hours
+            start_hours_used = cumul_hours - hours - travel_hours
 
             if start_hours_used < CONSULTING_HOURS_FREE:
                 free_hours_remaining = CONSULTING_HOURS_FREE - start_hours_used
@@ -960,7 +959,7 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
             else:
                 free_hours_used = free_hours_remaining
 
-            paid_hours_used = hours - free_hours_used
+            paid_hours_used = hours - free_hours_used + (travel_hours * CONSULTING_TRAVEL_RATE_DISCOUNT)
 
             # Write out the iLab export line for the free hours used.
             if free_hours_used > 0:
