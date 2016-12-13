@@ -510,7 +510,7 @@ def get_rate_a1_cell(wkbk, rate_type):
     for idx in range(len(types)):
         if types[idx] == rate_type:
             # +1 is for "GBSC Rates:" above header line, +1 is for header line.
-            return 'Rates!%s' % xl_rowcol_to_cell(idx + 1 + 1, amt_col)
+            return 'Rates!%s' % xl_rowcol_to_cell(idx + 1 + 1, amt_col, True, True)
     else:
         return None
 
