@@ -514,12 +514,14 @@ def read_computing_sheet(computing_sheet):
 
                 # If pi_tag has an existing list of user/CPUs:
                 if username_cpu_list is not None:
+
                     # Find if job_username is in list of user/CPUs for this pi_tag.
                     for username_cpu in username_cpu_list:
                         username = username_cpu[0]
+                        user_pctage = username_cpu[2]
 
-                        # Increment the user's CPUs
-                        if username == job_username:
+                        # Increment the user's CPUs if they already exist in the list.
+                        if username == job_username and user_pctage == pctage:
                             username_cpu[1] += cpu_core_hrs
                             break
                     else:
