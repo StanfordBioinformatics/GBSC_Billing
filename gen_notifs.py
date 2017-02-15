@@ -326,18 +326,19 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
     cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
     cloud_projnums    = sheet_get_named_column(cloud_sheet, "Project Number")
+    cloud_projids     = sheet_get_named_column(cloud_sheet, "Project ID")
     cloud_accounts    = sheet_get_named_column(cloud_sheet, "Account")
     cloud_pctage      = sheet_get_named_column(cloud_sheet, "%age")
 
     cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
     cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
-    cloud_rows = filter_by_dates(zip(cloud_pi_tags, cloud_projects, cloud_projnums,
+    cloud_rows = filter_by_dates(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
                                      cloud_accounts, cloud_pctage),
                                  zip(cloud_dates_added, cloud_dates_remvd),
                                  begin_month_exceldate, end_month_exceldate)
 
-    for (pi_tag, project, projnum, account, pctage) in cloud_rows:
+    for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
 
         # Associate the project name and percentage to be charged with the pi_tag.
         pi_tag_to_cloud_account_pctages[pi_tag].add((account, pctage))
@@ -345,9 +346,10 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
         # Associate the project number with the pi_tag also, in case the project is deleted and loses its name.
         #pi_tag_to_cloud_account_pctages[pi_tag].add((projnum, pctage))
 
-        # Associate the account with the project name and with the project number.
+        # Associate the account with the project name, the project number, and the project ID.
         cloud_account_to_cloud_projects[account].add(project)
         cloud_account_to_cloud_projects[account].add(projnum)
+        cloud_account_to_cloud_projects[account].add(projid)
         cloud_account_to_cloud_projects[account].add("")  # For credits to the account.
 
         # Associate the project with its project number.
