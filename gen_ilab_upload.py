@@ -716,8 +716,6 @@ def process_cloud_data():
         print "No Cloud sheet in BillingDetails nor Google Invoice file...skipping"
         return
 
-    print "Writing out Cloud details into iLab export CSV file."
-
     # Open the iLab CSV file for writing out.
     ilab_export_csv_filename = "%s-Cloud.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
     ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
@@ -728,11 +726,24 @@ def process_cloud_data():
 
     ilab_export_csv_dictwriter.writeheader()
 
-    for pi_tag in pi_tag_list:
-        print " %s" % pi_tag
+    if args.roll_up_cloud:
+        print "Writing out Cloud transactions by project into iLab export CSV file."
 
-        ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag, ilab_service_id_google_passthrough,
-                                                 begin_month_timestamp, end_month_timestamp)
+        for pi_tag in pi_tag_list:
+            print " %s" % pi_tag
+
+            ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag,
+                                                     ilab_service_id_google_passthrough,
+                                                     begin_month_timestamp, end_month_timestamp)
+
+    else:
+        print "Writing out Cloud details into iLab export CSV file."
+
+        for pi_tag in pi_tag_list:
+            print " %s" % pi_tag
+
+            ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag, ilab_service_id_google_passthrough,
+                                                     begin_month_timestamp, end_month_timestamp)
 
     # Close the iLab export CSV file.
     ilab_export_csv_file.close()
@@ -902,29 +913,54 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
             # Get list of cloud items to charge PI for.
             cloud_details = cloud_project_account_to_cloud_details[(project, account)]
 
-            for (platform, description, dates, quantity, uom, amount) in cloud_details:
+            if args.roll_up_cloud and len(cloud_details) > 0:
 
-                # If the quantity is given, make a string of it and its unit-of-measure.
-                if quantity != '':
-                    quantity_str = " @ %s %s" % (quantity, uom)
-                else:
-                    quantity_str = ''
+                # Generate a single transaction of all the transactions within the project.
+                total_amount_for_project = 0
 
+                # Add up all the charges for that project within the cloud details.
+                for (platform, description, dates, quantity, uom, amount) in cloud_details:
+                    total_amount_for_project += amount
+
+                pi_amount = total_amount_for_project * pctage
+
+                # Create a note for the rolled-up transactions.
                 if project != '':
-                    proj_str = project
+                    note = "Google :: Charges for Project '%s' " % (project)
                 else:
-                    proj_str = 'Misc charges/credits for %s' % pi_last_name
-
-                note = "Google :: %s : %s%s" % (proj_str, description, quantity_str)
+                    note = "Google :: Misc charges/credits for %s " % (pi_last_name)
 
                 if pctage < 1.0:
                     note += " [%d%%]" % (pctage * 100)
 
-                # Calculate the amount to charge the PI based on their percentage.
-                pi_amount = amount * pctage
+                # Output the single transaction for the project.
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note,
+                                         pi_amount)
 
-                # Write out the iLab export line.
-                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note, pi_amount)
+            else:
+                for (platform, description, dates, quantity, uom, amount) in cloud_details:
+
+                    # If the quantity is given, make a string of it and its unit-of-measure.
+                    if quantity != '':
+                        quantity_str = " @ %s %s" % (quantity, uom)
+                    else:
+                        quantity_str = ''
+
+                    if project != '':
+                        proj_str = project
+                    else:
+                        proj_str = 'Misc charges/credits for %s' % pi_last_name
+
+                    note = "Google :: %s : %s%s" % (proj_str, description, quantity_str)
+
+                    if pctage < 1.0:
+                        note += " [%d%%]" % (pctage * 100)
+
+                    # Calculate the amount to charge the PI based on their percentage.
+                    pi_amount = amount * pctage
+
+                    # Write out the iLab export line.
+                    output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note, pi_amount)
 
     return True
 
@@ -1029,6 +1065,9 @@ parser.add_argument("-l", "--skip_cloud", action="store_true",
 parser.add_argument("-n", "--skip_consulting", action="store_true",
                     default=False,
                     help="Don't output consulting iLab file. [default = False]")
+parser.add_argument("-R", "--roll_up_cloud", action="store_true",
+                    default=False,
+                    help="Roll up cloud transactions by project. [default = False]")
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
