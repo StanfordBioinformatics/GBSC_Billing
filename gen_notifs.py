@@ -39,6 +39,7 @@ from collections import defaultdict
 import datetime
 import time
 import os
+import re
 import sys
 
 import xlrd
@@ -122,16 +123,16 @@ pi_tag_to_charges = defaultdict(list)
 # Mapping from pi_tag to set of (cloud account, %age) tuples.
 pi_tag_to_cloud_account_pctages = defaultdict(set)
 
-# Mapping from cloud account to set of cloud projects.
+# Mapping from cloud account to set of cloud project IDs (several per project possible in this set).
 cloud_account_to_cloud_projects = defaultdict(set)
 
-# Mapping from cloud project to lists of (platform, account, description, dates, quantity, UOM, charge) tuples.
+# Mapping from (cloud project ID, cloud account) to lists of (platform, account, description, dates, quantity, UOM, charge) tuples.
 cloud_project_account_to_cloud_details = defaultdict(list)
 
-# Mapping from cloud project to total charge.
+# Mapping from (cloud project ID, cloud account) to total charge.
 cloud_project_account_to_total_charges = defaultdict(float)
 
-# Mapping from cloud project number to cloud project (1-to-1 mapping).
+# Mapping from cloud project number to cloud project ID (1-to-1 mapping).
 cloud_projnum_to_cloud_project = dict()
 
 ## Bioinformatics Consulting:
@@ -352,8 +353,8 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
         cloud_account_to_cloud_projects[account].add(projid)
         cloud_account_to_cloud_projects[account].add("")  # For credits to the account.
 
-        # Associate the project with its project number.
-        cloud_projnum_to_cloud_project[projnum] = project
+        # Associate the project ID with its project number.
+        cloud_projnum_to_cloud_project[projnum] = projid
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -658,10 +659,12 @@ def read_cloud_sheet(wkbk):
 
         (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
-        # If project is of the form "<project-name> (<project-id>)", remove the "(<project-id>)"
-        project_id_index = project.find(" (")
-        if project_id_index != -1:
-            project = project[:project_id_index]
+        # If project is of the form "<project name>(<project-id>)", get the "<project-id>"
+        project_re = re.search("\(([a-z-:.]+)\)", project)
+        if project_re is not None:
+            project = project_re.group(1)
+        else:
+            pass  # If no parens, use the original project name.
 
         # Save the cloud item in a list of charges for that PI.
         cloud_project_account_to_cloud_details[(project, account)].append((platform, description, dates, quantity, uom, charge))
