@@ -60,7 +60,8 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 #
 #=====
 # From billing_common.py
-global QUOTA_EXECUTABLE
+global QUOTA_EXECUTABLE_GPFS
+global QUOTA_EXECUTABLE_ISILON
 global USAGE_EXECUTABLE
 global STORAGE_BLOCK_SIZE_ARG
 global STORAGE_PREFIX
@@ -87,33 +88,37 @@ global read_config_sheet
 #
 def get_device_and_fileset_from_folder(folder):
 
-    # We only know about "/srv/gsfs0" paths.
-    if not folder.startswith("/srv/gsfs0"):
-        print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s: doesn't start with /srv/gsfs0" % folder
-        return None
+    # We know about "/srv/gsfs0" and "/ifs/" paths.
+    if folder.startswith("/srv/gsfs0"):
 
-    # Find the two path elements after "/srv/gsfs0/".
-    path_elts = os.path.normpath(folder).split(os.path.sep)
+        # Find the two path elements after "/srv/gsfs0/".
+        path_elts = os.path.normpath(folder).split(os.path.sep)
 
-    # Expect at least ['', 'srv', 'gsfs0', DIR1].
-    if len(path_elts) >= 4:
+        # Expect at least ['', 'srv', 'gsfs0', DIR1].
+        if len(path_elts) >= 4:
 
-        # Pattern "/srv/gsfs0/BaaS/Labs/DIR1" ?
-        if path_elts[3] == 'BaaS' and path_elts[4] == 'Labs':
-            return (path_elts[2], ".".join([path_elts[3],path_elts[5]]))
-        else:  # Other two patterns above.
-            return (path_elts[2], ".".join(path_elts[3:5]))
+            # Pattern "/srv/gsfs0/BaaS/Labs/DIR1" ?
+            if path_elts[3] == 'BaaS' and path_elts[4] == 'Labs':
+                return (path_elts[2], ".".join([path_elts[3],path_elts[5]]))
+            else:  # Other two patterns above.
+                return (path_elts[2], ".".join(path_elts[3:5]))
+        else:
+            print >> sys.stderr, "get_device_and_fileset_from_folder(): Path %s is not long enough" % folder
+            return None
+
+    elif folder.startswith("/ifs"):
+
+        device = "ifs"
+        fileset = folder
+
+        return (device, fileset)
+
     else:
-        print >> sys.stderr, "get_device_and_fileset_from_folder(): Path %s is not long enough" % folder
+        print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s" % folder
         return None
 
 
-# Gets the quota for the given PI tag.
-# Returns a tuple of (size used, quota) with values in Tb, or
-# None if there was a problem parsing the quota command output.
-def get_folder_quota(machine, folder, pi_tag):
-
-    if args.verbose: print "  Getting folder quota for %s..." % (pi_tag)
+def get_folder_quota_from_gpfs(machine, device, fileset):
 
     # Build and execute the quota command.
     quota_cmd = []
@@ -122,21 +127,13 @@ def get_folder_quota(machine, folder, pi_tag):
     if machine is not None:
         quota_cmd += ["ssh", machine]
 
-    # Find the fileset to get the quota of, from the folder name.
-    device_and_fileset = get_device_and_fileset_from_folder(folder)
-    if device_and_fileset is None:
-        print >> sys.stderr, "ERROR: No fileset for folder %s; ignoring..." % (folder)
-        return None
-
-    (device, fileset) = device_and_fileset
-
     # Build the quota command from the assembled arguments.
-    quota_cmd += QUOTA_EXECUTABLE + [fileset] + STORAGE_BLOCK_SIZE_ARG + [device]
+    quota_cmd += QUOTA_EXECUTABLE_GPFS + [fileset] + STORAGE_BLOCK_SIZE_ARG + [device]
 
     try:
         quota_output = subprocess.check_output(quota_cmd)
     except subprocess.CalledProcessError as cpe:
-        print >> sys.stderr, "Couldn't get quota for %s (exit %d)" % (pi_tag, cpe.returncode)
+        print >> sys.stderr, "Couldn't get quota for %s (exit %d)" % (fileset, cpe.returncode)
         print >> sys.stderr, " Command:", quota_cmd
         print >> sys.stderr, " Output: %s" % (cpe.output)
         return None
@@ -152,8 +149,67 @@ def get_folder_quota(machine, folder, pi_tag):
             quota = int(fields[3])
 
             return (used/1024.0, quota/1024.0)  # Return values in fractions of Tb.
+    else:
+        return None
 
-    return None
+
+def get_folder_quota_from_isilon(machine, device, fileset):
+
+    # Build and execute the quota command.
+    quota_cmd = []
+
+    # Add ssh if this is a remote call.
+    if machine is not None:
+        quota_cmd += ["ssh", machine]
+
+    # Build the quota command from the assembled arguments.
+    quota_cmd += QUOTA_EXECUTABLE_ISILON + STORAGE_BLOCK_SIZE_ARG + [fileset]
+
+    try:
+        quota_output = subprocess.check_output(quota_cmd)
+    except subprocess.CalledProcessError as cpe:
+        print >> sys.stderr, "Couldn't get quota for %s (exit %d)" % (fileset, cpe.returncode)
+        print >> sys.stderr, " Command:", quota_cmd
+        print >> sys.stderr, " Output: %s" % (cpe.output)
+        return None
+
+    # Parse the results.
+    for line in quota_output.split('\n'):
+
+        fields = line.split()
+
+        # If the first word on this line ends in 'ifs', this is the line we want.
+        if fields[0].endswith("ifs"):
+            used  = int(fields[2])
+            quota = int(fields[1])
+
+            return (used/1024.0, quota/1024.0)  # Return values in fractions of Tb.
+    else:
+        return None
+
+
+# Gets the quota for the given PI tag.
+# Returns a tuple of (size used, quota) with values in Tb, or
+# None if there was a problem parsing the quota command output.
+def get_folder_quota(machine, folder, pi_tag):
+
+    if args.verbose: print "  Getting folder quota for %s..." % (pi_tag)
+
+    # Find the fileset to get the quota of, from the folder name.
+    device_and_fileset = get_device_and_fileset_from_folder(folder)
+    if device_and_fileset is None:
+        print >> sys.stderr, "ERROR: No fileset for folder %s; ignoring..." % (folder)
+        return None
+
+    (device, fileset) = device_and_fileset
+
+    if device == "gsfs0":
+        return get_folder_quota_from_gpfs(machine, device, fileset)
+    elif device == "ifs":
+        return get_folder_quota_from_isilon(machine, device, fileset)
+    else:
+        return None
+
 
 # Gets the usage for the given folder.
 # Returns a tuple of (quota, quota) with values in Tb, or
@@ -208,7 +264,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
     folders     = sheet_get_named_column(pis_sheet, 'PI Folder')
     pi_tags     = sheet_get_named_column(pis_sheet, 'PI Tag')
-    quota_bools = ['quota'] * len(folders)   # All PI folders are measured by quota.
+    measure_types = ['quota'] * len(folders)   # All PI folders are measured by quota.
     dates_added = sheet_get_named_column(pis_sheet, 'Date Added')
     dates_remvd = sheet_get_named_column(pis_sheet, 'Date Removed')
 
@@ -217,7 +273,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
     folders     += sheet_get_named_column(folder_sheet, 'Folder')
     pi_tags     += sheet_get_named_column(folder_sheet, 'PI Tag')
-    quota_bools += sheet_get_named_column(folder_sheet, 'Method')
+    measure_types += sheet_get_named_column(folder_sheet, 'Method')
     dates_added += sheet_get_named_column(folder_sheet, 'Date Added')
     dates_remvd += sheet_get_named_column(folder_sheet, 'Date Removed')
 
@@ -227,53 +283,71 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
     folders_measured = set()
 
     # Create mapping from folders to space used.
-    for (folder, pi_tag, quota_bool, date_added, date_removed) in zip(folders, pi_tags, quota_bools, dates_added, dates_remvd):
+    for (folder, pi_tag, measure_type, date_added, date_removed) in zip(folders, pi_tags, measure_types, dates_added, dates_remvd):
 
         # Skip measuring this folder entry if the folder is None.
         if folder == 'None': continue
 
-        # Skip measuring this folder if we have already done it.
-        if folder in folders_measured: continue
+        # Account for multiple folders separated by commas.
+        pi_folder_list = folder.split(',')
 
-        # If this folder has been added prior to or within this month
-        # and has not been removed before the beginning of this month, analyze it.
-        if (end_timestamp > from_excel_date_to_timestamp(date_added) and
-            (date_removed == '' or begin_timestamp < from_excel_date_to_timestamp(date_removed)) ):
+        for pi_folder in pi_folder_list:
 
-            # Split folder into machine:dir components.
-            if folder.find(':') >= 0:
-                (machine, dir) = folder.split(':')
+            # Skip measuring this folder if we have already done it.
+            if pi_folder in folders_measured: continue
+
+            # If this folder has been added prior to or within this month
+            # and has not been removed before the beginning of this month, analyze it.
+            if (end_timestamp > from_excel_date_to_timestamp(date_added) and
+                (date_removed == '' or begin_timestamp < from_excel_date_to_timestamp(date_removed)) ):
+
+                # Split folder into machine:dir components.
+                if ':' in pi_folder:
+                    (machine, dir) = pi_folder.split(':')
+                else:
+                    machine = None
+                    dir = pi_folder
+
+                if measure_type == "quota":
+                    # Check folder's quota.
+                    print "Getting quota for %s" % pi_folder
+
+                    used_and_total = get_folder_quota(machine, dir, pi_tag)
+                    if used_and_total is None:
+                        print >> sys.stderr, "Could not get %s for %s...SKIPPING measurement" % (measure_type, dir)
+
+                elif measure_type == "usage" and not args.no_usage:
+                    # Check folder's usage.
+                    print "Measuring usage for %s" % pi_folder
+
+                    used_and_total = get_folder_usage(machine, dir, pi_tag)
+                    if used_and_total is None:
+                        print >> sys.stderr, "Could not get %s for %s...SKIPPING measurement" % (measure_type, dir)
+
+                else:
+                    # Use null values for no usage data.
+                    print "SKIPPING measurement for %s" % pi_folder
+                    used_and_total = None
+
+                if used_and_total is None:
+                    used = total = 0
+                else:
+                    (used, total) = used_and_total
+
+                # Record when we measured the storage.
+                measured_timestamp = time.time()
+
+                folder_size_dicts.append({ 'Date Measured' : from_timestamp_to_excel_date(measured_timestamp),
+                                           'Timestamp' : measured_timestamp,
+                                           'Folder' : pi_folder,
+                                           'Size' : total,
+                                           'Used' :used })
+
+                # Add the folder measured to a set of folders we have measured.
+                folders_measured.add(pi_folder)
+
             else:
-                machine = None
-                dir = folder
-
-            if quota_bool == "quota":
-                # Check folder's quota.
-                print "Getting quota for %s" % folder
-                (used, total) = get_folder_quota(machine, dir, pi_tag)
-            elif quota_bool == "usage" and not args.no_usage:
-                # Check folder's usage.
-                print "Measuring usage for %s" % folder
-                (used, total) = get_folder_usage(machine, dir, pi_tag)
-            else:
-                # Use null values for no usage data.
-                print "SKIPPING measurement for %s" % folder
-                (used, total) = (0, 0)
-
-            # Record when we measured the storage.
-            measured_timestamp = time.time()
-
-            folder_size_dicts.append({ 'Date Measured' : from_timestamp_to_excel_date(measured_timestamp),
-                                       'Timestamp' : measured_timestamp,
-                                       'Folder' : folder,
-                                       'Size' : total,
-                                       'Used' :used })
-
-            # Add the folder measured to a set of folders we have measured.
-            folders_measured.add(folder)
-
-        else:
-            print "  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag)
+                print "  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag)
 
     return folder_size_dicts
 
