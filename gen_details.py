@@ -80,10 +80,6 @@ global BILLING_DETAILS_PREFIX
 global CONSULTING_PREFIX
 global STORAGE_PREFIX
 
-global QUOTA_EXECUTABLE
-global USAGE_EXECUTABLE
-global STORAGE_BLOCK_SIZE_ARG
-
 #
 # Formats for the output workbook, to be initialized along with the workbook.
 #
@@ -154,120 +150,6 @@ def init_billing_details_wkbk(workbook):
     sheet_name_to_sheet_map['Storage'].activate()
 
     return sheet_name_to_sheet_map
-
-# Deduces the fileset that a folder being measured by quota lives in.
-#
-# Patterns:
-#  /srv/gsfs0/DIR1      - Device "gsfs0", Fileset "DIR1"
-#  /srv/gsfs0/DIR1/DIR2 - Device "gsfs0", Fileset "DIR1.DIR2"
-#  /srv/gsfs0/BaaS/Labs/DIR1 - Device "gsfs0", Fileset "BaaS.DIR1"
-#
-def get_device_and_fileset_from_folder(folder):
-
-    # We only know about "/srv/gsfs0" paths.
-    if not folder.startswith("/srv/gsfs0"):
-        print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s: doesn't start with /srv/gsfs0" % folder
-        return None
-
-    # Find the two path elements after "/srv/gsfs0/".
-    path_elts = os.path.normpath(folder).split(os.path.sep)
-
-    # Expect at least ['', 'srv', 'gsfs0', DIR1].
-    if len(path_elts) >= 4:
-
-        # Pattern "/srv/gsfs0/BaaS/Labs/DIR1" ?
-        if path_elts[3] == 'BaaS' and path_elts[4] == 'Labs':
-            return (path_elts[2], ".".join([path_elts[3],path_elts[5]]))
-        else:  # Other two patterns above.
-            return (path_elts[2], ".".join(path_elts[3:5]))
-    else:
-        print >> sys.stderr, "get_device_and_fileset_from_folder(): Path %s is not long enough" % folder
-        return None
-
-
-# Gets the quota for the given PI tag.
-# Returns a tuple of (size used, quota) with values in Tb, or
-# None if there was a problem parsing the quota command output.
-def get_folder_quota(machine, folder, pi_tag):
-
-    if args.verbose: print "  Getting folder quota for %s..." % (pi_tag)
-
-    # Build and execute the quota command.
-    quota_cmd = []
-
-    # Add ssh if this is a remote call.
-    if machine is not None:
-        quota_cmd += ["ssh", machine]
-
-    # Find the fileset to get the quota of, from the folder name.
-    device_and_fileset = get_device_and_fileset_from_folder(folder)
-    if device_and_fileset is None:
-        print >> sys.stderr, "ERROR: No fileset for folder %s; ignoring..." % (folder)
-        return None
-
-    (device, fileset) = device_and_fileset
-
-    # Build the quota command from the assembled arguments.
-    quota_cmd += QUOTA_EXECUTABLE + [fileset] + STORAGE_BLOCK_SIZE_ARG + [device]
-
-    try:
-        quota_output = subprocess.check_output(quota_cmd)
-    except subprocess.CalledProcessError as cpe:
-        print >> sys.stderr, "Couldn't get quota for %s (exit %d)" % (pi_tag, cpe.returncode)
-        print >> sys.stderr, " Command:", quota_cmd
-        print >> sys.stderr, " Output: %s" % (cpe.output)
-        return None
-
-    # Parse the results.
-    for line in quota_output.split('\n'):
-
-        fields = line.split()
-
-        # If the first word on this line is 'gsfs0', this is the line we want.
-        if fields[0] == 'gsfs0':
-            used  = int(fields[2])
-            quota = int(fields[3])
-
-            return (used/1024.0, quota/1024.0)  # Return values in fractions of Tb.
-
-    return None
-
-# Gets the usage for the given folder.
-# Returns a tuple of (quota, quota) with values in Tb, or
-# None if there was a problem parsing the usage command output.
-def get_folder_usage(machine, folder, pi_tag):
-
-    if args.verbose: print "  Getting folder usage of %s..." % (folder)
-
-    # Build and execute the quota command.
-    usage_cmd = []
-
-    # Add ssh if this is a remote call.
-    if machine is not None:
-        usage_cmd += ["ssh", machine]
-    else:
-        # Local du's require sudo.
-        usage_cmd += ["sudo"]
-
-    usage_cmd += USAGE_EXECUTABLE + STORAGE_BLOCK_SIZE_ARG + [folder]
-
-    try:
-        usage_output = subprocess.check_output(usage_cmd)
-    except subprocess.CalledProcessError as cpe:
-        print >> sys.stderr, "Couldn't get usage for %s (exit %d)" % (folder, cpe.returncode)
-        print >> sys.stderr, " Command:", usage_cmd
-        print >> sys.stderr, " Output: %s" % (cpe.output)
-        return None
-
-    # Parse the results.
-    for line in usage_output.split('\n'):
-
-        fields = line.split()
-        used = int(fields[0])
-
-        return (used/1024.0, used/1024.0)  # Return values in fractions of Tb.
-
-    return None
 
 
 # Given a list of tuples of job details, writes the job details to
@@ -361,78 +243,6 @@ def get_google_invoice_csv_subtable_lines(csvfile_obj):
         line = csvfile_obj.readline()
 
     return subtable
-
-
-# Generates the Storage sheet data from folder quotas and usages.
-# Returns mapping from folders to [timestamp, total, used]
-def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
-
-    print "Computing storage charges..."
-
-    # Lists of folders to measure come from:
-    #  "PI Folder" column of "PIs" sheet, and
-    #  "Folder" column of "Folders" sheet.
-
-    # Get lists of folders, quota booleans from PIs sheet.
-    pis_sheet = config_wkbk.sheet_by_name('PIs')
-
-    folders     = sheet_get_named_column(pis_sheet, 'PI Folder')
-    pi_tags     = sheet_get_named_column(pis_sheet, 'PI Tag')
-    quota_bools = ['quota'] * len(folders)   # All PI folders are measured by quota.
-    dates_added = sheet_get_named_column(pis_sheet, 'Date Added')
-    dates_remvd = sheet_get_named_column(pis_sheet, 'Date Removed')
-
-    # Get lists of folders, quota booleans from Folders sheet.
-    folder_sheet = config_wkbk.sheet_by_name('Folders')
-
-    folders     += sheet_get_named_column(folder_sheet, 'Folder')
-    pi_tags     += sheet_get_named_column(folder_sheet, 'PI Tag')
-    quota_bools += sheet_get_named_column(folder_sheet, 'Method')
-    dates_added += sheet_get_named_column(folder_sheet, 'Date Added')
-    dates_remvd += sheet_get_named_column(folder_sheet, 'Date Removed')
-
-    # Mapping from folders to [timestamp, total, used].
-    folder_size_dict = collections.OrderedDict()
-
-    # Create mapping from folders to space used.
-    for (folder, pi_tag, quota_bool, date_added, date_removed) in zip(folders, pi_tags, quota_bools, dates_added, dates_remvd):
-
-        # Skip measuring this folder entry if the folder is None.
-        if folder == 'None': continue
-
-        # Skip measuring this folder if we have already done it.
-        if folder_size_dict.get(folder) is not None: continue
-
-        # If this folder has been added prior to or within this month
-        # and has not been removed before the beginning of this month, analyze it.
-        if (end_timestamp > from_excel_date_to_timestamp(date_added) and
-            (date_removed == '' or begin_timestamp < from_excel_date_to_timestamp(date_removed)) ):
-
-            # Split folder into machine:dir components.
-            if folder.find(':') >= 0:
-                (machine, dir) = folder.split(':')
-            else:
-                machine = None
-                dir = folder
-
-            if quota_bool == "quota":
-                # Check folder's quota.
-                print "Getting quota for %s" % folder
-                (used, total) = get_folder_quota(machine, dir, pi_tag)
-            elif quota_bool == "usage" and not args.no_usage:
-                # Check folder's usage.
-                print "Measuring usage for %s" % folder
-                (used, total) = get_folder_usage(machine, dir, pi_tag)
-            else:
-                # Use null values for no usage data.
-                print "SKIPPING measurement for %s" % folder
-                (used, total) = (0, 0)
-
-            folder_size_dict[folder] = [time.time(), total, used]
-        else:
-            print "  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag)
-
-    return folder_size_dict
 
 
 # Read the Storage Usage file.
@@ -1148,26 +958,45 @@ print "  BillingRoot: %s" % billing_root
 
 if args.no_storage:
     print "  Skipping storage calculations"
+    skip_storage = True
 elif storage_usage_file is not None:
     print "  Storage usage file: %s" % storage_usage_file
+    skip_storage = False
 else:
-    print "  Generating storage usage data"
+    print "  No storage usage file given...skipping storage calculations"
+    skip_storage = True
 
 if args.no_computing:
     print "  Skipping computing calculations"
-else:
+    skip_computing = True
+elif accounting_file is not None:
     print "  SGEAccountingFile: %s" % accounting_file
+    skip_computing = False
+else:
+    print "  No accounting file given...skipping computing calculations"
+    skip_computing = True
 if args.all_jobs_billable:
     print "  All jobs billable."
 
 if args.no_consulting:
     print "  Skipping consulting calculations"
-else:
+    skip_consulting = True
+elif consulting_timesheet is not None:
     print "  Consulting Timesheet: %s" % consulting_timesheet
+    skip_consulting = False
+else:
+    print "  No consulting timesheet given...skipping consulting calculations"
+    skip_consulting = True
+
 if args.no_cloud:
     print "  Skipping cloud calculations"
-else:
+    skip_cloud = True
+elif google_invoice_csv is not None:
     print "  Google Invoice File: %s" % google_invoice_csv
+    skip_cloud = False
+else:
+    print "  No Google Invoice file given...skipping cloud calculations"
+    skip_cloud = True
 
 print
 print "  BillingDetailsFile to be output: %s" % details_wkbk_pathname
@@ -1176,12 +1005,8 @@ print
 #
 # Compute storage charges.
 #
-if not args.no_storage:
-    # If storage usage CSV file is given, read data from it, else recompute storage usage data.
-    if storage_usage_file is not None:
-        folder_usage_dict = read_storage_usage_file(storage_usage_file)
-    else:
-        folder_usage_dict = compute_storage_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp)
+if not skip_storage:
+    folder_usage_dict = read_storage_usage_file(storage_usage_file)
 
     # Write storage usage data to BillingDetails file.
     write_storage_usage_data(folder_usage_dict, sheet_name_to_sheet_map['Storage'])
@@ -1189,7 +1014,7 @@ if not args.no_storage:
 #
 # Compute computing charges.
 #
-if not args.no_computing:
+if not skip_computing:
     compute_computing_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, accounting_file,
                               sheet_name_to_sheet_map['Computing'],
                               sheet_name_to_sheet_map['Nonbillable Jobs'], sheet_name_to_sheet_map['Failed Jobs'])
@@ -1197,14 +1022,14 @@ if not args.no_computing:
 #
 # Compute consulting charges.
 #
-if not args.no_consulting and consulting_timesheet is not None:
+if not skip_consulting:
      compute_consulting_charges(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, consulting_timesheet,
                                 sheet_name_to_sheet_map['Consulting'])
 
 #
 # Compute cloud charges.
 #
-if not args.no_cloud and google_invoice_csv is not None:
+if not skip_cloud:
     compute_cloud_charges(billing_details_wkbk, google_invoice_csv, sheet_name_to_sheet_map['Cloud'])
 
 #
