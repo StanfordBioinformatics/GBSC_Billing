@@ -122,9 +122,10 @@ IGNORED_JOB_TAGS = ['large_mem']
 EARLIEST_VALID_DATE_EXCELDATE = 41517.0
 
 # Commands for determining folder quotas and usages.
-QUOTA_EXECUTABLE = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
+QUOTA_EXECUTABLE_GPFS = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
+QUOTA_EXECUTABLE_ISILON = ['df']
 USAGE_EXECUTABLE = ['du', '-s']
-STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in both above commands.
+STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in all above commands.
 
 # Pathname to root of PI project directories.
 PI_PROJECT_ROOT_DIR = '/srv/gsfs0/projects'
