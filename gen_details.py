@@ -18,6 +18,7 @@
 #   --no_computing:    Don't run the computing calculations.
 #   --no_consulting:   Don't run the consulting calculations.
 #   --all_jobs_billable: Consider all jobs to be billable. [default=False]
+#   --ignore_job_timestamps: Ignore timestamps in job and allow jobs not in month selected [default=False]
 #
 # INPUT:
 #   BillingConfig spreadsheet.
