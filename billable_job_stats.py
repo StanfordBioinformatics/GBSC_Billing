@@ -45,6 +45,7 @@
 #
 #=====
 import calendar
+from collections import defaultdict
 import datetime
 import argparse
 import os
@@ -158,6 +159,12 @@ is_billable_month = year > BILLING_FIRST_YEAR or (year == BILLING_FIRST_YEAR and
 begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
 end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
 
+# Get list of users from users arg.
+if not args.all_users:
+    user_list = args.user.split(',')
+else:
+    user_list = ["ALLUSERS"]
+
 # Print first lines of upcoming table.
 if args.all_users:
     table_header_str = "JOBS RUN BY ALL USERS"
@@ -170,9 +177,9 @@ if args.job_tag is not None:
 print >> sys.stderr, "%s:" % table_header_str
 
 if is_billable_month:
-    print >> sys.stderr, "MONTH: %02d/%d\tCPU-hrs\tJobs\tCost" % (month, year)
+    print >> sys.stderr, "MONTH: %02d/%d\t\tCPU-hrs\t%7s\tCost" % (month, year, 'Jobs')
 else:
-    print >> sys.stderr, "MONTH: %02d/%d\tCPU-hrs\tJobs" % (month, year)
+    print >> sys.stderr, "MONTH: %02d/%d\t\tCPU-hrs\t%7s" % (month, year, 'Jobs')
 
 #
 # Read all the lines of the current accounting file.
@@ -181,8 +188,8 @@ else:
 #
 with open(args.accounting_file, "r") as accounting_input_fp:
 
-    this_month_user_jobs = []
-    this_month_failed_jobs = []
+    this_month_user_jobs = defaultdict(list)
+    this_month_failed_jobs = defaultdict(list)
 
     for line in accounting_input_fp:
 
@@ -219,16 +226,24 @@ with open(args.accounting_file, "r") as accounting_input_fp:
             job_date_string = datetime.datetime.utcfromtimestamp(job_date).strftime("%m/%d/%Y")
 
             # The job must be run by the requested user, if all_users not True.
-            correct_user = args.all_users or owner == args.user
+            correct_user = args.all_users or owner in user_list
             # The job must match the given job tag, if any.
             correct_job_tag = args.job_tag is None or account == args.job_tag
 
             if correct_user and correct_job_tag:
+
+                # Save the job details under "ALLUSERS" if args.all_users selected, else use the owner field.
+                if args.all_users:
+                    owner_or_allusers = "ALLUSERS"
+                else:
+                    owner_or_allusers = owner
+
+                # Divide job details between successful and failed jobs.
                 if not job_failed:
-                    this_month_user_jobs.append((hostname, owner, job_name, job_ID, job_date_string, account, slots, wallclock))
+                    this_month_user_jobs[owner_or_allusers].append((hostname, owner, job_name, job_ID, job_date_string, account, slots, wallclock))
                 else:
                     # One more failed job.
-                    this_month_failed_jobs.append((hostname, owner, job_name, job_ID, job_date_string, account, slots, wallclock, failed))
+                    this_month_failed_jobs[owner_or_allusers].append((hostname, owner, job_name, job_ID, job_date_string, account, slots, wallclock, failed))
 
 
 #
@@ -239,92 +254,98 @@ with open(args.accounting_file, "r") as accounting_input_fp:
 if is_billable_month:
 
     # Analyze jobs found for user within the month/year specified.
-    user_total_cpu_hrs = 0
-    user_billable_cpu_hrs = 0
-    user_nonbillable_cpu_hrs = 0
+    user_total_cpu_hrs = defaultdict(float)
+    user_billable_cpu_hrs = defaultdict(float)
+    user_nonbillable_cpu_hrs = defaultdict(float)
 
-    this_month_billable_user_jobs = []
-    this_month_nonbillable_user_jobs = []
+    this_month_billable_user_jobs = defaultdict(list)
+    this_month_nonbillable_user_jobs = defaultdict(list)
 
-    for job_details in this_month_user_jobs:
+    for user in user_list:
+        for job_details in this_month_user_jobs[user]:
 
-        (hostname, owner, job_name, job_ID, job_date, account, slots, wallclock) = job_details
+            (hostname, owner, job_name, job_ID, job_date, account, slots, wallclock) = job_details
 
-        # Calculate this job's CPUslot-hrs.
-        cpu_hrs = slots * wallclock / 3600.0
+            # Calculate this job's CPUslot-hrs.
+            cpu_hrs = slots * wallclock / 3600.0
 
-        # Count billable jobs: hostname does not start with 'scg3-0' or 'greenie'.
-        if not (hostname.startswith('greenie') or hostname.startswith('scg3-0')):
-            this_month_billable_user_jobs.append(job_details)
-            user_billable_cpu_hrs += cpu_hrs
-        else:
-            this_month_nonbillable_user_jobs.append(job_details)
-            user_nonbillable_cpu_hrs += cpu_hrs
+            # Count billable jobs: hostname does not start with 'scg3-0' or 'greenie'.
+            if not (hostname.startswith('greenie') or hostname.startswith('scg3-0')):
+                this_month_billable_user_jobs[user].append(job_details)
+                user_billable_cpu_hrs[user] += cpu_hrs
+            else:
+                this_month_nonbillable_user_jobs[user].append(job_details)
+                user_nonbillable_cpu_hrs[user] += cpu_hrs
 
-        user_total_cpu_hrs += cpu_hrs
+            user_total_cpu_hrs[user] += cpu_hrs
 
-    #
-    # Compute stats on billable/nonbillable jobs, and print a small table with the results.
-    #
-    user_billable_job_count = len(this_month_billable_user_jobs)
-    user_nonbillable_job_count = len(this_month_nonbillable_user_jobs)
-    user_failed_job_count = len(this_month_failed_jobs)
+        #
+        # Compute stats on billable/nonbillable jobs, and print a small table with the results.
+        #
+        user_billable_job_count = len(this_month_billable_user_jobs[user])
+        user_nonbillable_job_count = len(this_month_nonbillable_user_jobs[user])
+        user_failed_job_count = len(this_month_failed_jobs[user])
 
-    user_total_job_count = len(this_month_user_jobs) + user_failed_job_count
+        user_total_job_count = len(this_month_user_jobs[user]) + user_failed_job_count
 
-    billable_cost = user_billable_cpu_hrs * BILLING_RATE
+        billable_cost = user_billable_cpu_hrs[user] * BILLING_RATE
 
-    #
-    # Print rest of output table
-    #
-    print >> sys.stderr, " Billable\t%7.1f\t%6d\t$%0.02f" % (user_billable_cpu_hrs, user_billable_job_count, billable_cost)
-    if NONBILLABLE_JOBS_EXIST:
-        print >> sys.stderr, " Nonbillable\t%7.1f\t%6d\t%6s" % (user_nonbillable_cpu_hrs, user_nonbillable_job_count, "--")
-    print >> sys.stderr, " Failed\t\t%7s\t%6d\t%6s" % ("N/A", user_failed_job_count, "--")
-    if NONBILLABLE_JOBS_EXIST:
-        print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d\t$%0.02f" % (user_total_cpu_hrs, user_total_job_count, billable_cost)
+        #
+        # Print rest of output table
+        #
+        print >> sys.stderr, " %8s\tBilled\t%7.1f\t%7d\t$%0.02f" % (user, user_billable_cpu_hrs[user], user_billable_job_count, billable_cost)
+        if NONBILLABLE_JOBS_EXIST:
+            print >> sys.stderr, " %8s\tNonbill\t%7.1f\t%7d\t%7s" % (user, user_nonbillable_cpu_hrs[user], user_nonbillable_job_count, "--")
+        # print >> sys.stderr, " %s\tFailed\t\t%7s\t%7d\t%7s" % (user, "N/A", user_failed_job_count[user], "--")
+        if NONBILLABLE_JOBS_EXIST:
+            print >> sys.stderr, "%8s\tTOTAL\t\t%7.1f\t%7d\t$%0.02f" % (user, user_total_cpu_hrs[user], user_total_job_count, billable_cost)
 
 else:
     # Not a billable month: just return stats on job that ran vs jobs which failed.
-    user_completed_cpu_hrs = 0
+    user_completed_cpu_hrs = defaultdict(float)
 
-    for job_details in this_month_user_jobs:
+    for user in user_list:
+        for job_details in this_month_user_jobs[user]:
 
-        (hostname, owner, job_name, job_ID, job_date, account, slots, wallclock) = job_details
+            (hostname, owner, job_name, job_ID, job_date, account, slots, wallclock) = job_details
 
-        # Calculate this job's CPUslot-hrs.
-        cpu_hrs = slots * wallclock / 3600.0
+            # Calculate this job's CPUslot-hrs.
+            cpu_hrs = slots * wallclock / 3600.0
 
-        user_completed_cpu_hrs += cpu_hrs
+        user_completed_cpu_hrs[user] += cpu_hrs
 
-    user_completed_job_count = len(this_month_user_jobs)
-    user_failed_job_count = len(this_month_failed_jobs)
-    user_total_job_count = user_completed_job_count + user_failed_job_count
+        user_completed_job_count = len(this_month_user_jobs[user])
+        user_failed_job_count = len(this_month_failed_jobs[user])
+        user_total_job_count = user_completed_job_count + user_failed_job_count
 
-    user_total_cpu_hrs = user_completed_cpu_hrs
+        user_total_cpu_hrs = user_completed_cpu_hrs[user]
 
-    #
-    # Print rest of output table
-    #
-    print >> sys.stderr, " Completed\t%7.1f\t%6d" % (user_completed_cpu_hrs, user_completed_job_count)
-    print >> sys.stderr, " Failed\t\t%7s\t%6d" % ("N/A", user_failed_job_count)
-    print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d" % (user_total_cpu_hrs, user_total_job_count)
+        #
+        # Print rest of output table
+        #
+        print >> sys.stderr, " Completed\t%7.1f\t%6d" % (user_completed_cpu_hrs, user_completed_job_count)
+        print >> sys.stderr, " Failed\t\t%7s\t%6d" % ("N/A", user_failed_job_count)
+        print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d" % (user_total_cpu_hrs, user_total_job_count)
 
 #
 # Print user job details to stdout, if requested.
 #
 if is_billable_month:
     if args.print_billable_jobs or args.print_completed_jobs:
-        for job_details in this_month_billable_user_jobs:
-            print ':'.join(map(lambda s: str(s), job_details))
+        for user in user_list:
+            for job_details in this_month_billable_user_jobs[user]:
+                print ':'.join(map(lambda s: str(s), job_details))
     if NONBILLABLE_JOBS_EXIST:
         if args.print_nonbillable_jobs or args.print_completed_jobs:
-            for job_details in this_month_nonbillable_user_jobs:
-                print ':'.join(map(lambda s: str(s), job_details))
+            for user in user_list:
+                for job_details in this_month_nonbillable_user_jobs[user]:
+                    print ':'.join(map(lambda s: str(s), job_details))
 else:
     if args.print_completed_jobs:
-        for job_details in this_month_user_jobs:
-            print ':'.join(map(lambda s: str(s), job_details))
+        for user in user_list:
+            for job_details in this_month_user_jobs[user]:
+                print ':'.join(map(lambda s: str(s), job_details))
 if args.print_failed_jobs:
-    for job_details in this_month_failed_jobs:
-        print ':'.join(map(lambda s: str(s), job_details))
+    for user in user_list:
+        for job_details in this_month_failed_jobs[user]:
+            print ':'.join(map(lambda s: str(s), job_details))
