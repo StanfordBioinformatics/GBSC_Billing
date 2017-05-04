@@ -37,6 +37,7 @@ import csv
 import datetime
 import locale  # for converting strings with commas into floats
 import os
+import re
 import sys
 
 import xlrd
@@ -127,14 +128,21 @@ pi_tag_to_user_details = defaultdict(list)
 # Mapping from pi_tag to set of (cloud account, %age) tuples.
 pi_tag_to_cloud_account_pctages = defaultdict(set)
 
-# Mapping from cloud account to set of cloud projects.
+# Mapping from cloud account to set of cloud project IDs (several per project possible in this set).
 cloud_account_to_cloud_projects = defaultdict(set)
 
-# Mapping from cloud project to lists of (platform, account, description, dates, quantity, UOM, charge) tuples.
+# Mapping from (cloud project ID, cloud account) to lists of (platform, account, description, dates, quantity, UOM, charge) tuples.
 cloud_project_account_to_cloud_details = defaultdict(list)
 
-# Mapping from cloud project to total charge.
+# Mapping from (cloud project ID, cloud account) to total charge.
 cloud_project_account_to_total_charges = defaultdict(float)
+
+# Mapping from cloud project number to cloud project ID (1-to-1 mapping).
+cloud_projnum_to_cloud_project = dict()
+
+# Mapping from cloud project ID to cloud project name (1-to-1 mapping).
+cloud_projid_to_cloud_projname = dict()
+
 
 # Mapping from pi_tag to list of (date, summary, hours, cumul_hours)
 consulting_details = defaultdict(list)
@@ -268,29 +276,38 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
         cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
         cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
         cloud_projnums    = sheet_get_named_column(cloud_sheet, "Project Number")
-        cloud_accounts    = sheet_get_named_column(cloud_sheet, "Account")
-        cloud_pctage      = sheet_get_named_column(cloud_sheet, "%age")
+        cloud_projids = sheet_get_named_column(cloud_sheet, "Project ID")
+        cloud_accounts = sheet_get_named_column(cloud_sheet, "Account")
+        cloud_pctage = sheet_get_named_column(cloud_sheet, "%age")
 
         cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
         cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
-        cloud_rows = filter_by_dates(zip(cloud_pi_tags, cloud_projects, cloud_projnums,
-                                     cloud_accounts, cloud_pctage),
+        cloud_rows = filter_by_dates(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
+                                         cloud_accounts, cloud_pctage),
                                      zip(cloud_dates_added, cloud_dates_remvd),
                                      begin_month_exceldate, end_month_exceldate)
 
-        for (pi_tag, project, projnum, account, pctage) in cloud_rows:
+        for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
 
             # Associate the project name and percentage to be charged with the pi_tag.
             pi_tag_to_cloud_account_pctages[pi_tag].add((account, pctage))
 
-            # Associate the project number with the pi_tag also, in case the project is deleted and loses its name.
-            #pi_tag_to_cloud_account_pctages[pi_tag].append((projnum, pctage))
+            # Associate the account with the project name, the project number, and the project ID.
+            pi_tag_to_cloud_account_pctages[pi_tag].add((projnum, pctage))
 
             # Associate the account with the project name and with the project number.
             cloud_account_to_cloud_projects[account].add(project)
             cloud_account_to_cloud_projects[account].add(projnum)
+            cloud_account_to_cloud_projects[account].add(projid)
             cloud_account_to_cloud_projects[account].add("")  # For credits to the account.
+
+            # Associate the project ID with its project number.
+            cloud_projnum_to_cloud_project[projnum] = projid
+
+            # Associate the project name with its project ID.
+            cloud_projid_to_cloud_projname[projid] = project
+
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -546,10 +563,12 @@ def read_cloud_sheet(cloud_sheet):
 
         (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
-        # If project is of the form "<project-name> (<project-id>)", remove the "(<project-id>)"
-        project_id_index = project.find(" (")
-        if project_id_index != -1:
-            project = project[:project_id_index]
+        # If project is of the form "<project name>(<project-id>)", get the "<project-id>"
+        project_re = re.search("\(([a-z-:.]+)\)", project)
+        if project_re is not None:
+            project = project_re.group(1)
+        else:
+            pass  # If no parens, use the original project name.
 
         # Save the cloud item in a list of charges for that PI.
         cloud_project_account_to_cloud_details[(project, account)].append((platform, description, dates, quantity, uom, charge))
@@ -908,10 +927,15 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
     # Get list of (account, %ages) tuples for given PI.
     for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
 
-        for project in cloud_account_to_cloud_projects[account]:
+        for project_id in cloud_account_to_cloud_projects[account]:
 
             # Get list of cloud items to charge PI for.
-            cloud_details = cloud_project_account_to_cloud_details[(project, account)]
+            cloud_details = cloud_project_account_to_cloud_details[(project_id, account)]
+
+            # Get name for project ID.
+            project_name = cloud_projid_to_cloud_projname.get(project_id)
+            if project_name is None:
+                project_name = project_id
 
             if args.roll_up_cloud and len(cloud_details) > 0:
 
@@ -925,8 +949,8 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                 pi_amount = total_amount_for_project * pctage
 
                 # Create a note for the rolled-up transactions.
-                if project != '':
-                    note = "Google :: Charges for Project '%s' " % (project)
+                if project_name != '':
+                    note = "Google :: Charges for Project '%s' " % (project_name)
                 else:
                     note = "Google :: Misc charges/credits for %s " % (pi_last_name)
 
@@ -946,8 +970,8 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                     else:
                         quantity_str = ''
 
-                    if project != '':
-                        proj_str = project
+                    if project_name != '':
+                        proj_str = project_name
                     else:
                         proj_str = 'Misc charges/credits for %s' % pi_last_name
 
