@@ -146,7 +146,7 @@ def get_folder_quota_from_gpfs(machine, device, fileset):
         # If the first word on this line is 'gsfs0', this is the line we want.
         if fields[0] == 'gsfs0':
             used  = int(fields[2])
-            quota = int(fields[3])
+            quota = int(fields[4])
 
             return (used/1024.0, quota/1024.0)  # Return values in fractions of Tb.
     else:
