@@ -563,8 +563,8 @@ def read_cloud_sheet(cloud_sheet):
 
         (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
-        # If project is of the form "<project name>(<project-id>)", get the "<project-id>"
-        project_re = re.search("\(([a-z-:.]+)\)", project)
+        # If project is of the form "<project name>(<project-id>)" or "<project name>[<project-id>]", get the "<project-id>".
+        project_re = re.search("[(\[]([a-z-:.]+)[\])]", project)
         if project_re is not None:
             project = project_re.group(1)
         else:
@@ -745,7 +745,7 @@ def process_cloud_data():
 
     ilab_export_csv_dictwriter.writeheader()
 
-    if args.roll_up_cloud:
+    if not args.break_out_cloud:
         print "Writing out Cloud transactions by project into iLab export CSV file."
 
         for pi_tag in pi_tag_list:
@@ -937,7 +937,7 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
             if project_name is None:
                 project_name = project_id
 
-            if args.roll_up_cloud and len(cloud_details) > 0:
+            if not args.break_out_cloud and len(cloud_details) > 0:
 
                 # Generate a single transaction of all the transactions within the project.
                 total_amount_for_project = 0
@@ -1089,9 +1089,9 @@ parser.add_argument("-l", "--skip_cloud", action="store_true",
 parser.add_argument("-n", "--skip_consulting", action="store_true",
                     default=False,
                     help="Don't output consulting iLab file. [default = False]")
-parser.add_argument("-R", "--roll_up_cloud", action="store_true",
+parser.add_argument("-b", "--break_out_cloud", action="store_true",
                     default=False,
-                    help="Roll up cloud transactions by project. [default = False]")
+                    help="Break out individual cloud transactions. [default = False]")
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')

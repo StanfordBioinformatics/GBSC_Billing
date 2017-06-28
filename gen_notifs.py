@@ -659,8 +659,8 @@ def read_cloud_sheet(wkbk):
 
         (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
-        # If project is of the form "<project name>(<project-id>)", get the "<project-id>"
-        project_re = re.search("\(([a-z-:.]+)\)", project)
+        # If project is of the form "<project name>(<project-id>)" or "<project name>[<project-id>]", get the "<project-id>".
+        project_re = re.search("[(\[]([a-z-:.]+)[\])]", project)
         if project_re is not None:
             project = project_re.group(1)
         else:
