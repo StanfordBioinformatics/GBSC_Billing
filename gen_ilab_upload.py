@@ -424,7 +424,12 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
                                   begin_month_exceldate, end_month_exceldate)
 
     for (folder, pi_tag, pctage) in folder_rows:
-        folder_to_pi_tag_pctages[folder].append([pi_tag, pctage])
+
+        # Account for multiple folders separated by commas.
+        pi_folder_list = folder.split(',')
+
+        for pi_folder in pi_folder_list:
+            folder_to_pi_tag_pctages[pi_folder].append([pi_tag, pctage])
 
 
 # Reads the Storage sheet of the BillingDetails workbook given, and populates

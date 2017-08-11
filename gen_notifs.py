@@ -458,7 +458,6 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     dates_added   = sheet_get_named_column(pis_sheet, "Date Added")
     dates_removed = sheet_get_named_column(pis_sheet, "Date Removed")
 
-
     # Add the Folders from Folder sheet
     folders += sheet_get_named_column(folders_sheet, "Folder")
     pi_tags += sheet_get_named_column(folders_sheet, "PI Tag")
@@ -471,7 +470,12 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
                                   begin_month_exceldate, end_month_exceldate)
 
     for (folder, pi_tag, pctage) in folder_rows:
-        folder_to_pi_tag_pctages[folder].append([pi_tag, pctage])
+
+        # Account for multiple folders separated by commas.
+        pi_folder_list = folder.split(',')
+
+        for pi_folder in pi_folder_list:
+            folder_to_pi_tag_pctages[pi_folder].append([pi_tag, pctage])
 
 
 # Reads the particular rate requested from the Rates sheet of the BillingConfig workbook.
