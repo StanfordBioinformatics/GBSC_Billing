@@ -67,7 +67,8 @@ DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
 
 # Default available services table (to be used if no available services file given).
 DEFAULT_AVAILABLE_SERVICES_ID_DICT = {
-    'Local Storage'   : ['Local Cluster Storage', 1991],
+    'Local HPC Storage'   : ['Local Cluster - HPC Storage', 1991],
+    'Local Object Storage' : ['Local Cluster - Object Storage', 2610],
     'Local Computing' : ['Local Cluster Computing', 1992],
     'Cloud Services' : ['Cloud Services (Passthrough)', 2355],
     'Consulting Free' : ['Consulting - First 1 hour (Units are hours)', 2349],
@@ -1279,7 +1280,7 @@ if args.ilab_available_services is not None:
 
             if row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Computing'][0]:
                 ilab_service_id_local_computing = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
-            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Storage'][0]:
+            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local HPC Storage'][0]:
                 ilab_service_id_local_storage   = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
             elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Cloud Services'][0]:
                 ilab_service_id_google_passthrough = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
@@ -1316,7 +1317,7 @@ if args.ilab_available_services is not None:
 else:
     # Use default values if no available services file.
     ilab_service_id_local_computing = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Computing'][1]
-    ilab_service_id_local_storage   = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Storage'][1]
+    ilab_service_id_local_storage   = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local HPC Storage'][1]
     ilab_service_id_google_passthrough = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Cloud Services'][1]
     ilab_service_id_consulting_free = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Free'][1]
     ilab_service_id_consulting_paid = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Paid'][1]
