@@ -658,6 +658,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
 
         row += 1
 
+
 def write_cloud_details_V1(cloud_sheet, row_dict, output_row):
 
     output_col = 0
