@@ -82,6 +82,15 @@ class SlurmDialect(csv.Dialect):
     skipinitialspace = True
     strict = True
 
+class SGEDialect(csv.Dialect):
+
+    delimiter = ':'
+    doublequote = False
+    escapechar = '\\'
+    quoting = csv.QUOTE_MINIMAL
+    skipinitialspace = True
+    strict = True
+
 #=====
 #
 # GLOBALS
@@ -98,8 +107,48 @@ class SlurmDialect(csv.Dialect):
 
 def convert_slurm_file_to_sge_file(slurm_fp, sge_fp):
 
+    header = slurm_fp.readline()
+    fieldnames = header.split('|')
 
-    for line in slurm_fp:
+    reader = csv.DictReader(slurm_fp,fieldnames=fieldnames,dialect=SlurmDialect())
+    for slurm_row in reader:
+
+        qname = slurm_row['Partition']
+        hostname = slurm_row['NodeList']
+        group = slurm_row['Group']
+        owner = slurm_row['User']
+        job_name = slurm_row['JobName']
+        job_number = slurm_row['JobIDRaw']
+        account = slurm_row['Account']
+        submission_time = int(datetime.datetime.strptime(slurm_row['Submit'],"%Y-%m-%dT%H:%M:%S").timestamp())
+        start_time = int(datetime.datetime.strptime(slurm_row['Start'],"%Y-%m-%dT%H:%M:%S").timestamp())
+        end_time = int(datetime.datetime.strptime(slurm_row['End'],"%Y-%m-%dT%H:%M:%S").timestamp())
+        failed = 0  # TODO: convert Slurm states to SGE failed states
+
+        (return_value, signal) = slurm_row['ExitCode'].split(':')
+        if signal == 0:
+            exit_status = return_value
+        else:
+            exit_status = 128 + signal
+
+        ru_wallclock = slurm_row['Elapsed']
+
+        project = slurm_row['WCKey']
+        department = "NoDept"
+        granted_pe = "NoPE"
+        slots = slurm_row['NCPUS']
+
+        cpu = slurm_row['CPUTime']
+
+        io = int(slurm_row['MaxDiskRead']) + int(slurm_row['MaxDiskWrite'])
+        category = slurm_row['ReqGRES']
+
+        maxvmem = slurm_row['MaxVMSize']
+
+
+
+
+
 
 
 #=====
