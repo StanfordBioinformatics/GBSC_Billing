@@ -169,7 +169,13 @@ def convert_slurm_file_to_sge_file(slurm_fp, sge_fp):
                 sge_row['io'] = int(slurm_row['MaxDiskRead'])
             if slurm_row['MaxDiskWrite'] != '':
                 sge_row['io'] += int(slurm_row['MaxDiskWrite'])
-            sge_row['category'] = slurm_row['ReqGRES']
+
+            if slurm_row['ReqGRES'] == '':
+                sge_row['category'] = slurm_row['ReqTRES']
+            elif slurm_row['ReqTRES'] == '':
+                sge_row['category'] = slurm_row['ReqGRES']
+            else:
+                sge_row['category'] = "%s,%s" % (slurm_row['ReqTRES'],slurm_row['ReqGRES'])
 
             sge_row['max_vmem'] = slurm_row['MaxVMSize']
         except ValueError:
