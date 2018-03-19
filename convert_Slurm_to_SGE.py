@@ -2,36 +2,24 @@
 
 #===============================================================================
 #
-# gen_details.py - Generate billing details for month/year.
+# convert_Slurm_to_SGE.py - Converts Slurm Accounting file to SGE Accounting file
 #
 # ARGS:
-#   1st: the BillingConfig spreadsheet.
+#   1st: the Slurm Accounting file to be input
+#   2nd: the name of the file in which to put the SGE Accounting output
 #
 # SWITCHES:
-#   --accounting_file: Location of accounting file (overrides BillingConfig.xlsx)
 #   --billing_root:    Location of BillingRoot directory (overrides BillingConfig.xlsx)
 #                      [default if no BillingRoot in BillingConfig.xlsx or switch given: CWD]
-#   --year:            Year of snapshot requested. [Default is this year]
-#   --month:           Month of snapshot requested. [Default is last month]
-#   --no_storage:      Don't run the storage calculations.
-#   --no_usage:        Don't run the storage usage calculations (only the quotas).
-#   --no_computing:    Don't run the computing calculations.
-#   --no_consulting:   Don't run the consulting calculations.
-#   --all_jobs_billable: Consider all jobs to be billable. [default=False]
-#   --ignore_job_timestamps: Ignore timestamps in job and allow jobs not in month selected [default=False]
 #
 # INPUT:
-#   BillingConfig spreadsheet.
-#   SGE Accounting snapshot file (from snapshot_accounting.py).
-#     - Expected in BillingRoot/<year>/<month>/SGEAccounting.<year>-<month>.xlsx
+#   Slurm Accounting snapshot file (from command sacct --format=ALL).
 #
 # OUTPUT:
-#   BillingDetails spreadsheet in BillingRoot/<year>/<month>/BillingDetails.<year>-<month>.xlsx
+#   SGE Accounting file
 #   Various messages about current processing status to STDOUT.
 #
 # ASSUMPTIONS:
-#   Depends on xlrd and xlsxwriter modules.
-#   The input spreadsheet has been certified by check_config.py.
 #
 # AUTHOR:
 #   Keith Bettinger
