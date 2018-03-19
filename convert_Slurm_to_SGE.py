@@ -120,63 +120,63 @@ def convert_slurm_file_to_sge_file(slurm_fp, sge_fp):
     line_num = 0
     for slurm_row in reader:
 
-        try:
-            sge_row.clear()
+        sge_row.clear()
 
-            sge_row['qname'] = slurm_row['Partition']
-            sge_row['hostname'] = slurm_row['NodeList']
-            sge_row['group'] = slurm_row['Group']
-            sge_row['owner'] = slurm_row['User']
-            sge_row['job_name'] = slurm_row['JobName']
-            sge_row['job_number'] = slurm_row['JobIDRaw']
-            sge_row['account'] = slurm_row['Account']
+        sge_row['qname'] = slurm_row['Partition']
+        sge_row['hostname'] = slurm_row['NodeList']
+        sge_row['group'] = slurm_row['Group']
+        sge_row['owner'] = slurm_row['User']
+        sge_row['job_name'] = slurm_row['JobName']
+        sge_row['job_number'] = slurm_row['JobIDRaw']
+        sge_row['account'] = slurm_row['Account']
 
-            sge_row['submission_time'] = calendar.timegm(time.strptime(slurm_row['Submit'],"%Y-%m-%dT%H:%M:%S"))
-            sge_row['start_time'] = calendar.timegm(time.strptime(slurm_row['Start'],"%Y-%m-%dT%H:%M:%S"))
-            sge_row['end_time'] = calendar.timegm(time.strptime(slurm_row['End'],"%Y-%m-%dT%H:%M:%S"))
+        sge_row['submission_time'] = calendar.timegm(time.strptime(slurm_row['Submit'],"%Y-%m-%dT%H:%M:%S"))
+        sge_row['start_time'] = calendar.timegm(time.strptime(slurm_row['Start'],"%Y-%m-%dT%H:%M:%S"))
+        sge_row['end_time'] = calendar.timegm(time.strptime(slurm_row['End'],"%Y-%m-%dT%H:%M:%S"))
 
-            sge_row['failed'] = 0  # TODO: convert Slurm states to SGE failed states
+        sge_row['failed'] = 0  # TODO: convert Slurm states to SGE failed states
 
-            (return_value, signal) = slurm_row['ExitCode'].split(':')
-            if signal == 0:
-                sge_row['exit_status'] = int(return_value)
-            else:
-                sge_row['exit_status'] = 128 + int(signal)
+        (return_value, signal) = slurm_row['ExitCode'].split(':')
+        if signal == 0:
+            sge_row['exit_status'] = int(return_value)
+        else:
+            sge_row['exit_status'] = 128 + int(signal)
 
-            # Convert Elapsed of form DD-HH:MM:SS to seconds
-            elapsed_days_split = slurm_row['Elapsed'].split('-')
-            if len(elapsed_days_split) == 1:
-                elapsed_days = 0
-                elapsed_hms  = elapsed_days_split[0]
-            elif len(elapsed_days_split) == 2:
-                elapsed_days = int(elapsed_days_split[0])
-                elapsed_hms  = elapsed_days_split[1]
-            else:
-                print >> sys.stderr, "Elapsed time of", slurm_row['Elapsed'], "is malformed."
+        # Convert Elapsed of form DD-HH:MM:SS to seconds
+        elapsed_days_split = slurm_row['Elapsed'].split('-')
+        if len(elapsed_days_split) == 1:
+            elapsed_days = 0
+            elapsed_hms  = elapsed_days_split[0]
+        elif len(elapsed_days_split) == 2:
+            elapsed_days = int(elapsed_days_split[0])
+            elapsed_hms  = elapsed_days_split[1]
+        else:
+            print >> sys.stderr, "Elapsed time of", slurm_row['Elapsed'], "is malformed."
 
-            elapsed_seconds = (elapsed_days * 86400) + sum(int(x) * 60 ** i for i,x in enumerate(reversed(elapsed_hms.split(":"))))
+        elapsed_seconds = (elapsed_days * 86400) + sum(int(x) * 60 ** i for i,x in enumerate(reversed(elapsed_hms.split(":"))))
 
-            # Elapsed time on SLURM is wallclock * CPUs; we want just wallclock here.
-            elapsed_seconds /= int(slurm_row['NCPUS'])
+        sge_row['ru_wallclock'] = elapsed_seconds
 
-            sge_row['ru_wallclock'] = elapsed_seconds
+        sge_row['project'] = slurm_row['WCKey']
+        sge_row['department'] = "NoDept"
+        sge_row['granted_pe'] = "NoPE"
+        sge_row['slots'] = slurm_row['NCPUS']
 
-            sge_row['project'] = slurm_row['WCKey']
-            sge_row['department'] = "NoDept"
-            sge_row['granted_pe'] = "NoPE"
-            sge_row['slots'] = slurm_row['NCPUS']
+        sge_row['cpu'] = slurm_row['CPUTimeRAW']
 
-            sge_row['cpu'] = slurm_row['CPUTimeRAW']
+        if slurm_row['MaxDiskRead'] != '':
+            sge_row['io'] = int(slurm_row['MaxDiskRead'])
+        if slurm_row['MaxDiskWrite'] != '':
+            sge_row['io'] += int(slurm_row['MaxDiskWrite'])
 
-            if slurm_row['MaxDiskRead'] != '':
-                sge_row['io'] = int(slurm_row['MaxDiskRead'])
-            if slurm_row['MaxDiskWrite'] != '':
-                sge_row['io'] += int(slurm_row['MaxDiskWrite'])
+        if slurm_row['ReqGRES'] == '':
+            sge_row['category'] = slurm_row['ReqTRES']
+        elif slurm_row['ReqTRES'] == '':
             sge_row['category'] = slurm_row['ReqGRES']
+        else:
+            sge_row['category'] = "%s,%s" % (slurm_row['ReqTRES'],slurm_row['ReqGRES'])
 
-            sge_row['max_vmem'] = slurm_row['MaxVMSize']
-        except ValueError:
-            print sge_row
+        sge_row['max_vmem'] = slurm_row['MaxVMSize']
 
         # Output row to SGE file.
         writer.writerow(sge_row)
