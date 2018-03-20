@@ -77,15 +77,15 @@ global from_ymd_date_to_timestamp
 
 parser = argparse.ArgumentParser()
 
+parser.add_argument("billing_config_file",
+                    default=None,
+                    help='The BillingConfig file [default = None]')
 parser.add_argument("-a", "--accounting_file",
                     default=None,
                     help='The SGE accounting file to snapshot [default = None]')
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
-parser.add_argument("-c", "--billing_config_file",
-                    default=None,
-                    help='The BillingConfig file [default = None]')
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
