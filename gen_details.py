@@ -384,11 +384,11 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         # If values occur in both, use the project field and record the discrepancy.
         #
         account = remove_unicode_chars(accounting_record['account'])
-        if account == 'sge':   # Edit out the default account 'sge'.
+        if account == 'sge' or account == '':   # Edit out the default account 'sge'.
             account = None
 
         project = remove_unicode_chars(accounting_record['project'])
-        if project == 'NONE':  # Edit out the placeholder project 'NONE'.
+        if project == 'NONE' or project == '':  # Edit out the placeholder project 'NONE'.
             project = None
 
         #

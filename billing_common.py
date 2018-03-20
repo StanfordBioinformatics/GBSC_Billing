@@ -115,7 +115,7 @@ BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4']
 NONBILLABLE_HOSTNAME_PREFIXES = ['greenie', 'scg3-0']
 
 # List of job tags to ignore.
-IGNORED_JOB_TAGS = ['large_mem']
+IGNORED_JOB_TAGS = ['large_mem', 'default']
 
 # Beginning of billing process.
 # 8/31/13 00:00:00 GMT (one day before 9/1/13, to represent things that existed before billing started).
