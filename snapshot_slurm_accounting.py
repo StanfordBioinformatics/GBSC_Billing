@@ -1,0 +1,230 @@
+#!/usr/bin/env python
+
+#===============================================================================
+#
+# snapshot_slurm_accounting.py - Copies the given month/year's Slurm accounting data
+#                                 into a separate file.
+#
+# ARGS:
+#   1st: BillingConfig.xlsx file
+#
+# SWITCHES:
+#   --billing_root:    Location of BillingRoot directory (overrides BillingConfig.xlsx)
+#                      [default if no BillingRoot in BillingConfig.xlsx or switch given: current working dir]
+#   --year:            Year of snapshot requested. [Default is this year]
+#   --month:           Month of snapshot requested. [Default is last month]
+#
+# OUTPUT:
+#    An Slurm accounting file with only entries with end_dates within the given
+#     month.  This file, named SlurmAccounting.<YEAR>-<MONTH>.txt, will be placed in
+#     <BillingRoot>/<YEAR>/<MONTH>/ if BillingRoot is given or in the current
+#     working directory if not.
+#
+# ASSUMPTIONS:
+#    Dependent on xlrd module.
+#
+# AUTHOR:
+#   Keith Bettinger
+#
+#==============================================================================
+
+#=====
+#
+# IMPORTS
+#
+#=====
+
+import datetime
+import argparse
+import os.path
+import subprocess
+import sys
+import tempfile
+
+import xlrd
+
+# Simulate an "include billing_common.py".
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+
+#=====
+#
+# CONSTANTS
+#
+#=====
+# From billing_common.py
+global SLURMACCOUNTING_PREFIX
+
+SLURM_ACCT_COMMAND_NAME = "sacct"
+SLURM_ACCT_STATE_SWITCHES = "--state=CA,CD,DL,F,NF,PR,TO,OOM,RH,RF,RQ,RV,SE"
+SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--duplicates","--format=ALL"]
+
+#=====
+#
+# FUNCTIONS
+#
+#=====
+# From billing_common.py
+global config_sheet_get_dict
+
+#=====
+#
+# SCRIPT BODY
+#
+#=====
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument("billing_config_file",
+                    default=None,
+                    help='The BillingConfig file [default = None]')
+parser.add_argument("-r", "--billing_root",
+                    default=None,
+                    help='The Billing Root directory [default = None]')
+parser.add_argument("-v", "--verbose", action="store_true",
+                    default=False,
+                    help='Get real chatty [default = false]')
+parser.add_argument("-y","--year", type=int, choices=range(2013,2021),
+                    default=None,
+                    help="The year to be filtered out. [default = this year]")
+parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+                    default=None,
+                    help="The month to be filtered out. [default = last month]")
+
+args = parser.parse_args()
+
+#
+# Sanity-check arguments.
+#
+
+# Do year next, because month might modify it.
+if args.year is None:
+    year = datetime.date.today().year
+else:
+    year = args.year
+
+# Do month now, and decrement year if want last month and this month is Dec.
+if args.month is None:
+    # No month given: use last month.
+    this_month = datetime.date.today().month
+
+    # If this month is Jan, last month was Dec. of previous year.
+    if this_month == 1:
+        month = 12
+        year -= 1
+    else:
+        month = this_month - 1
+else:
+    month = args.month
+
+# Calculate next month for range of this month.
+if month != 12:
+    next_month = month + 1
+    next_month_year = year
+else:
+    next_month = 1
+    next_month_year = year + 1
+
+#
+# Use value for billing_root from switches, if available.
+#   Open the BillingConfig file as a xlrd Workbook to find BillingRoot, if not.
+#
+if args.billing_config_file is not None:
+
+    # Get absolute path for billing_config_file.
+    billing_config_file = os.path.abspath(args.billing_config_file)
+
+    billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+    config_dict = config_sheet_get_dict(billing_config_wkbk)
+
+    billing_root    = config_dict.get("BillingRoot")
+else:
+    billing_config_file = None
+    accounting_file = None
+    billing_root    = None
+
+# Override billing_root with switch args, if present.
+if args.billing_root is not None:
+    billing_root = args.billing_root
+# If we still don't have a billing root dir, use the current directory.
+if billing_root is None:
+    billing_root = os.getcwd()
+
+# Get absolute path for billing_root
+billing_root = os.path.abspath(billing_root)
+
+# Within BillingRoot, create YEAR/MONTH dirs if necessary.
+year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
+if not os.path.exists(year_month_dir):
+    os.makedirs(year_month_dir)
+
+#
+# Print summary of arguments.
+#
+print "TAKING SLURM ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year)
+print "  BillingConfigFile: %s" % (billing_config_file)
+print "  BillingRoot: %s" % (billing_root)
+
+# Create output accounting pathname.
+slurm_accounting_filename = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year, month)
+slurm_accounting_pathname = os.path.join(year_month_dir, slurm_accounting_filename)
+
+print
+print "  SlurmAccountingFile: %s" % (slurm_accounting_pathname)
+print
+
+slurm_accounting_file = open(slurm_accounting_pathname,"w")
+
+###
+#
+# Steps to get Slurm accounting for only this month:
+#   1. Get Slurm accounting for <MN>/01/<YR> through <MN+1>/01/<YR>.
+#       - This data includes jobs running during the month but ending after, so...
+#   2. Get Slurm account for <MN+1>/01/<YR> through now (no End date needed).
+#   3. Subtract the lines from 2. from the lines in 1.
+#
+###
+
+temp_filename_prefix = "%s.%d-%02d" % (SLURMACCOUNTING_PREFIX, year, month)
+
+#
+# "1. Get Slurm accounting for <MN>/01/<YR> through <MN+1>/01/<YR>."
+#
+
+(slurm_this_month_temp_file,slurm_this_month_temp_filename) = tempfile.mkstemp(".txt","%s-thisMonth." % temp_filename_prefix)
+
+print "Getting Slurm accounting for %d-%02d to %s" % (year, month, slurm_this_month_temp_filename)
+
+# Create the start and end dates switches to the command.
+slurm_command_starttime_switch = ["--starttime","%02d/01/%02d" % (month, year - 2000)]
+slurm_command_endtime_switch   = ["--endtime","%02d/01/%02d" % (next_month, next_month_year - 2000)]
+
+ret_val = subprocess.call([SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES +
+                          slurm_command_starttime_switch + slurm_command_endtime_switch,
+                          stdout=slurm_this_month_temp_file)
+
+#
+# "2. Get Slurm account for <MN+1>/01/<YR> through now (no End date needed)."
+#
+
+(slurm_next_month_temp_file,slurm_next_month_temp_filename) = tempfile.mkstemp(".txt","%s-nextMonth." % temp_filename_prefix)
+
+print "Getting Slurm accounting for %d-%02d to %s" % (next_month_year, next_month, slurm_next_month_temp_filename)
+
+# Create the start date switch to the command.
+slurm_command_starttime_switch = ["--starttime","%02d/01/%02d" % (next_month, next_month_year - 2000)]
+
+ret_val = subprocess.call([SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES +
+                          slurm_command_starttime_switch + slurm_command_endtime_switch,
+                          stdout=slurm_next_month_temp_file)
+
+#
+# 3. Subtract the lines from 2. from the lines in 1.
+#
+print "Subtracting the two files"
+
+ret_val = subprocess.call(["awk","{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } }",
+                          "f=1", slurm_next_month_temp_filename, "f=2", slurm_this_month_temp_filename],
+                          stdout=slurm_accounting_file)
+
+#print "Jobs found for %02d/%d:\t\t%d" % (month, year)
