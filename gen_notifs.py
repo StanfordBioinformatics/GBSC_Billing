@@ -608,7 +608,7 @@ def read_computing_sheet(wkbk):
                  #
                  # Save job details for pi_tag.
                  #
-                 new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
+                 new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
                  pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
 
         # Else credit a user with the job CPU time.
@@ -650,7 +650,7 @@ def read_computing_sheet(wkbk):
                 #
                 # Save job details for pi_tag.
                 #
-                new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
+                new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
                 pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
 
 
@@ -1395,15 +1395,17 @@ def generate_computing_details_sheet(sheet, pi_tag):
 
     # Write the job details, sorted by username.
     curr_row = 1
-    for (date, username, job_name, account, cpu_core_hrs, jobID, pctage) in sorted(pi_tag_to_sge_job_details[pi_tag],key=lambda s: s[1]):
+    for (date, username, job_name, account, node, cpu_core_hrs, jobID, pctage) in sorted(pi_tag_to_sge_job_details[pi_tag],key=lambda s: s[1]):
 
-        sheet.write(curr_row, 0, date, DATE_FORMAT)
-        sheet.write(curr_row, 1, username)
-        sheet.write(curr_row, 2, job_name)
-        sheet.write(curr_row, 3, account)
-        sheet.write(curr_row, 4, cpu_core_hrs, FLOAT_FORMAT)
-        sheet.write(curr_row, 5, jobID)
-        sheet.write(curr_row, 6, pctage, PERCENT_FORMAT)
+        curr_col = 0
+        sheet.write(curr_row, curr_col, date, DATE_FORMAT) ; curr_col += 1
+        sheet.write(curr_row, curr_col, username) ; curr_col += 1
+        sheet.write(curr_row, curr_col, job_name) ; curr_col += 1
+        sheet.write(curr_row, curr_col, account) ; curr_col += 1
+        sheet.write(curr_row, curr_col, node) ; curr_col += 1
+        sheet.write(curr_row, curr_col, cpu_core_hrs, FLOAT_FORMAT) ; curr_col += 1
+        sheet.write(curr_row, curr_col, jobID) ; curr_col += 1
+        sheet.write(curr_row, curr_col, pctage, PERCENT_FORMAT) ; curr_col += 1
 
         # Advance to the next row.
         curr_row += 1
@@ -1422,24 +1424,25 @@ def generate_cloud_details_sheet(sheet, pi_tag):
 
         for project in cloud_account_to_cloud_projects[account]:
 
-        # Write the cloud details.
+            # Write the cloud details.
             for (platform, description, dates, quantity, uom, charge) in cloud_project_account_to_cloud_details[(project, account)]:
 
-                sheet.write(curr_row, 0, platform)
+                curr_col = 0
+                sheet.write(curr_row, curr_col, platform) ; curr_col += 1
                 # If we have the project number here, use the project name.
                 if len(project) > 0 and project[0].isdigit():
-                    sheet.write(curr_row, 1, cloud_projnum_to_cloud_project[project])
+                    sheet.write(curr_row, curr_col, cloud_projnum_to_cloud_project[project]) ; curr_col += 1
                 else:
-                    sheet.write(curr_row, 1, project)
-                sheet.write(curr_row, 2, description)
-                sheet.write(curr_row, 3, dates)
-                sheet.write(curr_row, 4, quantity, FLOAT_FORMAT)
-                sheet.write(curr_row, 5, uom)
-                sheet.write(curr_row, 6, charge, MONEY_FORMAT)
-                sheet.write(curr_row, 7, pctage, PERCENT_FORMAT)
+                    sheet.write(curr_row, curr_col, project) ; curr_col += 1
+                sheet.write(curr_row, curr_col, description) ; curr_col += 1
+                sheet.write(curr_row, curr_col, dates) ; curr_col += 1
+                sheet.write(curr_row, curr_col, quantity, FLOAT_FORMAT) ; curr_col += 1
+                sheet.write(curr_row, curr_col, uom) ; curr_col += 1
+                sheet.write(curr_row, curr_col, charge, MONEY_FORMAT) ; curr_col += 1
+                sheet.write(curr_row, curr_col, pctage, PERCENT_FORMAT) ; curr_col += 1
 
                 lab_cost = charge * pctage
-                sheet.write(curr_row, 8, lab_cost, MONEY_FORMAT)
+                sheet.write(curr_row, curr_col, lab_cost, MONEY_FORMAT) ; curr_col += 1
 
                 # Advance to the next row.
                 curr_row += 1
@@ -1454,21 +1457,14 @@ def generate_consulting_details_sheet(sheet, pi_tag):
 
     for (date, summary, notes, consultant, hours, travel_hours, cumul_hours) in pi_tag_to_consulting_details[pi_tag]:
 
-        col = 0
-        sheet.write(curr_row, col, date, DATE_FORMAT)
-        col += 1
-        sheet.write(curr_row, col, summary)
-        col += 1
-        sheet.write(curr_row, col, notes)
-        col += 1
-        sheet.write(curr_row, col, consultant)
-        col += 1
-        sheet.write(curr_row, col, hours, FLOAT_FORMAT)
-        col += 1
-        sheet.write(curr_row, col, travel_hours, FLOAT_FORMAT)
-        col += 1
-        sheet.write(curr_row, col, cumul_hours, FLOAT_FORMAT)
-        col += 1
+        curr_col = 0
+        sheet.write(curr_row, curr_col, date, DATE_FORMAT) ; curr_col += 1
+        sheet.write(curr_row, curr_col, summary) ; curr_col += 1
+        sheet.write(curr_row, curr_col, notes) ; curr_col += 1
+        sheet.write(curr_row, curr_col, consultant) ; curr_col += 1
+        sheet.write(curr_row, curr_col, hours, FLOAT_FORMAT) ; curr_col += 1
+        sheet.write(curr_row, curr_col, travel_hours, FLOAT_FORMAT) ; curr_col += 1
+        sheet.write(curr_row, curr_col, cumul_hours, FLOAT_FORMAT) ; curr_col += 1
 
         curr_row += 1
 
@@ -1483,17 +1479,20 @@ def generate_lab_users_sheet(sheet, pi_tag):
     curr_row = 1
     for (username, date_added, date_removed, pctage) in pi_tag_to_user_details[pi_tag]:
 
+        curr_col = 0
+
         # Get the user details for username.
         (email, fullname) = username_to_user_details[username]
 
         if date_removed == '':
-            sheet.write(curr_row, 0, username)
-            sheet.write(curr_row, 1, fullname)
-            sheet.write(curr_row, 2, email)
-            sheet.write(curr_row, 3, date_added, DATE_FORMAT)
-            sheet.write(curr_row, 4, "current")
+            sheet.write(curr_row, curr_col, username) ; curr_col += 1
+            sheet.write(curr_row, curr_col, fullname) ; curr_col += 1
+            sheet.write(curr_row, curr_col, email) ; curr_col += 1
+            sheet.write(curr_row, curr_col, date_added, DATE_FORMAT) ; curr_col += 1
+            sheet.write(curr_row, curr_col, "current") ; curr_col += 1
             curr_row += 1
         else:
+            # Users who have been removed will be listed in a table below the current lab members
             past_user_details.append([username, email, fullname, date_added, date_removed])
 
     # Write out a subheader for the Previous Lab Members.
@@ -1502,11 +1501,12 @@ def generate_lab_users_sheet(sheet, pi_tag):
     curr_row += 1
     for (username, email, fullname, date_added, date_removed) in past_user_details:
 
-        sheet.write(curr_row, 0, username)
-        sheet.write(curr_row, 1, fullname)
-        sheet.write(curr_row, 2, email)
-        sheet.write(curr_row, 3, date_added, DATE_FORMAT)
-        sheet.write(curr_row, 4, date_removed, DATE_FORMAT)
+        curr_col = 0
+        sheet.write(curr_row, curr_col, username) ; curr_col += 1
+        sheet.write(curr_row, curr_col, fullname) ; curr_col += 1
+        sheet.write(curr_row, curr_col, email) ; curr_col += 1
+        sheet.write(curr_row, curr_col, date_added, DATE_FORMAT) ; curr_col += 1
+        sheet.write(curr_row, curr_col, date_removed, DATE_FORMAT) ; curr_col += 1
 
         curr_row += 1
 
@@ -1556,31 +1556,22 @@ def generate_aggregrate_sheet(sheet):
         (pi_first_name, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
 
         curr_col = 0
-        sheet.write(curr_row, curr_col, pi_first_name)
-        curr_col += 1
-        sheet.write(curr_row, curr_col, pi_last_name)
-        curr_col += 1
-        sheet.write(curr_row, curr_col, pi_tag)
-        curr_col += 1
-        sheet.write(curr_row, curr_col, storage, charge_fmt)
-        curr_col += 1
-        sheet.write(curr_row, curr_col, computing, charge_fmt)
-        curr_col += 1
-        sheet.write(curr_row, curr_col, cloud, charge_fmt)
-        curr_col += 1
-        sheet.write(curr_row, curr_col, consulting, charge_fmt)
-
-        #curr_col += 1
-        #sheet.write(curr_row, curr_col, total_charges, charge_fmt)
+        sheet.write(curr_row, curr_col, pi_first_name) ; curr_col += 1
+        sheet.write(curr_row, curr_col, pi_last_name) ; curr_col += 1
+        sheet.write(curr_row, curr_col, pi_tag) ; curr_col += 1
+        sheet.write(curr_row, curr_col, storage, charge_fmt) ; curr_col += 1
+        sheet.write(curr_row, curr_col, computing, charge_fmt) ; curr_col += 1
+        sheet.write(curr_row, curr_col, cloud, charge_fmt) ; curr_col += 1
+        sheet.write(curr_row, curr_col, consulting, charge_fmt) ; curr_col += 1
 
         storage_a1_cell = xl_rowcol_to_cell(curr_row, storage_column_num)
         computing_a1_cell = xl_rowcol_to_cell(curr_row, computing_column_num)
         cloud_a1_cell = xl_rowcol_to_cell(curr_row, cloud_column_num)
         consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
 
-        curr_col += 1
+
         sheet.write_formula(curr_row, curr_col, '=SUM(%s:%s)' % (storage_a1_cell, consulting_a1_cell),
-                            charge_fmt, total_charges)
+                            charge_fmt, total_charges) ; curr_col += 1
 
         sub_total_storage += storage
         sub_total_computing += computing
