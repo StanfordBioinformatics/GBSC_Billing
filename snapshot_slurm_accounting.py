@@ -103,17 +103,21 @@ if args.year is None:
 else:
     year = args.year
 
-# Do month now, and decrement year if want last month and this month is Dec.
+# What month is it today?
+today = datetime.date.today()
+todays_month = today.month
+todays_year  = today.year
+
+# No month given: use last month.
+#  Do month now, and decrement year if want last month and this month is Dec.
 if args.month is None:
-    # No month given: use last month.
-    this_month = datetime.date.today().month
 
     # If this month is Jan, last month was Dec. of previous year.
-    if this_month == 1:
+    if todays_month == 1:
         month = 12
         year -= 1
     else:
-        month = this_month - 1
+        month = todays_month - 1
 else:
     month = args.month
 
@@ -197,11 +201,31 @@ print "Getting Slurm accounting for %d-%02d to %s" % (year, month, slurm_this_mo
 
 # Create the start and end dates switches to the command.
 slurm_command_starttime_switch = ["--starttime","%02d/01/%02d" % (month, year - 2000)]
-slurm_command_endtime_switch   = ["--endtime","%02d/01/%02d" % (next_month, next_month_year - 2000)]
+# If we are in the month we are querying for, don't use --endtime (defaults to now), excludes running jobs.
+if month == todays_month and year == todays_year:
+    slurm_command_endtime_switch = list()
+else:
+    slurm_command_endtime_switch = ["--endtime","%02d/01/%02d" % (next_month, next_month_year - 2000)]
 
-ret_val = subprocess.call([SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES +
-                          slurm_command_starttime_switch + slurm_command_endtime_switch,
-                          stdout=slurm_this_month_temp_file)
+slurm_command_list = [SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES + \
+                     slurm_command_starttime_switch + slurm_command_endtime_switch
+
+if args.verbose:
+    print slurm_command_list
+
+sacct_process = subprocess.Popen(slurm_command_list, stdout=subprocess.PIPE)
+
+
+fgrep_command_list = ['fgrep', '-v', '|PENDING|']
+
+fgrep_process = subprocess.Popen(fgrep_command_list,
+                                 stdin=sacct_process.stdout,
+                                 stdout=slurm_this_month_temp_file)
+
+(fgrep_process_stdout, fgrep_process_stderr) = fgrep_process.communicate()
+
+(sacct_process_stdout, sacct_process_stderr) = sacct_process.communicate()
+
 
 #
 # "2. Get Slurm account for <MN+1>/01/<YR> through now (no End date needed)."
@@ -214,8 +238,13 @@ print "Getting Slurm accounting for %d-%02d to %s" % (next_month_year, next_mont
 # Create the start date switch to the command.
 slurm_command_starttime_switch = ["--starttime","%02d/01/%02d" % (next_month, next_month_year - 2000)]
 
-ret_val = subprocess.call([SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES +
-                          slurm_command_starttime_switch + slurm_command_endtime_switch,
+slurm_command_list = [SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES + \
+                          slurm_command_starttime_switch + ["--noheader"]
+
+if args.verbose:
+    print slurm_command_list
+
+ret_val = subprocess.call(slurm_command_list,
                           stdout=slurm_next_month_temp_file)
 
 #
