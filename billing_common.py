@@ -24,6 +24,7 @@
 #=====
 import calendar
 from collections import OrderedDict
+import csv
 import datetime
 import os
 
@@ -42,6 +43,8 @@ import xlsxwriter
 #
 # Prefix of SGE accounting snapshot file name.
 SGEACCOUNTING_PREFIX = "SGEAccounting"
+# Prefix of Slurm accounting snapshot file name.
+SLURMACCOUNTING_PREFIX = "SlurmAccounting"
 # Prefix of the Google Invoice CSV file name.
 GOOGLE_INVOICE_PREFIX = "GoogleInvoice"
 # Prefix of BillingDetails spreadsheet file name.
@@ -110,9 +113,15 @@ ACCOUNTING_FIELDS = (
 # From https://arc.liv.ac.uk/SGE/htmlman/htmlman5/sge_status.html
 ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,18,19,20,21,26,27,28,29,36,38)
 
-# List of hostname prefixes to use for billing purposes.
-BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4']
-NONBILLABLE_HOSTNAME_PREFIXES = ['greenie', 'scg3-0']
+# List of hostname prefixes to determine which jobs on which nodes are billable.
+BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4',
+                              'sgisummit-rcf-111', 'sgiuv20-rcf-111', 'dper730xd-srcf-d16', 'dper930-srcf-d15-05',
+                              ]
+NONBILLABLE_HOSTNAME_PREFIXES = ['greenie', 'scg3-0',
+                                 'dper910-rcf-412-20', 'hppsl230s-rcf-412', # greenie and scg3-0, renamed for Slurm
+                                 'sgiuv300-srcf',  # The supercomputer
+                                 'None assigned'
+                                 ]
 
 # List of job tags to ignore.
 IGNORED_JOB_TAGS = ['large_mem', 'default']
@@ -135,6 +144,35 @@ CONSULTING_HOURS_FREE = 1
 
 # What is the discount rate for travel hours?
 CONSULTING_TRAVEL_RATE_DISCOUNT = 0.5
+
+#=====
+#
+# CLASSES
+#
+#=====
+class SlurmDialect(csv.Dialect):
+
+    delimiter = '|'
+    doublequote = False
+    escapechar = '\\'
+    lineterminator = '\n'
+    quotechar = '"'
+    quoting = csv.QUOTE_MINIMAL
+    skipinitialspace = True
+    strict = True
+csv.register_dialect("slurm",SlurmDialect)
+
+class SGEDialect(csv.Dialect):
+
+    delimiter = ':'
+    doublequote = False
+    escapechar = '\\'
+    lineterminator = '\n'
+    quotechar = '"'
+    quoting = csv.QUOTE_MINIMAL
+    skipinitialspace = True
+    strict = True
+csv.register_dialect("sge",SGEDialect)
 
 #=====
 #
