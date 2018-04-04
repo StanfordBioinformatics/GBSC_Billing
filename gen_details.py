@@ -51,9 +51,8 @@ import datetime
 import locale
 import os
 import os.path
-import subprocess
+import re
 import sys
-import time
 
 import xlrd
 import xlsxwriter
@@ -351,17 +350,17 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     billable_job_details         = []  # Jobs that are on hosts we can bill for.
     nonbillable_node_job_details = []  # Jobs not on hosts we can bill for.
     unknown_node_job_details     = []  # Jobs on unknown nodes.
+    both_billable_and_non_node_job_details = []  # Jobs which have both billable and nonbillable nodes.
     unknown_user_job_details     = []  # Jobs from users we don't know.
 
     unknown_job_nodes            = set()  # Set of nodes we don't know.
 
-    for line in accounting_fp:
+    jobids_with_unknown_billable_nodes = set()  # Set of job IDs for jobs which have nodes that can't be identified as billable.
+    jobids_with_billable_and_non_nodes = set()  # Set of job IDs for jobs which have both billable and nonbillable nodes.
 
-        if line[0] == "#": continue
+    reader = csv.DictReader(accounting_fp,fieldnames=ACCOUNTING_FIELDS,dialect="sge")
 
-        fields = line.split(':')
-
-        accounting_record = dict(zip(ACCOUNTING_FIELDS, fields))
+    for accounting_record in reader:
 
         # If the job failed, the submission_time is the job date.
         # Else, the end_time is the job date.
@@ -373,7 +372,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
             job_date = int(accounting_record['end_time'])
 
         # Create a list of job details for this job.
-        job_details = []
+        job_details = list()
         job_details.append(job_date)
         job_details.append(job_date)  # Two columns used for the date: one date formatted, one timestamp.
         job_details.append(accounting_record['owner'])
@@ -465,34 +464,68 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         else:
             job_details.append('')
 
+        # Support for Slurm: 'hostname' is now a comma-separated node list.
+        node_list = accounting_record['hostname']
         # Edit hostname to remove trailing ".local".
-        node_name = accounting_record['hostname']
-        if node_name.endswith(".local"):
-            node_name = node_name[:-6]
-
-        job_details.append(node_name)
+        node_list = node_list.replace(".local","")
+        job_details.append(node_list)
 
         job_details.append(int(accounting_record['slots']))
-        job_details.append(int(accounting_record['ru_wallclock']))
+
+        wallclock = int(accounting_record['ru_wallclock'])  # run time in seconds
+        job_details.append(wallclock)
+
         job_details.append(int(accounting_record['job_number']))
 
         # If the end date of this job was within the month or we aren't reading job timestamps,
         #  examine it.
-        if (args.ignore_job_timestamps or begin_timestamp <= job_date < end_timestamp):
+        if args.ignore_job_timestamps or begin_timestamp <= job_date < end_timestamp:
+
+            job_nodes_are_billable    = list()
+            job_nodes_are_nonbillable = list()
 
             # Is the job's node billable?
             if not args.all_jobs_billable:
-                # Job is billable if it ran on hosts starting with one of the BILLABLE_HOSTNAME_PREFIXES.
-                billable_hostname_prefixes = map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES)
-                nonbillable_hostname_prefixes = map(lambda p: node_name.startswith(p), NONBILLABLE_HOSTNAME_PREFIXES)
+
+                # Need to convert commas to semicolons in lists marked by [ ]'s
+                match_bracket_lists = re.findall('(\[.*?\]+)',node_list)
+
+                for substr in match_bracket_lists:
+                    new_substr = substr.replace(',', ';')
+                    node_list = node_list.replace(substr,new_substr)
+
+                # Now, with the commas only separating the node, we can split the node list by commas.
+                list_of_nodes = node_list.split(',')
+
+                for node_name in list_of_nodes:
+
+                    # Put the commas back for an individual node.
+                    node_name = node_name.replace(';',',')
+
+                    # Job is billable if it ran on a host starting with one of the BILLABLE_HOSTNAME_PREFIXES.
+                    billable    = any(map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES))
+                    # Job is not billable if it ran on a host starting with one of the NONBILLABLE_HOSTNAME_PREFIXES.
+                    nonbillable = any(map(lambda p: node_name.startswith(p), NONBILLABLE_HOSTNAME_PREFIXES))
+
+                    # Screen for cases where a node is either billable and nonbillable or neither.
+                    if billable and nonbillable:
+                        print >> sys.stderr, "*** Error: Node %s of Job %s is both billable and non-billable" % (node_name, accounting_record['job_number'])
+                        jobids_with_billable_and_non_nodes.add(accounting_record['job_number'])
+                    elif not (billable or nonbillable):
+                        print >> sys.stderr, "*** Error: Node %s of Job %s is neither billable nor non-billable" % (node_name, accounting_record['job_number'])
+                        jobids_with_unknown_billable_nodes.add(accounting_record['job_number'])
+
+                    job_nodes_are_billable.append(billable)
+                    job_nodes_are_nonbillable.append(nonbillable)
+
+                job_is_billable    = any(job_nodes_are_billable)
+                job_is_nonbillable = any(job_nodes_are_nonbillable)
             else:
-                billable_hostname_prefixes = [True]
-                nonbillable_hostname_prefixes = []
+                job_is_billable    = True
+                job_is_nonbillable = False
 
-            job_node_is_billable = any(billable_hostname_prefixes)
-            job_node_is_nonbillable = any(nonbillable_hostname_prefixes)
-
-            job_node_is_unknown_billable = not (job_node_is_billable or job_node_is_nonbillable)
+            job_is_both_billable_and_non = job_is_billable and job_is_nonbillable
+            job_is_unknown_billable = not (job_is_billable or job_is_nonbillable)
 
             # Do we know this job's user?
             job_user_is_known = accounting_record['owner'] in users_list
@@ -509,15 +542,17 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                     failed_job_details.append(job_details + [failed_code])
                 else:
                     # If hostname doesn't have a billable prefix, save in an nonbillable list.
-                    if job_node_is_billable:
-                        billable_job_details.append(job_details)
-                    elif job_node_is_nonbillable:
-                        nonbillable_node_job_details.append(job_details + ['Nonbillable Node'])
-                    elif job_node_is_unknown_billable:
+                    if job_is_both_billable_and_non:
+                        both_billable_and_non_node_job_details.append(job_details + ['Both Billable and Non Nodes'])
+                    elif job_is_unknown_billable:
                         unknown_node_job_details.append(job_details + ['Unknown Node'])
-                        unknown_job_nodes.add(node_name)
+                        unknown_job_nodes.add(node_list)
+                    elif job_is_billable:
+                        billable_job_details.append(job_details)
+                    elif job_is_nonbillable:
+                        nonbillable_node_job_details.append(job_details + ['Nonbillable Node'])
                     else:
-                        pass # SHOULD NOT GET HERE.
+                        print "  *** Pathological state for job %s billingness. *** " % (accounting_record['job_number'])
             else:
                 # Save the job details in an unknown-user list.
                 unknown_user_job_details.append(job_details + ['Unknown User'])
@@ -530,7 +565,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                 print "Job date %s is not between %s and %s" % dates_tuple
             else:
                 print "Job date is zero."
-            print ':'.join(fields)
+            print ':'.join(accounting_record.values())
 
     # Close the accounting file.
     accounting_fp.close()
@@ -564,6 +599,16 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         print "  *** Unknown Nodes with jobs:"
         for node in sorted(unknown_job_nodes):
             print '   ', node
+    # Print out job IDs of jobs which have both billable and nonbillable nodes.
+    if len(jobids_with_billable_and_non_nodes) > 0:
+        print "  *** Job IDs with both billable and nonbillable nodes:"
+        for jobid in jobids_with_billable_and_non_nodes:
+            print '   ', jobid
+    # Print out job IDs of jobs which have nodes which are neither billable nor nonbillable.
+    if len(jobids_with_unknown_billable_nodes) > 0:
+        print "  *** Job IDs with nodes which are neither billable nor nonbillable:"
+        for jobid in jobids_with_unknown_billable_nodes:
+            print '   ', jobid
 
     # Output the accounting details to the BillingDetails worksheet.
     print "  Outputting accounting details"
@@ -577,7 +622,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     if len(nonbillable_node_job_details) > 0:
         print "    Nonbillable Jobs: ",
         all_nonbillable_job_details = \
-            nonbillable_node_job_details + unknown_user_job_details + unknown_node_job_details
+            nonbillable_node_job_details + unknown_user_job_details + unknown_node_job_details + both_billable_and_non_node_job_details
         write_job_details(nonbillable_job_sheet, all_nonbillable_job_details)
 
     # Output jobs to sheet for failed jobs.
@@ -586,6 +631,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         write_job_details(failed_job_sheet, failed_job_details)
 
     print "Computing charges computed."
+
 
 # Generates the "Consulting" sheet.
 def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, consulting_timesheet, consulting_sheet):
