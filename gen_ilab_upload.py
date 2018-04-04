@@ -819,12 +819,15 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
                                      storage_service_id, computing_service_id,
                                      begin_month_timestamp, end_month_timestamp):
 
-    # If this PI doesn't have a service request ID, skip them.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+    # If this PI doesn't have a service request ID, skip them and announce that.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
         print "  Skipping cluster for %s: no iLab service request ID" % (pi_tag)
         return False
+    # If the PI explicitly is marked as not having a service request, skip them silently.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+        return False
 
-    purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
+    purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1)  # Last date of billing period.
 
     ###
     #
@@ -921,8 +924,11 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                                    begin_month_timestamp, end_month_timestamp):
 
     # If this PI doesn't have a service request ID, skip them.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
         print "  Skipping cloud for %s: no iLab service request ID" % (pi_tag)
+        return False
+    # If the PI explicitly is marked as not having a service request, skip them silently.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
         return False
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
@@ -1000,8 +1006,11 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
                                         begin_month_timestamp, end_month_timestamp):
 
     # If this PI doesn't have a service request ID, skip them.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
         print "  Skipping consulting for %s: no iLab service request ID" % (pi_tag)
+        return False
+    # If the PI explicitly is marked as not having a service request, skip them silently.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
         return False
 
     for (date, summary, hours, travel_hours, cumul_hours) in consulting_details[pi_tag]:
@@ -1043,9 +1052,12 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
 def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_id, note, amount):
 
     # If this PI doesn't have a service request ID, skip them.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '' or pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
         print "  Skipping %s: no iLab service request ID" % (pi_tag)
         return
+    # If the PI explicitly is marked as not having a service request, skip them silently.
+    if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
+        return False
 
     # Create a dictionary to be written out as CSV.
     csv_dict = dict()
