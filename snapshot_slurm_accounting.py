@@ -56,7 +56,7 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 global SLURMACCOUNTING_PREFIX
 
 SLURM_ACCT_COMMAND_NAME = "sacct"
-SLURM_ACCT_STATE_SWITCHES = "--state=CA,CD,DL,F,NF,PR,TO,OOM,RH,RF,RQ,RV,SE"
+SLURM_ACCT_STATE_SWITCHES = "--state=CA,CD,DL,F,NF,PR,TO,OOM,RQ"
 SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--duplicates","--format=ALL"]
 
 #=====
