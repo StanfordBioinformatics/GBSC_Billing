@@ -178,8 +178,8 @@ def get_folder_quota_from_isilon(machine, device, fileset):
 
         fields = line.split()
 
-        # If the first word on this line ends in 'ifs', this is the line we want.
-        if fields[0].endswith("ifs"):
+        # If the first word on this line starts with 'ifs', this is the line we want.
+        if fields[0].startswith("ifs"):
             used  = int(fields[2])
             quota = int(fields[1])
 
