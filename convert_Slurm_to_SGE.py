@@ -155,9 +155,6 @@ def convert_slurm_file_to_sge_file(slurm_fp, sge_fp):
 
             elapsed_seconds = (elapsed_days * 86400) + sum(int(x) * 60 ** i for i,x in enumerate(reversed(elapsed_hms.split(":"))))
 
-            # Elapsed time on SLURM is wallclock * CPUs; we want just wallclock here.
-            elapsed_seconds /= int(slurm_row['NCPUS'])
-
             sge_row['ru_wallclock'] = elapsed_seconds
 
             sge_row['project'] = slurm_row['WCKey']
