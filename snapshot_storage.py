@@ -86,6 +86,8 @@ global read_config_sheet
 #  /srv/gsfs0/DIR1/DIR2 - Device "gsfs0", Fileset "DIR1.DIR2"
 #  /srv/gsfs0/BaaS/Labs/DIR1 - Device "gsfs0", Fileset "BaaS.DIR1"
 #
+# Default device: "ifs"
+#
 def get_device_and_fileset_from_folder(folder):
 
     # We know about "/srv/gsfs0" and "/ifs/" paths.
@@ -114,8 +116,14 @@ def get_device_and_fileset_from_folder(folder):
         return (device, fileset)
 
     else:
-        print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s" % folder
-        return None
+
+        device = "ifs"
+        fileset = folder
+
+        return (device, fileset)
+
+        # print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s" % folder
+        # return None
 
 
 def get_folder_quota_from_gpfs(machine, device, fileset):
