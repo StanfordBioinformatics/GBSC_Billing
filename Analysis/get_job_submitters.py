@@ -33,7 +33,7 @@ import sys
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "..", ""billing_common.py"))
+execfile(os.path.join(SCRIPT_DIR, "..", "billing_common.py"))
 
 global sheet_get_named_column
 
