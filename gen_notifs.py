@@ -111,8 +111,11 @@ pi_tag_to_username_cpus = defaultdict(list)
 # Mapping from pi_tag to list of [job_tag, cpu_core_hrs, %age].
 pi_tag_to_job_tag_cpus = defaultdict(list)
 
+# Mapping from pi_tag to list of [job_tag, list of [username, cpu_core_hrs], %age].
+pi_tag_to_job_tag_username_cpus = defaultdict(list)
+
 # Mapping from pi_tag to list of [date, username, job_name, account, cpu_core_hrs, jobID, %age].
-pi_tag_to_sge_job_details = defaultdict(list)
+pi_tag_to_job_details = defaultdict(list)
 
 # Mapping from pi_tag to list of [username, date_added, date_removed, %age].
 pi_tag_to_user_details = defaultdict(list)
@@ -158,6 +161,7 @@ global sheet_get_named_column
 global read_config_sheet
 global config_sheet_get_dict
 global filter_by_dates
+
 
 # This function takes an arbitrary number of dicts with
 # xlsxwriter Format properties in them, adds the format to the given workbook,
@@ -445,6 +449,11 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     for (job_tag, pi_tag, pctage) in job_tag_rows:
         job_tag_to_pi_tag_pctages[job_tag].append([pi_tag, pctage])
 
+    # Add pi_tags and "baas_pi_tag" as job_tags.
+    for pi_tag in pi_tag_list:
+        job_tag_to_pi_tag_pctages[pi_tag].append([pi_tag, 1.0])
+        job_tag_to_pi_tag_pctages["baas_" + pi_tag].append([pi_tag, 1.0])
+
     #
     # Create mapping from folder to list of pi_tags and %ages.
     #
@@ -543,16 +552,16 @@ def read_storage_sheet(wkbk):
 
 # Reads the Computing sheet of the BillingDetails workbook given, and populates
 # the job_tag_to_pi_tag_cpus, pi_tag_to_job_tag_cpus, pi_tag_to_username_cpus, and
-# pi_tag_to_sge_job_details dicts.
+# pi_tag_to_job_details dicts.
 def read_computing_sheet(wkbk):
 
-    global pi_tag_to_sge_job_details
+    global pi_tag_to_job_details
     global pi_tag_to_job_tag_cpus
     global pi_tag_to_username_cpus
 
     computing_sheet = wkbk.sheet_by_name("Computing")
 
-    for row in range(1,computing_sheet.nrows):
+    for row in range(1, computing_sheet.nrows):
 
         (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
             computing_sheet.row_values(row)
@@ -563,95 +572,56 @@ def read_computing_sheet(wkbk):
         # Rename this variable for easier understanding.
         job_tag = account.lower()
 
-        # If there is a job_tag in the account field and the job tag is known, credit the job_tag with the job CPU time.
-        # Else, credit the user with the job.
-        if (job_tag != '' and
-            (job_tag_to_pi_tag_pctages.get(job_tag) is not None or job_tag.lower() in pi_tag_list)):
-
-            # All PIs have a default job_tag that can be applied to jobs to be billed to them.
-            if job_tag.lower() in pi_tag_list:
-                job_tag = job_tag.lower()
-                job_pi_tag_pctage_list = [[job_tag, 1.0]]
-            else:
-                job_pi_tag_pctage_list = job_tag_to_pi_tag_pctages[job_tag]
-
-            # If no pi_tag is associated with this job tag, speak up.
-            if len(job_pi_tag_pctage_list) == 0:
-                print "   No PI associated with job ID %s" % jobID
-
-            # Distribute this job's CPU-hrs amongst pi_tags by %ages.
-            for (pi_tag, pctage) in job_pi_tag_pctage_list:
-
-                 # This list is (job_tag, cpu_core_hrs, %age).
-                 job_tag_cpu_list = pi_tag_to_job_tag_cpus.get(pi_tag)
-
-                 # If pi_tag has an existing list of job_tag/CPUs:
-                 if job_tag_cpu_list is not None:
-
-                     # Find if job_tag is in list of job_tag/CPUs for this pi_tag.
-                     for job_tag_cpu in job_tag_cpu_list:
-                         pi_job_tag = job_tag_cpu[0]
-                         pi_pctage  = job_tag_cpu[2]
-
-                         # Increment the job_tag's CPUs.
-                         if pi_job_tag == job_tag and pi_pctage == pctage:
-                             job_tag_cpu[1] += cpu_core_hrs
-                             break
-                     else:
-                         # No matching job_tag in pi_tag list -- add a new one to the list.
-                         job_tag_cpu_list.append([job_tag, cpu_core_hrs, pctage])
-
-                 # Else start a new job_tag/CPUs list for the pi_tag.
-                 else:
-                     pi_tag_to_job_tag_cpus[pi_tag] = [[job_tag, cpu_core_hrs, pctage]]
-
-                 #
-                 # Save job details for pi_tag.
-                 #
-                 new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
-                 pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
-
-        # Else credit a user with the job CPU time.
+        if job_tag != '':
+            job_pi_tag_pctage_list = job_tag_to_pi_tag_pctages[job_tag]
         else:
-            pi_tag_pctages = get_pi_tags_for_username_by_date(job_username, job_timestamp)
+            # No job tag means credit the job to the user's lab.
+            job_pi_tag_pctage_list = get_pi_tags_for_username_by_date(job_username, job_timestamp)
 
-            if len(pi_tag_pctages) == 0:
-                print "   No PI associated with user %s" % job_username
+        if len(job_pi_tag_pctage_list) == 0:
+            print "   *** No PI associated with job ID %d" % jobID
+            continue
 
-            for (pi_tag, pctage) in pi_tag_pctages:
+        # Distribute this job's CPU-hrs amongst pi_tags by %ages.
+        for (pi_tag, pctage) in job_pi_tag_pctage_list:
 
-                #
-                # Increment this user's CPU-core-hrs.
-                #
+            # This list is [job_tag, list of [username, cpu_core_hrs, %age], %age].
+            job_tag_username_cpu_list = pi_tag_to_job_tag_username_cpus.get(pi_tag)
 
-                # This list is (username, cpu_core_hrs, %age).
-                username_cpu_list = pi_tag_to_username_cpus.get(pi_tag)
+            # If pi_tag has an existing list of job_tag/username/CPUs:
+            if job_tag_username_cpu_list is not None:
 
-                # If pi_tag has an existing list of user/CPUs:
-                if username_cpu_list is not None:
+                # Find if job tag for job is in list of job_tag/CPUs for this pi_tag.
+                for (pi_job_tag, pi_username_cpu_list, pi_pctage) in job_tag_username_cpu_list:
 
-                    # Find if job_username is in list of user/CPUs for this pi_tag.
-                    for username_cpu in username_cpu_list:
-                        username = username_cpu[0]
-                        user_pctage = username_cpu[2]
+                    # If the job tag we are looking at is the one from the present job:
+                    if pi_job_tag == job_tag and pi_pctage == pctage:
 
-                        # Increment the user's CPUs if they already exist in the list.
-                        if username == job_username and user_pctage == pctage:
-                            username_cpu[1] += cpu_core_hrs
-                            break
-                    else:
-                        # No matching user in pi_tag list -- add a new one to the list.
-                        username_cpu_list.append([job_username, cpu_core_hrs, pctage])
+                        # Find job username in list for job tag:
+                        for username_cpu in pi_username_cpu_list:
+                            if job_username == username_cpu[0]:
+                                username_cpu[1] += cpu_core_hrs
+                                break
+                        else:
+                            pi_username_cpu_list.append([job_username, cpu_core_hrs])
 
-                # Else start a new user/CPUs list for the pi_tag.
+                        # Leave job_tag_username_cpu_list loop.
+                        break
+
                 else:
-                    pi_tag_to_username_cpus[pi_tag] = [[job_username, cpu_core_hrs, pctage]]
+                    # No matching job_tag in pi_tag list -- add a new one to the list.
+                    job_tag_username_cpu_list.append([job_tag, [[job_username, cpu_core_hrs]], pctage])
 
-                #
-                # Save job details for pi_tag.
-                #
-                new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
-                pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
+            # Else start a new job_tag/CPUs list for the pi_tag.
+            else:
+                pi_tag_to_job_tag_username_cpus[pi_tag] = [[job_tag, [[job_username, cpu_core_hrs]], pctage]]
+
+            #
+            # Save job details for pi_tag.
+            #
+            new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
+            pi_tag_to_job_details[pi_tag].append(new_job_details)
+
 
 
 # Read the Cloud sheet from the BillingDetails workbook.
@@ -785,85 +755,113 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Set up some formats for use in these tables.
     border_style = 1
+
+    # For "Summary of Charges" and "Breakdown of Charges"
     top_header_fmt = make_format(wkbk, {'font_size': 14, 'bold': True, 'underline': True,
                                         'align': 'right',
                                         'top': border_style, 'left': border_style})
+    # For "Storage", "Computing", "Cloud Services", and "Bioinformatics Consulting" headers
     header_fmt = make_format(wkbk, {'font_size': 12, 'bold': True, 'underline': True,
-                                    'align': 'right',
+                                    'align': 'left',
                                     'left': border_style})
+    # Same as above, but with no underline: for the Summary table.
     header_no_ul_fmt = make_format(wkbk, {'font_size': 12, 'bold': True,
                                           'align': 'right',
                                           'left': border_style})
 
+    # For subheaders within subtables, like "Account: XXX" in Computing subtable.
     sub_header_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
+                                        'align': 'right', 'underline': True,
+                                        'left': border_style})
+
+    # For column headers in subtables.
+    col_header_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
                                         'align': 'right'})
-    sub_header_textwrap_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
+    # As above, but allowing text wrap for long column headers (see Bioinformatics Computing subtable)
+    col_header_textwrap_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
                                                  'align': 'right',
                                                  'text_wrap': True})
-    sub_header_left_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
+    # As sub_header_fmt, but with a border on the left.
+    col_header_left_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
                                              'align': 'right',
                                              'left': border_style})
-    sub_header_right_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
+    # As sub_header_fmt, but with a border on the right.
+    col_header_right_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
                                               'align': 'right',
                                               'right': border_style})
 
+    # Text entry in a subtable (border on the left).
     item_entry_fmt = make_format(wkbk, {'font_size': 10,
                                         'align': 'right',
                                         'left': border_style})
+    # As above, plus allowing text wrap (for descriptions in Bioinformatics Consulting).
     item_entry_textwrap_fmt = make_format(wkbk, {'font_size': 10,
                                                  'align': 'right',
                                                  'left': border_style,
                                                  'text_wrap': True})
-
+    item_entry_italics_fmt = make_format(wkbk, {'font_size': 10,
+                                                'align': 'right',
+                                                'left': border_style,
+                                                'italics': True})
+    # Float entry in a subtable.
     float_entry_fmt = make_format(wkbk, {'font_size': 10,
                                          'align': 'right',
                                          'num_format': '0.0'})
+    # As above, but vertically aligned to top (for Bioinformatics Consulting table).
     float_entry_valign_top_fmt = make_format(wkbk, {'font_size': 10,
-                                         'align': 'right',
-                                         'valign': 'top',
-                                         'num_format': '0.0'})
+                                                     'align': 'right',
+                                                     'valign': 'top',
+                                                     'num_format': '0.0'})
+    # Integer entry in a subtable (not used?).
     int_entry_fmt = make_format(wkbk, {'font_size': 10,
                                        'align': 'right',
                                        'num_format': '0'})
+    # Percentage entry in a subtable.
     pctage_entry_fmt = make_format(wkbk, {'font_size': 10,
                                           'num_format': '0%'})
+    # String entry in a subtable, aligned right.
     string_entry_fmt = make_format(wkbk,{'font_size': 10,
                                          'align': 'right'})
+    # As above, but vertically aligned to top (for Bioinformatics Consulting table).
     string_entry_valign_top_fmt = make_format(wkbk,{'font_size': 10,
                                                     'align': 'right',
                                                     'valign': 'top'})
-
+    # Cost entry in Cloud Services subtable.
     cost_fmt = make_format(wkbk, {'font_size': 10,
                                   'align': 'right',
                                   'num_format': '$#,##0.00'})
 
-
+    # Charge entry in subtables (with border on right).
     charge_fmt = make_format(wkbk, {'font_size': 10,
                                     'align': 'right',
                                     'right': border_style,
                                     'num_format': '$#,##0.00'})
+    # As above, only vertically aligned to the top.
     charge_valign_top_fmt = make_format(wkbk, {'font_size': 10,
                                                'align': 'right',
                                                'valign': 'top',
                                                'right': border_style,
                                                'num_format': '$#,##0.00'})
+    # Charge entry in Summary of Charges table.
     big_charge_fmt = make_format(wkbk, {'font_size': 12,
                                         'align': 'right',
                                         'right': border_style,
                                         'num_format': '$#,##0.00'})
+    # As above, only bold (for grand total).
     big_bold_charge_fmt = make_format(wkbk, {'font_size': 12, 'bold': True,
                                              'align': 'right',
                                              'right': border_style, 'bottom': border_style,
                                              'num_format': '$#,##0.00'})
-
+    # "Total XXX" entry for subtotals within subtables.
     bot_header_fmt = make_format(wkbk, {'font_size': 14, 'bold': True,
                                         'align': 'right',
                                         'left': border_style})
+    # As above, but with a bottom border.
     bot_header_border_fmt = make_format(wkbk, {'font_size': 14, 'bold': True,
                                                'align': 'right',
                                                'left': border_style,
                                                'bottom': border_style})
-
+    # Formats for borders in cells.
     upper_right_border_fmt = make_format(wkbk, {'top': border_style, 'right': border_style})
     lower_right_border_fmt = make_format(wkbk, {'bottom': border_style, 'right': border_style})
     lower_left_border_fmt  = make_format(wkbk, {'bottom': border_style, 'left': border_style})
@@ -901,10 +899,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the storage headers.
-    sheet.write(curr_row, 1, "Folder (in /srv/gsfs0)", sub_header_left_fmt)
-    sheet.write(curr_row, 2, "Storage (Tb)", sub_header_fmt)
-    sheet.write(curr_row, 3, "%age", sub_header_fmt)
-    sheet.write(curr_row, 4, "Charge", sub_header_right_fmt)
+    sheet.write(curr_row, 1, "Folder", col_header_left_fmt)
+    sheet.write(curr_row, 2, "Storage (Tb)", col_header_fmt)
+    sheet.write(curr_row, 3, "%age", col_header_fmt)
+    sheet.write(curr_row, 4, "Charge", col_header_right_fmt)
     curr_row += 1
 
     total_storage_charges = 0.0
@@ -929,8 +927,6 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
         total_storage_sizes += size
 
-        #sheet.write(curr_row, 4, charge, charge_fmt)
-
         cost_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
         pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
         sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell,
@@ -950,12 +946,12 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Write the Total Storage line.
     sheet.write(curr_row, 1, "Total Storage", bot_header_fmt)
-    #sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
+    # sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
     top_sizes_a1_cell = xl_rowcol_to_cell(starting_cloud_row, 2)
     bot_sizes_a1_cell = xl_rowcol_to_cell(ending_cloud_row, 2)
     sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell),
                         float_entry_fmt, total_storage_sizes)
-    #sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
+    # sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
     top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_cloud_row, 4)
     bot_hours_a1_cell = xl_rowcol_to_cell(ending_cloud_row, 4)
     sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_billable_hours_a1_cell, bot_hours_a1_cell),
@@ -979,6 +975,9 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     #
     ###
 
+    # Get the rate from the Rates sheet of the BillingConfig workbook.
+    rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Local Computing')
+
     # Skip row before Computing header.
     sheet.write(curr_row, 1, None, left_border_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
@@ -987,119 +986,147 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 1, "Computing", header_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
-    # Write the computing headers.
-    sheet.write(curr_row, 1, "User", sub_header_left_fmt)
-    sheet.write(curr_row, 2, "CPU-core-hrs", sub_header_fmt)
-    sheet.write(curr_row, 3, "%age", sub_header_fmt)
-    sheet.write(curr_row, 4, "Charge", sub_header_right_fmt)
-    curr_row += 1
 
-    total_computing_charges = 0.0
-    total_computing_cpuhrs  = 0.0
+    # Loop over pi_tag_to_job_tag_username_cpus for job tag/username combos.
+    job_tag_username_cpus_list = pi_tag_to_job_tag_username_cpus.get(pi_tag)
 
-    # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Local Computing')
+    # The list of "Total Charges" rows for each job tag.
+    total_computing_charges_row_list = []
 
-    # Get the job details for the users associated with this PI.
-    starting_computing_row = curr_row
-    ending_computing_row   = curr_row
-    if len(pi_tag_to_username_cpus[pi_tag]) > 0:
+    if job_tag_username_cpus_list is not None:
 
-        for (username, cpu_core_hrs, pctage) in pi_tag_to_username_cpus[pi_tag]:
+        for (job_tag, username_cpu_list, pctage) in job_tag_username_cpus_list:
 
-            fullname = username_to_user_details[username][1]
-            sheet.write(curr_row, 1, "%s (%s)" % (fullname, username), item_entry_fmt)
-            sheet.write(curr_row, 2, cpu_core_hrs, float_entry_fmt)
-            sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
-
-            if rate_cpu_per_hour is not None:
-                charge = cpu_core_hrs * pctage * rate_cpu_per_hour
-                total_computing_charges += charge
+            # Write the account subheader.
+            if job_tag != "":
+                sheet.write(curr_row, 1, "Account: %s" % job_tag, sub_header_fmt)
             else:
-                charge = "No rate"
+                sheet.write(curr_row, 1, "Account: Lab Default", sub_header_fmt)
+            sheet.write(curr_row, 4, None, col_header_right_fmt)
+            curr_row += 1
 
-            # Check if user has accumulated more than $500 in a month.
-            if charge > 500:
-                print "  *** User %s (%s) for PI %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, charge)
+            # Skip row after account subheader.
+            sheet.write(curr_row, 1, None, left_border_fmt)
+            sheet.write(curr_row, 4, None, right_border_fmt)
+            curr_row += 1
 
-            total_computing_cpuhrs += cpu_core_hrs
+            # Write the computing headers.
+            sheet.write(curr_row, 1, "User", col_header_left_fmt)
+            sheet.write(curr_row, 2, "CPU-core-hrs", col_header_fmt)
+            sheet.write(curr_row, 3, "%age", col_header_fmt)
+            sheet.write(curr_row, 4, "Charge", col_header_right_fmt)
+            curr_row += 1
 
-            #sheet.write(curr_row, 4, charge, charge_fmt)
+            total_computing_charges = 0.0
+            total_computing_cpuhrs  = 0.0
 
-            cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
-            pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-            sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell,
-                                                            get_rate_a1_cell(billing_config_wkbk, 'Local Computing')),
+            # Get the job details for the users associated with this PI.
+            starting_computing_row = curr_row
+            ending_computing_row   = curr_row
+            if len(username_cpu_list) > 0:
+
+                for (username, cpu_core_hrs) in username_cpu_list:
+
+                    pi_tags_for_username = get_pi_tags_for_username_by_date(username, begin_month_timestamp)
+
+                    if pi_tag in map(lambda pi_pct: pi_pct[0], pi_tags_for_username):
+                        username_fmt = item_entry_fmt
+                    else:
+                        username_fmt = item_entry_italics_fmt
+
+                    fullname = username_to_user_details[username][1]
+                    sheet.write(curr_row, 1, "%s (%s)" % (fullname, username), username_fmt)
+                    sheet.write(curr_row, 2, cpu_core_hrs, float_entry_fmt)
+                    sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
+
+                    if rate_cpu_per_hour is not None:
+                        charge = cpu_core_hrs * pctage * rate_cpu_per_hour
+                        total_computing_charges += charge
+                    else:
+                        charge = "No rate"
+
+                    # Check if user has accumulated more than $500 in a month.
+                    if charge > 500:
+                        print "  *** User %s (%s) for PI %s, Account %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, job_tag, charge)
+
+                    total_computing_cpuhrs += cpu_core_hrs
+
+                    cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
+                    pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
+                    sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell,
+                                                                    get_rate_a1_cell(billing_config_wkbk, 'Local Computing')),
+                                        charge_fmt, charge)
+
+                    # Keep track of last row with computing values.
+                    ending_computing_row = curr_row
+
+                    # Advance to the next row.
+                    curr_row += 1
+
+                # Skip row after last user.
+                sheet.write(curr_row, 1, None, left_border_fmt)
+                sheet.write(curr_row, 4, None, right_border_fmt)
+                curr_row += 1
+
+            else:
+                # No users for this PI.
+                sheet.write(curr_row, 1, "No jobs", item_entry_fmt)
+                sheet.write(curr_row, 4, 0.0, charge_fmt)
+                curr_row += 1
+
+            # Write the Total Charges line header.
+            if job_tag != "":
+                sheet.write(curr_row, 1, "Total charges: %s:" % job_tag, col_header_left_fmt)
+            else:
+                sheet.write(curr_row, 1, "Total charges: Lab Default:", col_header_left_fmt)
+
+            # Write the formula for the CPU-core-hrs subtotal for the job tag.
+            top_cpu_a1_cell = xl_rowcol_to_cell(starting_computing_row, 2)
+            bot_cpu_a1_cell = xl_rowcol_to_cell(ending_computing_row, 2)
+            sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_cpu_a1_cell, bot_cpu_a1_cell),
+                                float_entry_fmt, total_computing_cpuhrs)
+
+            sheet.write(curr_row, 3, None, col_header_fmt)
+
+            # Write the formula for the charges subtotal for the job tag.
+            top_charge_a1_cell = xl_rowcol_to_cell(starting_computing_row, 4)
+            bot_charge_a1_cell = xl_rowcol_to_cell(ending_computing_row, 4)
+            sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_charge_a1_cell, bot_charge_a1_cell),
                                 charge_fmt, charge)
 
-            # Keep track of last row with computing values.
-            ending_computing_row = curr_row
+            # Save row of this total charges for the job tag for Total Computing charges sum.
+            total_computing_charges_row_list.append(curr_row)
 
-            # Advance to the next row.
             curr_row += 1
-    else:
-        # No users for this PI.
-        sheet.write(curr_row, 1, "No users with jobs", item_entry_fmt)
-        sheet.write(curr_row, 4, 0.0, charge_fmt)
-        curr_row += 1
 
-    # Write the Job Tag line.
-    sheet.write(curr_row, 1, "Job Tag", sub_header_left_fmt)
-    sheet.write(curr_row, 4, None, sub_header_right_fmt)
-    curr_row += 1
-
-    # Get the job details for the job tags associated with this PI.
-    if len(pi_tag_to_job_tag_cpus[pi_tag]) > 0:
-        for (job_tag, cpu_core_hrs, pctage) in pi_tag_to_job_tag_cpus[pi_tag]:
-
-            sheet.write(curr_row, 1, job_tag, item_entry_fmt)
-            sheet.write(curr_row, 2, cpu_core_hrs, float_entry_fmt)
-            sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
-
-            if rate_cpu_per_hour is not None:
-                charge = cpu_core_hrs * pctage * rate_cpu_per_hour
-                total_computing_charges += charge
-            else:
-                charge = "No rate"
-
-            total_computing_cpuhrs += cpu_core_hrs
-
-            #sheet.write(curr_row, 4, charge, charge_fmt)
-
-            cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
-            pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-            sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell,
-                                                            get_rate_a1_cell(billing_config_wkbk, 'Local Computing')),
-                                charge_fmt, charge)
-
-            # Keep track of last row with computing values.
-            ending_computing_row = curr_row
-
-            # Advance to the next row.
+            # Skip row after job tag subtotal.
+            sheet.write(curr_row, 1, None, left_border_fmt)
+            sheet.write(curr_row, 4, None, right_border_fmt)
             curr_row += 1
-    else:
-        # No job tags for this PI.
-        sheet.write(curr_row, 1, "No jobs w/ job tags", item_entry_fmt)
-        sheet.write(curr_row, 4, 0.0, charge_fmt)
-        curr_row += 1
-
-    # Skip the line before Total Computing.
-    sheet.write(curr_row, 1, None, left_border_fmt)
-    sheet.write(curr_row, 4, None, right_border_fmt)
-    curr_row += 1
 
     # Write the Total Computing line.
-    sheet.write(curr_row, 1, "Total Computing", bot_header_fmt)
-    #sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
-    top_cpu_a1_cell = xl_rowcol_to_cell(starting_computing_row, 2)
-    bot_cpu_a1_cell = xl_rowcol_to_cell(ending_computing_row, 2)
-    sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_cpu_a1_cell, bot_cpu_a1_cell),
-                        float_entry_fmt, total_computing_cpuhrs)
-    #sheet.write(curr_row, 4, total_computing_charges, charge_fmt)
-    top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_computing_row, 4)
-    bot_hours_a1_cell = xl_rowcol_to_cell(ending_computing_row, 4)
-    sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_billable_hours_a1_cell, bot_hours_a1_cell),
-                        charge_fmt, total_computing_charges)
+    sheet.write(curr_row, 1, "Total Computing:", bot_header_fmt)
+    # sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
+    # sheet.write(curr_row, 4, total_computing_charges, charge_fmt)
+
+    if len(total_computing_charges_row_list) > 0:
+
+        total_cpuhours_cell_list = map(lambda x: xl_rowcol_to_cell(x, 2), total_computing_charges_row_list)
+        total_computing_charges_cell_list = map(lambda x: xl_rowcol_to_cell(x, 4), total_computing_charges_row_list)
+
+        # Create formula from job tag total CPU-hours cells.
+        total_cpuhours_formula = "=" + "+".join(total_cpuhours_cell_list)
+
+        sheet.write_formula(curr_row, 2, total_cpuhours_formula, float_entry_fmt)
+
+        # Create formula from job tag total charges cells.
+        total_computing_charges_formula = "=" + "+".join(total_computing_charges_cell_list)
+
+        sheet.write_formula(curr_row, 4, total_computing_charges_formula, charge_fmt)
+
+    else:
+
+        sheet.write(curr_row, 4, 0.0, charge_fmt)
 
     # Save reference to this cell for use in Summary subtable.
     total_computing_charges_a1_cell = xl_rowcol_to_cell(curr_row, 4)
@@ -1128,10 +1155,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the cloud services headers.
-    sheet.write(curr_row, 1, "Project", sub_header_left_fmt)
-    sheet.write(curr_row, 2, "Cost", sub_header_fmt)
-    sheet.write(curr_row, 3, "%age", sub_header_fmt)
-    sheet.write(curr_row, 4, "Charge", sub_header_right_fmt)
+    sheet.write(curr_row, 1, "Project", col_header_left_fmt)
+    sheet.write(curr_row, 2, "Cost", col_header_fmt)
+    sheet.write(curr_row, 3, "%age", col_header_fmt)
+    sheet.write(curr_row, 4, "Charge", col_header_right_fmt)
     curr_row += 1
 
     total_cloud_charges = 0.0
@@ -1161,7 +1188,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
                 charge = project_cost * pctage
                 total_cloud_charges += charge
 
-                #sheet.write(curr_row, 4, charge, charge_fmt)
+                # Write formula for charges to the sheet.
                 cost_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
                 pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
                 sheet.write_formula(curr_row, 4, '=%s*%s' % (cost_a1_cell, pctage_a1_cell),
@@ -1175,7 +1202,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # If there were no projects, put a row saying so.
     if starting_cloud_row > ending_cloud_row:
-        sheet.write(curr_row, 1, "No Project", item_entry_fmt)
+        sheet.write(curr_row, 1, "No Projects", item_entry_fmt)
         sheet.write(curr_row, 4, 0.0, charge_fmt)
         curr_row += 1
         ending_cloud_row = starting_cloud_row
@@ -1187,7 +1214,6 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Write the "Total Cloud Services" line.
     sheet.write(curr_row, 1, "Total Cloud Services", bot_header_fmt)
-    #sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
     top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_cloud_row, 4)
     bot_hours_a1_cell = xl_rowcol_to_cell(ending_cloud_row, 4)
     sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_billable_hours_a1_cell, bot_hours_a1_cell),
@@ -1220,10 +1246,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the consulting headers.
-    sheet.write(curr_row, 1, "Date: Task (Consultant)", sub_header_left_fmt)
-    sheet.write(curr_row, 2, "Hours (Travel Hours)", sub_header_textwrap_fmt)
-    sheet.write(curr_row, 3, "Billable Hours", sub_header_textwrap_fmt)
-    sheet.write(curr_row, 4, "Charge", sub_header_right_fmt)
+    sheet.write(curr_row, 1, "Date: Task (Consultant)", col_header_left_fmt)
+    sheet.write(curr_row, 2, "Hours (Travel Hours)", col_header_textwrap_fmt)
+    sheet.write(curr_row, 3, "Billable Hours", col_header_textwrap_fmt)
+    sheet.write(curr_row, 4, "Charge", col_header_right_fmt)
     curr_row += 1
 
     total_consulting_hours = 0.0
@@ -1317,18 +1343,16 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # Write the Storage line.
     sheet.write(curr_row, 1, "Storage", header_no_ul_fmt)
     sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
-    #sheet.write(curr_row, 4, total_storage_charges, big_charge_fmt)
     sheet.write_formula(curr_row, 4, '=%s' % total_storage_charges_a1_cell, big_charge_fmt, total_storage_charges)
     curr_row += 1
     # Write the Computing line.
     sheet.write(curr_row, 1, "Computing", header_no_ul_fmt)
-    sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
-    #sheet.write(curr_row, 4, total_computing_charges, big_charge_fmt)
-    sheet.write_formula(curr_row, 4, '=%s' % total_computing_charges_a1_cell, big_charge_fmt, total_computing_charges)
+    # sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
+    # sheet.write(curr_row, 4, total_computing_charges, big_charge_fmt)
+    sheet.write_formula(curr_row, 4, '=%s' % total_computing_charges_a1_cell, big_charge_fmt)
     curr_row += 1
     # Write the Cloud Services line.
     sheet.write(curr_row, 1, "Cloud Services", header_no_ul_fmt)
-    #sheet.write(curr_row, 4, total_computing_charges, big_charge_fmt)
     sheet.write_formula(curr_row, 4, '=%s' % total_cloud_charges_a1_cell, big_charge_fmt, total_cloud_charges)
     curr_row += 1
     # Write the Consulting line.
@@ -1345,18 +1369,17 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 1, "Total Charges", bot_header_border_fmt)
     sheet.write(curr_row, 2, None, bottom_border_fmt)
     sheet.write(curr_row, 3, None, bottom_border_fmt)
-    total_charges = total_storage_charges + total_computing_charges + total_cloud_charges + total_consulting_charges
-    #sheet.write(curr_row, 4, total_charges, big_bold_charge_fmt)
+    # total_charges = total_storage_charges + total_computing_charges + total_cloud_charges + total_consulting_charges
     sheet.write_formula(curr_row, 4, '=%s+%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell, total_cloud_charges_a1_cell, total_consulting_charges_a1_cell),
-                        big_bold_charge_fmt, total_charges)
+                        big_bold_charge_fmt)
     curr_row += 1
 
     #
     # Fill in row in pi_tag -> charges hash.
     #
-    pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_cloud_charges,
-                                 total_consulting_charges,
-                                 total_charges)
+    # pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_cloud_charges,
+    #                              total_consulting_charges,
+    #                              total_charges)
 
 
 # Copies the Rates sheet from the Rates sheet in the BillingConfig workbook to
@@ -1390,12 +1413,12 @@ def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
 
 
 # Generates a Computing Details sheet for a BillingNotification workbook with
-# job details associated with a particular PI.  It reads from dict pi_tag_to_sge_job_details.
+# job details associated with a particular PI.  It reads from dict pi_tag_to_job_details.
 def generate_computing_details_sheet(sheet, pi_tag):
 
     # Write the job details, sorted by username.
     curr_row = 1
-    for (date, username, job_name, account, node, cpu_core_hrs, jobID, pctage) in sorted(pi_tag_to_sge_job_details[pi_tag],key=lambda s: s[1]):
+    for (date, username, job_name, account, node, cpu_core_hrs, jobID, pctage) in sorted(pi_tag_to_job_details[pi_tag],key=lambda s: s[1]):
 
         curr_col = 0
         sheet.write(curr_row, curr_col, date, DATE_FORMAT) ; curr_col += 1
@@ -1838,6 +1861,6 @@ billing_aggreg_wkbk.close()
 ###
 total_jobs_billed = 0
 for pi_tag in pi_tag_list:
-    total_jobs_billed += len(pi_tag_to_sge_job_details[pi_tag])
+    total_jobs_billed += len(pi_tag_to_job_details[pi_tag])
 
 print "Total Jobs Billed:", total_jobs_billed
