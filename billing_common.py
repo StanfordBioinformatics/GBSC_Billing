@@ -6,7 +6,7 @@
 #
 # ARGS:
 #
-# SWITCHES:
+# SWITCHES:x
 #
 # OUTPUT:
 #
@@ -66,7 +66,7 @@ BILLING_CONFIG_SHEET_COLUMNS = {
     'PIs'     : ['PI First Name', 'PI Last Name', 'PI Tag', 'Group Name', 'PI Email', 'iLab Service Request ID', 'Date Added', 'Date Removed'],
     'Folders' : ['Folder', 'PI Tag', '%age', 'Method', 'Date Added', 'Date Removed'],
     'Users'   : ['PI Tag', 'Username', 'Email', 'Full Name', 'Date Added', 'Date Removed'],
-    'JobTags' : ['Job Tag', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
+    'Accounts' : ['Account', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
     'Cloud'   : ['Platform', 'Project', 'Project Number', 'Account', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
     'Config'  : ['Key', 'Value']
 }
@@ -120,11 +120,14 @@ BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4',
 NONBILLABLE_HOSTNAME_PREFIXES = ['greenie', 'scg3-0',
                                  'dper910-rcf-412-20', 'hppsl230s-rcf-412', # greenie and scg3-0, renamed for Slurm
                                  'sgiuv300-srcf',  # The supercomputer
+                                 'cfxs2600gz-rcf-114',  # Data Mover nodes
                                  'None assigned'
                                  ]
 
-# List of job tags to ignore.
-IGNORED_JOB_TAGS = ['large_mem', 'default']
+# Job tag/account prefixes for PI Tags. [Format: <Prefix>_<PI_TAG>]
+ACCOUNT_PREFIXES = ['baas', 'nih', 'prj']
+# List of accounts to ignore.
+IGNORED_ACCOUNTS = ['large_mem', 'default', 'interactive']
 
 # Beginning of billing process.
 # 8/31/13 00:00:00 GMT (one day before 9/1/13, to represent things that existed before billing started).
@@ -137,42 +140,13 @@ USAGE_EXECUTABLE = ['du', '-s']
 STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in all above commands.
 
 # Pathname to root of PI project directories.
-PI_PROJECT_ROOT_DIR = '/srv/gsfs0/projects'
+PI_PROJECT_ROOT_DIR = '/labs'
 
 # How many hours of consulting are free.
 CONSULTING_HOURS_FREE = 1
 
 # What is the discount rate for travel hours?
 CONSULTING_TRAVEL_RATE_DISCOUNT = 0.5
-
-#=====
-#
-# CLASSES
-#
-#=====
-class SlurmDialect(csv.Dialect):
-
-    delimiter = '|'
-    doublequote = False
-    escapechar = '\\'
-    lineterminator = '\n'
-    quotechar = '"'
-    quoting = csv.QUOTE_MINIMAL
-    skipinitialspace = True
-    strict = True
-csv.register_dialect("slurm",SlurmDialect)
-
-class SGEDialect(csv.Dialect):
-
-    delimiter = ':'
-    doublequote = False
-    escapechar = '\\'
-    lineterminator = '\n'
-    quotechar = '"'
-    quoting = csv.QUOTE_MINIMAL
-    skipinitialspace = True
-    strict = True
-csv.register_dialect("sge",SGEDialect)
 
 #=====
 #
@@ -218,6 +192,7 @@ def read_config_sheet(wkbk):
 
     return (billing_root, accounting_file)
 
+
 #
 # This suite of functions converts to/from timestamps, Excel dates, and date strings.
 #
@@ -240,6 +215,7 @@ def from_date_string_to_timestamp(date_str):
 #
 def remove_unicode_chars(s):
     return "".join(i for i in s if ord(i)<128)
+
 
 # Filters a list of lists using a parallel list of [date_added, date_removed]'s.
 # Returns the elements in the first list which are valid with the month date range given.

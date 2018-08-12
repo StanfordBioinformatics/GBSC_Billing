@@ -57,6 +57,9 @@ import sys
 import xlrd
 import xlsxwriter
 
+from job_accounting_file import JobAccountingFile
+
+
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
@@ -79,6 +82,7 @@ global GOOGLE_INVOICE_PREFIX
 global BILLING_DETAILS_PREFIX
 global CONSULTING_PREFIX
 global STORAGE_PREFIX
+global ACCOUNT_PREFIXES
 
 #
 # Formats for the output workbook, to be initialized along with the workbook.
@@ -245,6 +249,30 @@ def get_google_invoice_csv_subtable_lines(csvfile_obj):
     return subtable
 
 
+#
+# Returns True/False if string is a valid account.
+#
+def is_valid_account(acct):
+
+    # Let's go case insensitive.
+    acct = acct.lower()
+
+    # If this is a known account or matches a PI Tag, we are good.
+    if acct in job_tag_list or acct in pi_tag_list:
+        return True
+    # Otherwise, does it match
+    else:
+        # Split argument into possible prefix_pi-tag pair.
+        prefix_rest = acct.split('_', 2)
+
+        if len(prefix_rest) == 2:
+            (prefix, rest) = prefix_rest
+            return prefix in ACCOUNT_PREFIXES and rest in pi_tag_list
+        else:
+            print acct, "is not a valid account."
+            return False
+
+
 # Read the Storage Usage file.
 # Returns mapping from folders to [timestamp, total, used]
 def read_storage_usage_file(storage_usage_file):
@@ -310,7 +338,9 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     global ACCOUNTING_FAILED_CODES
     global BILLABLE_HOSTNAME_PREFIXES
     global NONBILLABLE_HOSTNAME_PREFIXES
-    global IGNORED_JOB_TAGS
+    global IGNORED_ACCOUNTS
+    global job_tag_list
+    global pi_tag_list
 
     print "Computing computing charges..."
 
@@ -321,20 +351,12 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     #        Need to make a set out of the result.
     users_list = set(users_list)
 
-    # Read in the PI Tag list from the PIs sheet.
-    pis_sheet = config_wkbk.sheet_by_name('PIs')
-    pi_tag_list = sheet_get_named_column(pis_sheet, 'PI Tag')
-
-    # Read in the Job Tags from the Job Tags sheet.
-    job_tags_sheet = config_wkbk.sheet_by_name('JobTags')
-    job_tag_list = sheet_get_named_column(job_tags_sheet, "Job Tag")
-
     print "  Reading accounting file %s" % (os.path.abspath(accounting_file))
 
     #
     # Open the current accounting file for input.
     #
-    accounting_fp = open(accounting_file, "r")
+    accounting_fp = JobAccountingFile(accounting_file)
 
     #
     # Read all the lines of the current accounting file.
@@ -358,35 +380,33 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     jobids_with_unknown_billable_nodes = set()  # Set of job IDs for jobs which have nodes that can't be identified as billable.
     jobids_with_billable_and_non_nodes = set()  # Set of job IDs for jobs which have both billable and nonbillable nodes.
 
-    reader = csv.DictReader(accounting_fp,fieldnames=ACCOUNTING_FIELDS,dialect="sge")
-
-    for accounting_record in reader:
+    for accounting_record in accounting_fp:
 
         # If the job failed, the submission_time is the job date.
         # Else, the end_time is the job date.
-        failed_code = int(accounting_record['failed'])
+        failed_code = accounting_record.failed_code
         job_failed = failed_code in ACCOUNTING_FAILED_CODES
         if job_failed:
-            job_date = int(accounting_record['submission_time'])  # The only valid date in the record.
+            job_date = accounting_record.submission_time  # The only valid date in the record.
         else:
-            job_date = int(accounting_record['end_time'])
+            job_date = accounting_record.end_time
 
         # Create a list of job details for this job.
         job_details = list()
         job_details.append(job_date)
         job_details.append(job_date)  # Two columns used for the date: one date formatted, one timestamp.
-        job_details.append(accounting_record['owner'])
-        job_details.append(accounting_record['job_name'])
+        job_details.append(accounting_record.owner)
+        job_details.append(accounting_record.job_name)
 
         #
         # Look for job tags in both account and project fields.
         # If values occur in both, use the project field and record the discrepancy.
         #
-        account = remove_unicode_chars(accounting_record['account'])
+        account = remove_unicode_chars(accounting_record.account)
         if account == 'sge' or account == '':   # Edit out the default account 'sge'.
             account = None
 
-        project = remove_unicode_chars(accounting_record['project'])
+        project = remove_unicode_chars(accounting_record.project)
         if project == 'NONE' or project == '':  # Edit out the placeholder project 'NONE'.
             project = None
 
@@ -394,32 +414,27 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         # Add job tag (project/account) info to job_details.
         #
         # If project is set and not in the ignored job tag list:
-        if project is not None and project not in IGNORED_JOB_TAGS:
+        if project is not None and project not in IGNORED_ACCOUNTS:
 
-            # The project is a valid job tag if it is either in the job_tag_list
-            #  or the pi_tag_list.
-            project_is_valid_job_tag = (project in job_tag_list or project in pi_tag_list)
+            # Find out if the project name is a known one.
+            project_is_valid_job_tag = is_valid_account(project)
 
             if not project_is_valid_job_tag:
                 # If this project/job tag is unknown, save details for later output.
-                not_in_job_tag_list[accounting_record['owner']].add(project)
+                not_in_job_tag_list[accounting_record.owner].add(project)
         else:
             project_is_valid_job_tag = False
             project = None  # we could be ignoring a given job tag
 
         # If account is set and not in the ignored job tag list:
-        if account is not None and account not in IGNORED_JOB_TAGS:
+        if account is not None and account not in IGNORED_ACCOUNTS:
 
-            # The account is a valid job tag if it is either in the job_tag_list
-            #  or the pi_tag_list.
-            account_is_valid_job_tag = \
-                (account in job_tag_list or
-                 account.lower() in job_tag_list or
-                 account.lower() in pi_tag_list)
+            # Find out if the account name is a known one.
+            account_is_valid_job_tag = is_valid_account(account)
 
             if not account_is_valid_job_tag:
                 # If this account/job tag is unknown, save details for later output.
-                not_in_job_tag_list[accounting_record['owner']].add(account)
+                not_in_job_tag_list[accounting_record.owner].add(account)
         else:
             account_is_valid_job_tag = False
             account = None  # we could be ignoring a given job tag
@@ -434,7 +449,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
             # If there's both a project and an account, choose the project and save details for later output.
             job_tag = project
             if account is not None:
-                both_proj_and_acct_list[accounting_record['owner']].add((project,account))
+                both_proj_and_acct_list[accounting_record.owner].add((project,account))
 
         # Else if project is present and account is not valid, choose project for job tag.
         # (Non-valid project trumps non-valid account).
@@ -443,7 +458,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
             # If there's both a project and an account, choose the project and save details for later output.
             job_tag = project
             if account is not None:
-                both_proj_and_acct_list[accounting_record['owner']].add((project,account))
+                both_proj_and_acct_list[accounting_record.owner].add((project,account))
 
         # Else if account is present, choose account for job tag.
         # (either account is valid and the project is non-valid, or there is no project).
@@ -452,7 +467,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
             # If there's both an account and a project, save the details for later output.
             if project is not None:
-                both_proj_and_acct_list[accounting_record['owner']].add((project,account))
+                both_proj_and_acct_list[accounting_record.owner].add((project,account))
 
         # else No project and No account = No job tag.
         else:
@@ -465,17 +480,17 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
             job_details.append('')
 
         # Support for Slurm: 'hostname' is now a comma-separated node list.
-        node_list = accounting_record['hostname']
+        node_list = accounting_record.node_list
         # Edit hostname to remove trailing ".local".
         node_list = node_list.replace(".local","")
         job_details.append(node_list)
 
-        job_details.append(int(accounting_record['slots']))
+        job_details.append(accounting_record.cpus)
 
-        wallclock = int(accounting_record['ru_wallclock'])  # run time in seconds
+        wallclock = accounting_record.wallclock  # run time in seconds
         job_details.append(wallclock)
 
-        job_details.append(int(accounting_record['job_number']))
+        job_details.append(accounting_record.job_id)
 
         # If the end date of this job was within the month or we aren't reading job timestamps,
         #  examine it.
@@ -509,11 +524,11 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
                     # Screen for cases where a node is either billable and nonbillable or neither.
                     if billable and nonbillable:
-                        print >> sys.stderr, "*** Error: Node %s of Job %s is both billable and non-billable" % (node_name, accounting_record['job_number'])
-                        jobids_with_billable_and_non_nodes.add(accounting_record['job_number'])
+                        print >> sys.stderr, "*** Error: Node %s of Job %s is both billable and non-billable" % (node_name, accounting_record.job_id)
+                        jobids_with_billable_and_non_nodes.add(accounting_record.job_id)
                     elif not (billable or nonbillable):
-                        print >> sys.stderr, "*** Error: Node %s of Job %s is neither billable nor non-billable" % (node_name, accounting_record['job_number'])
-                        jobids_with_unknown_billable_nodes.add(accounting_record['job_number'])
+                        print >> sys.stderr, "*** Error: Node %s of Job %s is neither billable nor non-billable" % (node_name, accounting_record.job_id)
+                        jobids_with_unknown_billable_nodes.add(accounting_record.job_id)
 
                     job_nodes_are_billable.append(billable)
                     job_nodes_are_nonbillable.append(nonbillable)
@@ -528,11 +543,11 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
             job_is_unknown_billable = not (job_is_billable or job_is_nonbillable)
 
             # Do we know this job's user?
-            job_user_is_known = accounting_record['owner'] in users_list
+            job_user_is_known = accounting_record.owner in users_list
             # If not, save the username in an unknown-user list.
             if not job_user_is_known:
                 # Save unknown user and job details in unknown user lists.
-                not_in_users_list.add(accounting_record['owner'])
+                not_in_users_list.add(accounting_record.owner)
 
             # If we know the user or the job has a job tag,...
             if job_user_is_known or job_tag is not None:
@@ -552,7 +567,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                     elif job_is_nonbillable:
                         nonbillable_node_job_details.append(job_details + ['Nonbillable Node'])
                     else:
-                        print "  *** Pathological state for job %s billingness. *** " % (accounting_record['job_number'])
+                        print "  *** Pathological state for job %s billingness. *** " % (accounting_record.job_id)
             else:
                 # Save the job details in an unknown-user list.
                 unknown_user_job_details.append(job_details + ['Unknown User'])
@@ -565,10 +580,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                 print "Job date %s is not between %s and %s" % dates_tuple
             else:
                 print "Job date is zero."
-            print ':'.join(accounting_record.values())
-
-    # Close the accounting file.
-    accounting_fp.close()
+            #print ':'.join(accounting_record.values())
 
     #
     # ERROR FLAGGING:
@@ -1148,6 +1160,14 @@ else:
 print
 print "  BillingDetailsFile to be output: %s" % details_wkbk_pathname
 print
+
+# Read in the PI Tag list from the PIs sheet.
+pis_sheet = billing_config_wkbk.sheet_by_name('PIs')
+pi_tag_list = sheet_get_named_column(pis_sheet, 'PI Tag')
+
+# Read in the Job Tags from the Job Tags sheet.
+job_tags_sheet = billing_config_wkbk.sheet_by_name('JobTags')
+job_tag_list = sheet_get_named_column(job_tags_sheet, "Job Tag")
 
 #
 # Compute storage charges.

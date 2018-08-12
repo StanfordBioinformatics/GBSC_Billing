@@ -39,6 +39,8 @@ import time
 import os.path
 import sys
 
+# For SGE and Slurm CSV dialect definitions
+import job_accounting_file
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))

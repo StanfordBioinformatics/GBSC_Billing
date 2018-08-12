@@ -62,6 +62,7 @@ global BILLING_AGGREG_SHEET_COLUMNS
 global BILLING_NOTIFS_PREFIX
 global CONSULTING_HOURS_FREE
 global CONSULTING_TRAVEL_RATE_DISCOUNT
+global ACCOUNT_PREFIXES
 
 #=====
 #
@@ -92,8 +93,8 @@ username_to_user_details = defaultdict(list)
 # Mapping from pi_tags to list of [first_name, last_name, email].
 pi_tag_to_names_email = defaultdict(list)
 
-# Mapping from job_tags to list of [pi_tag, %age].
-job_tag_to_pi_tag_pctages = defaultdict(list)
+# Mapping from accounts to list of [pi_tag, %age].
+account_to_pi_tag_pctages = defaultdict(list)
 
 # Mapping from folders to list of [pi_tag, %age].
 folder_to_pi_tag_pctages = defaultdict(list)
@@ -108,11 +109,11 @@ pi_tag_to_folder_sizes = defaultdict(list)
 # Mapping from pi_tag to list of [username, cpu_core_hrs, %age].
 pi_tag_to_username_cpus = defaultdict(list)
 
-# Mapping from pi_tag to list of [job_tag, cpu_core_hrs, %age].
-pi_tag_to_job_tag_cpus = defaultdict(list)
+# Mapping from pi_tag to list of [account, cpu_core_hrs, %age].
+pi_tag_to_account_cpus = defaultdict(list)
 
-# Mapping from pi_tag to list of [job_tag, list of [username, cpu_core_hrs], %age].
-pi_tag_to_job_tag_username_cpus = defaultdict(list)
+# Mapping from pi_tag to list of [account, list of [username, cpu_core_hrs, %age]].
+pi_tag_to_account_username_cpus = defaultdict(list)
 
 # Mapping from pi_tag to list of [date, username, job_name, account, cpu_core_hrs, jobID, %age].
 pi_tag_to_job_details = defaultdict(list)
@@ -289,7 +290,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     pis_sheet      = wkbk.sheet_by_name("PIs")
     folders_sheet  = wkbk.sheet_by_name("Folders")
     users_sheet    = wkbk.sheet_by_name("Users")
-    job_tags_sheet = wkbk.sheet_by_name("JobTags")
+    accounts_sheet = wkbk.sheet_by_name("Accounts")
 
     begin_month_exceldate = from_timestamp_to_excel_date(begin_month_timestamp)
     end_month_exceldate   = from_timestamp_to_excel_date(end_month_timestamp)
@@ -432,27 +433,29 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
             pi_tag_to_user_details[pi_tag].append([username, date_added, date_removed, pctage])
 
     #
-    # Create mapping from job_tag to list of pi_tags and %ages.
+    # Create mapping from account to list of pi_tags and %ages.
     #
-    global job_tag_to_pi_tag_pctages
+    global account_to_pi_tag_pctages
 
-    job_tags = sheet_get_named_column(job_tags_sheet, "Job Tag")
-    pi_tags  = sheet_get_named_column(job_tags_sheet, "PI Tag")
-    pctages  = sheet_get_named_column(job_tags_sheet, "%age")
+    accounts = sheet_get_named_column(accounts_sheet, "Account")
+    pi_tags  = sheet_get_named_column(accounts_sheet, "PI Tag")
+    pctages  = sheet_get_named_column(accounts_sheet, "%age")
 
-    dates_added   = sheet_get_named_column(job_tags_sheet, "Date Added")
-    dates_removed = sheet_get_named_column(job_tags_sheet, "Date Removed")
+    dates_added   = sheet_get_named_column(accounts_sheet, "Date Added")
+    dates_removed = sheet_get_named_column(accounts_sheet, "Date Removed")
 
-    job_tag_rows = filter_by_dates(zip(job_tags, pi_tags, pctages), zip(dates_added, dates_removed),
+    account_rows = filter_by_dates(zip(accounts, pi_tags, pctages), zip(dates_added, dates_removed),
                                    begin_month_exceldate, end_month_exceldate)
 
-    for (job_tag, pi_tag, pctage) in job_tag_rows:
-        job_tag_to_pi_tag_pctages[job_tag].append([pi_tag, pctage])
+    for (account, pi_tag, pctage) in account_rows:
+        account_to_pi_tag_pctages[account].append([pi_tag, pctage])
 
-    # Add pi_tags and "baas_pi_tag" as job_tags.
+    # Add pi_tags prefixed by ACCOUNT_PREFIXES to list of accounts for PI.
     for pi_tag in pi_tag_list:
-        job_tag_to_pi_tag_pctages[pi_tag].append([pi_tag, 1.0])
-        job_tag_to_pi_tag_pctages["baas_" + pi_tag].append([pi_tag, 1.0])
+        account_to_pi_tag_pctages[pi_tag].append([pi_tag, 1.0])
+
+        for prefix in ACCOUNT_PREFIXES:
+            account_to_pi_tag_pctages["%s_%s" % (prefix,pi_tag)].append([pi_tag, 1.0])
 
     #
     # Create mapping from folder to list of pi_tags and %ages.
@@ -551,12 +554,12 @@ def read_storage_sheet(wkbk):
 
 
 # Reads the Computing sheet of the BillingDetails workbook given, and populates
-# the job_tag_to_pi_tag_cpus, pi_tag_to_job_tag_cpus, pi_tag_to_username_cpus, and
+# the account_to_pi_tag_cpus, pi_tag_to_account_cpus, pi_tag_to_username_cpus, and
 # pi_tag_to_job_details dicts.
 def read_computing_sheet(wkbk):
 
     global pi_tag_to_job_details
-    global pi_tag_to_job_tag_cpus
+    global pi_tag_to_account_cpus
     global pi_tag_to_username_cpus
 
     computing_sheet = wkbk.sheet_by_name("Computing")
@@ -570,58 +573,59 @@ def read_computing_sheet(wkbk):
         cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
 
         # Rename this variable for easier understanding.
-        job_tag = account.lower()
+        account = account.lower()
 
-        if job_tag != '':
-            job_pi_tag_pctage_list = job_tag_to_pi_tag_pctages[job_tag]
+        if account != '':
+            job_pi_tag_pctage_list = account_to_pi_tag_pctages[account]
         else:
-            # No job tag means credit the job to the user's lab.
+            # No account means credit the job to the user's lab.
             job_pi_tag_pctage_list = get_pi_tags_for_username_by_date(job_username, job_timestamp)
 
         if len(job_pi_tag_pctage_list) == 0:
-            print "   *** No PI associated with job ID %d" % jobID
+            print "   *** No PI associated with job ID %d, pi_tag %s, account %s" % (jobID, pi_tag, account)
             continue
 
         # Distribute this job's CPU-hrs amongst pi_tags by %ages.
         for (pi_tag, pctage) in job_pi_tag_pctage_list:
 
-            # This list is [job_tag, list of [username, cpu_core_hrs, %age], %age].
-            job_tag_username_cpu_list = pi_tag_to_job_tag_username_cpus.get(pi_tag)
+            # This list is [account, list of [username, cpu_core_hrs, %age]].
+            account_username_cpu_list = pi_tag_to_account_username_cpus.get(pi_tag)
 
-            # If pi_tag has an existing list of job_tag/username/CPUs:
-            if job_tag_username_cpu_list is not None:
+            # If pi_tag has an existing list of account/username/CPUs:
+            if account_username_cpu_list is not None:
 
-                # Find if job tag for job is in list of job_tag/CPUs for this pi_tag.
-                for (pi_job_tag, pi_username_cpu_list, pi_pctage) in job_tag_username_cpu_list:
+                # Find if account for job is in list of account/CPUs for this pi_tag.
+                for pi_username_cpu_pctage_list in account_username_cpu_list:
 
-                    # If the job tag we are looking at is the one from the present job:
-                    if pi_job_tag == job_tag and pi_pctage == pctage:
+                    (pi_account, pi_username_cpu_pctage_list) = pi_username_cpu_pctage_list
 
-                        # Find job username in list for job tag:
-                        for username_cpu in pi_username_cpu_list:
+                    # If the account we are looking at is the one from the present job:
+                    if pi_account == account:
+
+                        # Find job username in list for account:
+                        for username_cpu in pi_username_cpu_pctage_list:
                             if job_username == username_cpu[0]:
                                 username_cpu[1] += cpu_core_hrs
                                 break
                         else:
-                            pi_username_cpu_list.append([job_username, cpu_core_hrs])
+                            pi_username_cpu_pctage_list.append([job_username, cpu_core_hrs, pctage])
 
-                        # Leave job_tag_username_cpu_list loop.
+                        # Leave account_username_cpu_list loop.
                         break
 
                 else:
-                    # No matching job_tag in pi_tag list -- add a new one to the list.
-                    job_tag_username_cpu_list.append([job_tag, [[job_username, cpu_core_hrs]], pctage])
+                    # No matching account in pi_tag list -- add a new one to the list.
+                    account_username_cpu_list.append([account, [[job_username, cpu_core_hrs, pctage]]])
 
-            # Else start a new job_tag/CPUs list for the pi_tag.
+            # Else start a new account/CPUs list for the pi_tag.
             else:
-                pi_tag_to_job_tag_username_cpus[pi_tag] = [[job_tag, [[job_username, cpu_core_hrs]], pctage]]
+                pi_tag_to_account_username_cpus[pi_tag] = [[account, [[job_username, cpu_core_hrs, pctage]]]]
 
             #
             # Save job details for pi_tag.
             #
             new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
             pi_tag_to_job_details[pi_tag].append(new_job_details)
-
 
 
 # Read the Cloud sheet from the BillingDetails workbook.
@@ -690,7 +694,7 @@ def read_consulting_sheet(wkbk):
 
 
 # Generates the Billing sheet of a BillingNotifications (or BillingAggregate) workbook for a particular pi_tag.
-# It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_job_tag_cpus, and puts
+# It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_account_cpus, and puts
 # summaries of its results in dict pi_tag_to_charges.
 def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month_timestamp):
 
@@ -758,7 +762,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # For "Summary of Charges" and "Breakdown of Charges"
     top_header_fmt = make_format(wkbk, {'font_size': 14, 'bold': True, 'underline': True,
-                                        'align': 'right',
+                                        'align': 'left',
                                         'top': border_style, 'left': border_style})
     # For "Storage", "Computing", "Cloud Services", and "Bioinformatics Consulting" headers
     header_fmt = make_format(wkbk, {'font_size': 12, 'bold': True, 'underline': True,
@@ -802,7 +806,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     item_entry_italics_fmt = make_format(wkbk, {'font_size': 10,
                                                 'align': 'right',
                                                 'left': border_style,
-                                                'italics': True})
+                                                'italic': True})
     # Float entry in a subtable.
     float_entry_fmt = make_format(wkbk, {'font_size': 10,
                                          'align': 'right',
@@ -895,7 +899,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the "Storage" line.
-    sheet.write(curr_row, 1, "Storage", header_fmt)
+    sheet.write(curr_row, 1, "Storage:", header_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the storage headers.
@@ -983,23 +987,26 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the Computing line.
-    sheet.write(curr_row, 1, "Computing", header_fmt)
+    sheet.write(curr_row, 1, "Computing:", header_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
 
-    # Loop over pi_tag_to_job_tag_username_cpus for job tag/username combos.
-    job_tag_username_cpus_list = pi_tag_to_job_tag_username_cpus.get(pi_tag)
+    # Loop over pi_tag_to_account_username_cpus for account/username combos.
+    account_username_cpus_list = pi_tag_to_account_username_cpus.get(pi_tag)
 
-    # The list of "Total Charges" rows for each job tag.
+    # The list of "Total Charges" rows for each account.
     total_computing_charges_row_list = []
 
-    if job_tag_username_cpus_list is not None:
+    total_computing_charges = 0.0
+    total_computing_cpuhrs = 0.0
 
-        for (job_tag, username_cpu_list, pctage) in job_tag_username_cpus_list:
+    if account_username_cpus_list is not None:
+
+        for (account, username_cpu_pctage_list) in account_username_cpus_list:
 
             # Write the account subheader.
-            if job_tag != "":
-                sheet.write(curr_row, 1, "Account: %s" % job_tag, sub_header_fmt)
+            if account != "":
+                sheet.write(curr_row, 1, "Account: %s" % account, sub_header_fmt)
             else:
                 sheet.write(curr_row, 1, "Account: Lab Default", sub_header_fmt)
             sheet.write(curr_row, 4, None, col_header_right_fmt)
@@ -1017,15 +1024,12 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             sheet.write(curr_row, 4, "Charge", col_header_right_fmt)
             curr_row += 1
 
-            total_computing_charges = 0.0
-            total_computing_cpuhrs  = 0.0
-
             # Get the job details for the users associated with this PI.
             starting_computing_row = curr_row
             ending_computing_row   = curr_row
-            if len(username_cpu_list) > 0:
+            if len(username_cpu_pctage_list) > 0:
 
-                for (username, cpu_core_hrs) in username_cpu_list:
+                for (username, cpu_core_hrs, pctage) in username_cpu_pctage_list:
 
                     pi_tags_for_username = get_pi_tags_for_username_by_date(username, begin_month_timestamp)
 
@@ -1047,7 +1051,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
                     # Check if user has accumulated more than $500 in a month.
                     if charge > 500:
-                        print "  *** User %s (%s) for PI %s, Account %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, job_tag, charge)
+                        print "  *** User %s (%s) for PI %s, Account %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, account, charge)
 
                     total_computing_cpuhrs += cpu_core_hrs
 
@@ -1075,12 +1079,12 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
                 curr_row += 1
 
             # Write the Total Charges line header.
-            if job_tag != "":
-                sheet.write(curr_row, 1, "Total charges: %s:" % job_tag, col_header_left_fmt)
+            if account != "":
+                sheet.write(curr_row, 1, "Total charges - %s:" % account, col_header_left_fmt)
             else:
-                sheet.write(curr_row, 1, "Total charges: Lab Default:", col_header_left_fmt)
+                sheet.write(curr_row, 1, "Total charges - Lab Default:", col_header_left_fmt)
 
-            # Write the formula for the CPU-core-hrs subtotal for the job tag.
+            # Write the formula for the CPU-core-hrs subtotal for the account.
             top_cpu_a1_cell = xl_rowcol_to_cell(starting_computing_row, 2)
             bot_cpu_a1_cell = xl_rowcol_to_cell(ending_computing_row, 2)
             sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_cpu_a1_cell, bot_cpu_a1_cell),
@@ -1088,18 +1092,18 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
             sheet.write(curr_row, 3, None, col_header_fmt)
 
-            # Write the formula for the charges subtotal for the job tag.
+            # Write the formula for the charges subtotal for the account.
             top_charge_a1_cell = xl_rowcol_to_cell(starting_computing_row, 4)
             bot_charge_a1_cell = xl_rowcol_to_cell(ending_computing_row, 4)
             sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_charge_a1_cell, bot_charge_a1_cell),
                                 charge_fmt, charge)
 
-            # Save row of this total charges for the job tag for Total Computing charges sum.
+            # Save row of this total charges for the account for Total Computing charges sum.
             total_computing_charges_row_list.append(curr_row)
 
             curr_row += 1
 
-            # Skip row after job tag subtotal.
+            # Skip row after account subtotal.
             sheet.write(curr_row, 1, None, left_border_fmt)
             sheet.write(curr_row, 4, None, right_border_fmt)
             curr_row += 1
@@ -1107,19 +1111,19 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # Write the Total Computing line.
     sheet.write(curr_row, 1, "Total Computing:", bot_header_fmt)
     # sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
-    # sheet.write(curr_row, 4, total_computing_charges, charge_fmt)
+    sheet.write(curr_row, 4, total_computing_charges, charge_fmt)
 
     if len(total_computing_charges_row_list) > 0:
 
         total_cpuhours_cell_list = map(lambda x: xl_rowcol_to_cell(x, 2), total_computing_charges_row_list)
         total_computing_charges_cell_list = map(lambda x: xl_rowcol_to_cell(x, 4), total_computing_charges_row_list)
 
-        # Create formula from job tag total CPU-hours cells.
+        # Create formula from account total CPU-hours cells.
         total_cpuhours_formula = "=" + "+".join(total_cpuhours_cell_list)
 
         sheet.write_formula(curr_row, 2, total_cpuhours_formula, float_entry_fmt)
 
-        # Create formula from job tag total charges cells.
+        # Create formula from account total charges cells.
         total_computing_charges_formula = "=" + "+".join(total_computing_charges_cell_list)
 
         sheet.write_formula(curr_row, 4, total_computing_charges_formula, charge_fmt)
@@ -1151,7 +1155,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the "Cloud Services" line.
-    sheet.write(curr_row, 1, "Cloud Services", header_fmt)
+    sheet.write(curr_row, 1, "Cloud Services:", header_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the cloud services headers.
@@ -1242,7 +1246,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the Bioinformatics Consulting line.
-    sheet.write(curr_row, 1, "Bioinformatics Consulting", header_fmt)
+    sheet.write(curr_row, 1, "Bioinformatics Consulting (BaaS):", header_fmt)
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the consulting headers.
@@ -1369,17 +1373,17 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 1, "Total Charges", bot_header_border_fmt)
     sheet.write(curr_row, 2, None, bottom_border_fmt)
     sheet.write(curr_row, 3, None, bottom_border_fmt)
-    # total_charges = total_storage_charges + total_computing_charges + total_cloud_charges + total_consulting_charges
+    total_charges = total_storage_charges + total_computing_charges + total_cloud_charges + total_consulting_charges
     sheet.write_formula(curr_row, 4, '=%s+%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell, total_cloud_charges_a1_cell, total_consulting_charges_a1_cell),
                         big_bold_charge_fmt)
     curr_row += 1
 
     #
     # Fill in row in pi_tag -> charges hash.
-    #
-    # pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_cloud_charges,
-    #                              total_consulting_charges,
-    #                              total_charges)
+
+    pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_cloud_charges,
+                                 total_consulting_charges,
+                                 total_charges)
 
 
 # Copies the Rates sheet from the Rates sheet in the BillingConfig workbook to
@@ -1537,6 +1541,9 @@ def generate_lab_users_sheet(sheet, pi_tag):
 # Generates the Totals sheet for a BillingAggregate workbook, populating the sheet
 # from the pi_tag_to_charges dict.
 def generate_aggregrate_sheet(sheet):
+
+    # Freeze the first row.
+    sheet.freeze_panes(1, 0)
 
     # Set column widths
     sheet.set_column("A:A", 12)
