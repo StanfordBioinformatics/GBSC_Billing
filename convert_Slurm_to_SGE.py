@@ -115,7 +115,7 @@ def slurm_time_to_seconds(slurm_time_str):
         elapsed_days = int(elapsed_days_split[0])
         elapsed_hms = elapsed_days_split[1]
     else:
-        print >> sys.stderr, "Time string of", slurm_row['Elapsed'], "is malformed."
+        print >> sys.stderr, "Time string of", slurm_time_str, "is malformed."
 
     seconds = (elapsed_days * 86400) + sum(int(x) * 60 ** i for i, x in enumerate(reversed(elapsed_hms.split(":"))))
 
