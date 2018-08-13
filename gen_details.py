@@ -258,7 +258,7 @@ def is_valid_account(acct):
     acct = acct.lower()
 
     # If this is a known account or matches a PI Tag, we are good.
-    if acct in job_tag_list or acct in pi_tag_list:
+    if acct in account_list or acct in pi_tag_list:
         return True
     # Otherwise, does it match
     else:
@@ -339,7 +339,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     global BILLABLE_HOSTNAME_PREFIXES
     global NONBILLABLE_HOSTNAME_PREFIXES
     global IGNORED_ACCOUNTS
-    global job_tag_list
+    global account_list
     global pi_tag_list
 
     print "Computing computing charges..."
@@ -365,7 +365,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     #  and "owner"s in the list of users.
     #
     not_in_users_list = set()
-    not_in_job_tag_list = collections.defaultdict(set)
+    not_in_account_list = collections.defaultdict(set)
     both_proj_and_acct_list = collections.defaultdict(set)
 
     failed_job_details           = []  # Jobs which failed.
@@ -399,83 +399,83 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         job_details.append(accounting_record.job_name)
 
         #
-        # Look for job tags in both account and project fields.
+        # Look for accounts in both account and project fields.
         # If values occur in both, use the project field and record the discrepancy.
         #
-        account = remove_unicode_chars(accounting_record.account)
-        if account == 'sge' or account == '':   # Edit out the default account 'sge'.
-            account = None
+        job_account = remove_unicode_chars(accounting_record.account)
+        if job_account == 'sge' or job_account == '':   # Edit out the default account 'sge'.
+            job_account = None
 
-        project = remove_unicode_chars(accounting_record.project)
-        if project == 'NONE' or project == '':  # Edit out the placeholder project 'NONE'.
-            project = None
+        job_project = remove_unicode_chars(accounting_record.project)
+        if job_project == 'NONE' or job_project == '':  # Edit out the placeholder project 'NONE'.
+            job_project = None
 
         #
-        # Add job tag (project/account) info to job_details.
+        # Add account (project/account) info to job_details.
         #
-        # If project is set and not in the ignored job tag list:
-        if project is not None and project not in IGNORED_ACCOUNTS:
+        # If project is set and not in the ignored account list:
+        if job_project is not None and job_project not in IGNORED_ACCOUNTS:
 
             # Find out if the project name is a known one.
-            project_is_valid_job_tag = is_valid_account(project)
+            job_project_is_valid_account = is_valid_account(job_project)
 
-            if not project_is_valid_job_tag:
-                # If this project/job tag is unknown, save details for later output.
-                not_in_job_tag_list[accounting_record.owner].add(project)
+            if not job_project_is_valid_account:
+                # If this project/account is unknown, save details for later output.
+                not_in_account_list[accounting_record.owner].add(job_project)
         else:
-            project_is_valid_job_tag = False
-            project = None  # we could be ignoring a given job tag
+            job_project_is_valid_account = False
+            job_project = None  # we could be ignoring a given account
 
-        # If account is set and not in the ignored job tag list:
-        if account is not None and account not in IGNORED_ACCOUNTS:
+        # If account is set and not in the ignored account list:
+        if job_account is not None and job_account not in IGNORED_ACCOUNTS:
 
             # Find out if the account name is a known one.
-            account_is_valid_job_tag = is_valid_account(account)
+            job_account_is_valid_account = is_valid_account(job_account)
 
-            if not account_is_valid_job_tag:
-                # If this account/job tag is unknown, save details for later output.
-                not_in_job_tag_list[accounting_record.owner].add(account)
+            if not job_account_is_valid_account:
+                # If this account is unknown, save details for later output.
+                not_in_account_list[accounting_record.owner].add(job_account)
         else:
-            account_is_valid_job_tag = False
-            account = None  # we could be ignoring a given job tag
+            job_account_is_valid_account = False
+            job_account = None  # we could be ignoring a given account
 
         #
-        # Decide which of project and account will be used for job tag.
+        # Decide which of project and account will be used for account.
         #
 
-        # If project is valid, choose project for job tag.
-        if project_is_valid_job_tag:
+        # If project is valid, choose project for account.
+        if job_project_is_valid_account:
 
             # If there's both a project and an account, choose the project and save details for later output.
-            job_tag = project
-            if account is not None:
-                both_proj_and_acct_list[accounting_record.owner].add((project,account))
+            job_account = job_project
+            if job_account is not None:
+                both_proj_and_acct_list[accounting_record.owner].add((job_project,job_account))
 
-        # Else if project is present and account is not valid, choose project for job tag.
+        # Else if project is present and account is not valid, choose project for account.
         # (Non-valid project trumps non-valid account).
-        elif project is not None and not account_is_valid_job_tag:
+        elif job_project is not None and not job_account_is_valid_account:
 
             # If there's both a project and an account, choose the project and save details for later output.
-            job_tag = project
-            if account is not None:
-                both_proj_and_acct_list[accounting_record.owner].add((project,account))
+            job_account = job_project
+            if job_account is not None:
+                both_proj_and_acct_list[accounting_record.owner].add((job_project,job_account))
 
-        # Else if account is present, choose account for job tag.
+        # Else if account is present, choose account for account.
         # (either account is valid and the project is non-valid, or there is no project).
-        elif account is not None:
-            job_tag = account
+        elif job_account is not None:
+            job_account = job_account
 
             # If there's both an account and a project, save the details for later output.
-            if project is not None:
-                both_proj_and_acct_list[accounting_record.owner].add((project,account))
+            if job_project is not None:
+                both_proj_and_acct_list[accounting_record.owner].add((job_project,job_account))
 
-        # else No project and No account = No job tag.
+        # else No project and No account = No account.
         else:
-            job_tag = None
+            job_account = None
 
-        # Add the computed job_tag to the job_details, if any.
-        if job_tag is not None:
-            job_details.append(job_tag)
+        # Add the computed account to the job_details, if any.
+        if job_account is not None:
+            job_details.append(job_account)
         else:
             job_details.append('')
 
@@ -549,8 +549,8 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                 # Save unknown user and job details in unknown user lists.
                 not_in_users_list.add(accounting_record.owner)
 
-            # If we know the user or the job has a job tag,...
-            if job_user_is_known or job_tag is not None:
+            # If we know the user or the job has a account...
+            if job_user_is_known or job_account is not None:
 
                 # If job failed, save in Failed job list.
                 if job_failed:
@@ -592,16 +592,16 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
         for user in not_in_users_list:
             print user,
         print
-    # Print out list of unknown job tags.
-    if len(not_in_job_tag_list.keys()) > 0:
-        print "  *** Jobs with unknown job tags:"
-        for user in sorted(not_in_job_tag_list.keys()):
+    # Print out list of unknown accounts.
+    if len(not_in_account_list.keys()) > 0:
+        print "  *** Jobs with unknown accounts:"
+        for user in sorted(not_in_account_list.keys()):
             print '   ', user
-            for job_tag in sorted(not_in_job_tag_list[user]):
-                print '     ', job_tag
-    # Print out list of jobs with both project and account job tags.
+            for job_account in sorted(not_in_account_list[user]):
+                print '     ', job_account
+    # Print out list of jobs with both project and account accounts.
     if len(both_proj_and_acct_list.keys()) > 0:
-        print "  *** Jobs with both project and account job tags:"
+        print "  *** Jobs with both project and account accounts:"
         for user in sorted(both_proj_and_acct_list.keys()):
             print '   ', user
             for (proj, acct) in both_proj_and_acct_list[user]:
@@ -1165,9 +1165,9 @@ print
 pis_sheet = billing_config_wkbk.sheet_by_name('PIs')
 pi_tag_list = sheet_get_named_column(pis_sheet, 'PI Tag')
 
-# Read in the Job Tags from the Job Tags sheet.
-job_tags_sheet = billing_config_wkbk.sheet_by_name('JobTags')
-job_tag_list = sheet_get_named_column(job_tags_sheet, "Job Tag")
+# Read in the accounts from the accounts sheet.
+accounts_sheet = billing_config_wkbk.sheet_by_name('Accounts')
+account_list = sheet_get_named_column(accounts_sheet, 'Accounts')
 
 #
 # Compute storage charges.
