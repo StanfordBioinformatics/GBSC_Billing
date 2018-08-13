@@ -60,6 +60,7 @@ global GOOGLE_INVOICE_PREFIX
 global ILAB_EXPORT_PREFIX
 global CONSULTING_HOURS_FREE
 global CONSULTING_TRAVEL_RATE_DISCOUNT
+global ACCOUNT_PREFIXES
 
 # Default headers for the ilab Export CSV file (if not read in from iLab template file).
 DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
@@ -105,11 +106,15 @@ pi_tag_to_names_email = defaultdict(list)
 # Mapping from pi_tags to iLab service request IDs (1-to-1 mapping).
 pi_tag_to_ilab_service_req_id = dict()
 
-# Mapping from job_tags to list of [pi_tag, %age].
-job_tag_to_pi_tag_pctages = defaultdict(list)
+# Mapping from accounts to list of [pi_tag, %age].
+account_to_pi_tag_pctages = defaultdict(list)
 
 # Mapping from folders to list of [pi_tag, %age].
 folder_to_pi_tag_pctages = defaultdict(list)
+
+#
+# These globals are data structures used to write the BillingNotification workbooks.
+#
 
 # Mapping from pi_tag to list of [folder, size, %age].
 pi_tag_to_folder_sizes = defaultdict(list)
@@ -117,11 +122,11 @@ pi_tag_to_folder_sizes = defaultdict(list)
 # Mapping from pi_tag to list of [username, cpu_core_hrs, %age].
 pi_tag_to_username_cpus = defaultdict(list)
 
-# Mapping from pi_tag to list of [job_tag, cpu_core_hrs, %age].
-pi_tag_to_job_tag_cpus = defaultdict(list)
+# Mapping from pi_tag to list of [account, cpu_core_hrs, %age].
+pi_tag_to_account_cpus = defaultdict(list)
 
 # Mapping from pi_tag to list of [date, username, job_name, account, cpu_core_hrs, jobID, %age].
-pi_tag_to_sge_job_details = defaultdict(list)
+pi_tag_to_job_details = defaultdict(list)
 
 # Mapping from pi_tag to list of [username, date_added, date_removed, %age].
 pi_tag_to_user_details = defaultdict(list)
@@ -228,7 +233,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     pis_sheet      = wkbk.sheet_by_name("PIs")
     folders_sheet  = wkbk.sheet_by_name("Folders")
     users_sheet    = wkbk.sheet_by_name("Users")
-    job_tags_sheet = wkbk.sheet_by_name("JobTags")
+    accounts_sheet = wkbk.sheet_by_name("Accounts")
 
     begin_month_exceldate = from_timestamp_to_excel_date(begin_month_timestamp)
     end_month_exceldate   = from_timestamp_to_excel_date(end_month_timestamp)
@@ -382,22 +387,29 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
             pi_tag_to_user_details[pi_tag].append([username, date_added, date_removed, pctage])
 
     #
-    # Create mapping from job_tag to list of pi_tags and %ages.
+    # Create mapping from account to list of pi_tags and %ages.
     #
-    global job_tag_to_pi_tag_pctages
+    global account_to_pi_tag_pctages
 
-    job_tags = sheet_get_named_column(job_tags_sheet, "Job Tag")
-    pi_tags  = sheet_get_named_column(job_tags_sheet, "PI Tag")
-    pctages  = sheet_get_named_column(job_tags_sheet, "%age")
+    accounts = sheet_get_named_column(accounts_sheet, "Account")
+    pi_tags  = sheet_get_named_column(accounts_sheet, "PI Tag")
+    pctages  = sheet_get_named_column(accounts_sheet, "%age")
 
-    dates_added   = sheet_get_named_column(job_tags_sheet, "Date Added")
-    dates_removed = sheet_get_named_column(job_tags_sheet, "Date Removed")
+    dates_added   = sheet_get_named_column(accounts_sheet, "Date Added")
+    dates_removed = sheet_get_named_column(accounts_sheet, "Date Removed")
 
-    job_tag_rows = filter_by_dates(zip(job_tags, pi_tags, pctages), zip(dates_added, dates_removed),
+    account_rows = filter_by_dates(zip(accounts, pi_tags, pctages), zip(dates_added, dates_removed),
                                    begin_month_exceldate, end_month_exceldate)
 
-    for (job_tag, pi_tag, pctage) in job_tag_rows:
-        job_tag_to_pi_tag_pctages[job_tag].append([pi_tag, pctage])
+    for (account, pi_tag, pctage) in account_rows:
+        account_to_pi_tag_pctages[account].append([pi_tag, pctage])
+
+    # Add pi_tags prefixed by ACCOUNT_PREFIXES to list of accounts for PI.
+    for pi_tag in pi_tag_list:
+        account_to_pi_tag_pctages[pi_tag].append([pi_tag, 1.0])
+
+        for prefix in ACCOUNT_PREFIXES:
+            account_to_pi_tag_pctages["%s_%s" % (prefix,pi_tag)].append([pi_tag, 1.0])
 
     #
     # Create mapping from folder to list of pi_tags and %ages.
@@ -411,7 +423,6 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
 
     dates_added   = sheet_get_named_column(pis_sheet, "Date Added")
     dates_removed = sheet_get_named_column(pis_sheet, "Date Removed")
-
 
     # Add the Folders from Folder sheet
     folders += sheet_get_named_column(folders_sheet, "Folder")
@@ -435,9 +446,11 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
 
 # Reads the Storage sheet of the BillingDetails workbook given, and populates
 # the pi_tag_to_folder_sizes dict with the folder measurements for each PI.
-def read_storage_sheet(storage_sheet):
+def read_storage_sheet(wkbk):
 
     global pi_tag_to_folder_sizes
+
+    storage_sheet = wkbk.sheet_by_name("Storage")
 
     for row in range(1,storage_sheet.nrows):
 
@@ -451,13 +464,15 @@ def read_storage_sheet(storage_sheet):
 
 
 # Reads the Computing sheet of the BillingDetails workbook given, and populates
-# the job_tag_to_pi_tag_cpus, pi_tag_to_job_tag_cpus, pi_tag_to_username_cpus, and
-# pi_tag_to_sge_job_details dicts.
-def read_computing_sheet(computing_sheet):
+# the account_to_pi_tag_cpus, pi_tag_to_account_cpus, pi_tag_to_username_cpus, and
+# pi_tag_to_job_details dicts.
+def read_computing_sheet(wkbk):
 
-    global pi_tag_to_sge_job_details
-    global pi_tag_to_job_tag_cpus
+    global pi_tag_to_job_details
+    global pi_tag_to_account_cpus
     global pi_tag_to_username_cpus
+
+    computing_sheet = wkbk.sheet_by_name("Computing")
 
     for row in range(1,computing_sheet.nrows):
 
@@ -468,19 +483,19 @@ def read_computing_sheet(computing_sheet):
         cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
 
         # Rename this variable for easier understanding.
-        job_tag = account.lower()
+        account = account.lower()
 
-        # If there is a job_tag in the account field and the job tag is known, credit the job_tag with the job CPU time.
+        # If there is a account in the account field and the job tag is known, credit the account with the job CPU time.
         # Else, credit the user with the job.
-        if (job_tag != '' and
-            (job_tag_to_pi_tag_pctages.get(job_tag) is not None or job_tag.lower() in pi_tag_list)):
+        if (account != '' and
+            (account_to_pi_tag_pctages.get(account) is not None or account.lower() in pi_tag_list)):
 
-            # All PIs have a default job_tag that can be applied to jobs to be billed to them.
-            if job_tag.lower() in pi_tag_list:
-                job_tag = job_tag.lower()
-                job_pi_tag_pctage_list = [[job_tag, 1.0]]
+            # All PIs have a default account that can be applied to jobs to be billed to them.
+            if account.lower() in pi_tag_list:
+                account = account.lower()
+                job_pi_tag_pctage_list = [[account, 1.0]]
             else:
-                job_pi_tag_pctage_list = job_tag_to_pi_tag_pctages[job_tag]
+                job_pi_tag_pctage_list = account_to_pi_tag_pctages[account]
 
             # If no pi_tag is associated with this job tag, speak up.
             if len(job_pi_tag_pctage_list) == 0:
@@ -489,33 +504,33 @@ def read_computing_sheet(computing_sheet):
             # Distribute this job's CPU-hrs amongst pi_tags by %ages.
             for (pi_tag, pctage) in job_pi_tag_pctage_list:
 
-                 # This list is (job_tag, cpu_core_hrs, %age).
-                 job_tag_cpu_list = pi_tag_to_job_tag_cpus.get(pi_tag)
+                 # This list is (account, cpu_core_hrs, %age).
+                 account_cpu_list = pi_tag_to_account_cpus.get(pi_tag)
 
-                 # If pi_tag has an existing list of job_tag/CPUs:
-                 if job_tag_cpu_list is not None:
+                 # If pi_tag has an existing list of account/CPUs:
+                 if account_cpu_list is not None:
 
-                     # Find if job_tag is in list of job_tag/CPUs for this pi_tag.
-                     for job_tag_cpu in job_tag_cpu_list:
-                         pi_job_tag = job_tag_cpu[0]
+                     # Find if account is in list of account/CPUs for this pi_tag.
+                     for account_cpu in account_cpu_list:
+                         pi_account = account_cpu[0]
 
-                         # Increment the job_tag's CPUs.
-                         if pi_job_tag == job_tag:
-                             job_tag_cpu[1] += cpu_core_hrs
+                         # Increment the account's CPUs.
+                         if pi_account == account:
+                             account_cpu[1] += cpu_core_hrs
                              break
                      else:
-                         # No matching job_tag in pi_tag list -- add a new one to the list.
-                         job_tag_cpu_list.append([job_tag, cpu_core_hrs, pctage])
+                         # No matching account in pi_tag list -- add a new one to the list.
+                         account_cpu_list.append([account, cpu_core_hrs, pctage])
 
-                 # Else start a new job_tag/CPUs list for the pi_tag.
+                 # Else start a new account/CPUs list for the pi_tag.
                  else:
-                     pi_tag_to_job_tag_cpus[pi_tag] = [[job_tag, cpu_core_hrs, pctage]]
+                     pi_tag_to_account_cpus[pi_tag] = [[account, cpu_core_hrs, pctage]]
 
                  #
                  # Save job details for pi_tag.
                  #
                  new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
-                 pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
+                 pi_tag_to_job_details[pi_tag].append(new_job_details)
 
         # Else credit a user with the job CPU time.
         else:
@@ -559,7 +574,7 @@ def read_computing_sheet(computing_sheet):
                 # Save job details for pi_tag.
                 #
                 new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
-                pi_tag_to_sge_job_details[pi_tag].append(new_job_details)
+                pi_tag_to_job_details[pi_tag].append(new_job_details)
 
 
 # Read the Cloud sheet from the BillingDetails workbook.
@@ -570,7 +585,7 @@ def read_cloud_sheet(cloud_sheet):
         (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
         # If project is of the form "<project name>(<project-id>)" or "<project name>[<project-id>]", get the "<project-id>".
-        project_re = re.search("[(\[]([a-z-:.]+)[\])]", project)
+        project_re = re.search("[(\[]([a-z0-9-:.]+)[\])]", project)
         if project_re is not None:
             project = project_re.group(1)
         else:
@@ -813,7 +828,7 @@ def process_consulting_data():
 #
 # Generates the iLab Cluster CSV entries for a particular pi_tag.
 #
-# It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_job_tag_cpus.
+# It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_account_cpus.
 #
 def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
                                      storage_service_id, computing_service_id,
@@ -892,12 +907,12 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
         pass
 
     # Get the job details for the job tags associated with this PI.
-    if len(pi_tag_to_job_tag_cpus[pi_tag]) > 0:
+    if len(pi_tag_to_account_cpus[pi_tag]) > 0:
 
-        for (job_tag, cpu_core_hrs, pctage) in pi_tag_to_job_tag_cpus[pi_tag]:
+        for (account, cpu_core_hrs, pctage) in pi_tag_to_account_cpus[pi_tag]:
 
             # Note format: Job Tag <job-tag>) [<pct>%, if not 0%]
-            note = "Job Tag %s" % (job_tag)
+            note = "Account %s" % (account)
 
             if pctage < 1.0:
                 note += " [%d%%]" % (pctage * 100)
