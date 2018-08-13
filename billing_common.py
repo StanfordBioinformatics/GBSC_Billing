@@ -134,7 +134,7 @@ IGNORED_ACCOUNTS = ['large_mem', 'default', 'interactive']
 EARLIEST_VALID_DATE_EXCELDATE = 41517.0
 
 # Commands for determining folder quotas and usages.
-QUOTA_EXECUTABLE_GPFS = ['/usr/lpp/mmfs/bin/mmlsquota', '-j']
+QUOTA_EXECUTABLE_GPFS = ['ssh', 'root@scg-gs0', '/usr/lpp/mmfs/bin/mmlsquota', '-j']
 QUOTA_EXECUTABLE_ISILON = ['df']
 USAGE_EXECUTABLE = ['du', '-s']
 STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in all above commands.
