@@ -254,6 +254,9 @@ def get_google_invoice_csv_subtable_lines(csvfile_obj):
 #
 def is_valid_account(acct):
 
+    global account_list
+    global pi_tag_list
+
     # Let's go case insensitive.
     acct = acct.lower()
 
@@ -1167,7 +1170,7 @@ pi_tag_list = sheet_get_named_column(pis_sheet, 'PI Tag')
 
 # Read in the accounts from the accounts sheet.
 accounts_sheet = billing_config_wkbk.sheet_by_name('Accounts')
-account_list = sheet_get_named_column(accounts_sheet, 'Accounts')
+account_list = sheet_get_named_column(accounts_sheet, 'Account')
 
 #
 # Compute storage charges.
