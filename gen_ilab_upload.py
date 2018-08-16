@@ -119,11 +119,8 @@ folder_to_pi_tag_pctages = defaultdict(list)
 # Mapping from pi_tag to list of [folder, size, %age].
 pi_tag_to_folder_sizes = defaultdict(list)
 
-# Mapping from pi_tag to list of [username, cpu_core_hrs, %age].
-pi_tag_to_username_cpus = defaultdict(list)
-
-# Mapping from pi_tag to list of [account, cpu_core_hrs, %age].
-pi_tag_to_account_cpus = defaultdict(list)
+# Mapping from pi_tag to list of [account, list of [username, cpu_core_hrs, %age]].
+pi_tag_to_account_username_cpus = defaultdict(list)
 
 # Mapping from pi_tag to list of [date, username, job_name, account, cpu_core_hrs, jobID, %age].
 pi_tag_to_job_details = defaultdict(list)
@@ -263,7 +260,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     #
     global pi_tag_to_ilab_service_req_id
 
-    pi_ilab_ids = sheet_get_named_column(pis_sheet,"iLab Service Request ID")
+    pi_ilab_ids = sheet_get_named_column(pis_sheet, "iLab Service Request ID")
 
     pi_tag_to_ilab_service_req_id = dict(zip(pi_tag_list, pi_ilab_ids))
 
@@ -464,17 +461,14 @@ def read_storage_sheet(wkbk):
 
 
 # Reads the Computing sheet of the BillingDetails workbook given, and populates
-# the account_to_pi_tag_cpus, pi_tag_to_account_cpus, pi_tag_to_username_cpus, and
-# pi_tag_to_job_details dicts.
+# the account_to_pi_tag_cpus, pi_tag_to_account_username_cpus, and pi_tag_to_job_details dicts.
 def read_computing_sheet(wkbk):
 
     global pi_tag_to_job_details
-    global pi_tag_to_account_cpus
-    global pi_tag_to_username_cpus
 
     computing_sheet = wkbk.sheet_by_name("Computing")
 
-    for row in range(1,computing_sheet.nrows):
+    for row in range(1, computing_sheet.nrows):
 
         (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
             computing_sheet.row_values(row)
@@ -485,100 +479,63 @@ def read_computing_sheet(wkbk):
         # Rename this variable for easier understanding.
         account = account.lower()
 
-        # If there is a account in the account field and the job tag is known, credit the account with the job CPU time.
-        # Else, credit the user with the job.
-        if (account != '' and
-            (account_to_pi_tag_pctages.get(account) is not None or account.lower() in pi_tag_list)):
-
-            # All PIs have a default account that can be applied to jobs to be billed to them.
-            if account.lower() in pi_tag_list:
-                account = account.lower()
-                job_pi_tag_pctage_list = [[account, 1.0]]
-            else:
-                job_pi_tag_pctage_list = account_to_pi_tag_pctages[account]
-
-            # If no pi_tag is associated with this job tag, speak up.
-            if len(job_pi_tag_pctage_list) == 0:
-                print "   No PI associated with job ID %s" % jobID
-
-            # Distribute this job's CPU-hrs amongst pi_tags by %ages.
-            for (pi_tag, pctage) in job_pi_tag_pctage_list:
-
-                 # This list is (account, cpu_core_hrs, %age).
-                 account_cpu_list = pi_tag_to_account_cpus.get(pi_tag)
-
-                 # If pi_tag has an existing list of account/CPUs:
-                 if account_cpu_list is not None:
-
-                     # Find if account is in list of account/CPUs for this pi_tag.
-                     for account_cpu in account_cpu_list:
-                         pi_account = account_cpu[0]
-
-                         # Increment the account's CPUs.
-                         if pi_account == account:
-                             account_cpu[1] += cpu_core_hrs
-                             break
-                     else:
-                         # No matching account in pi_tag list -- add a new one to the list.
-                         account_cpu_list.append([account, cpu_core_hrs, pctage])
-
-                 # Else start a new account/CPUs list for the pi_tag.
-                 else:
-                     pi_tag_to_account_cpus[pi_tag] = [[account, cpu_core_hrs, pctage]]
-
-                 #
-                 # Save job details for pi_tag.
-                 #
-                 new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
-                 pi_tag_to_job_details[pi_tag].append(new_job_details)
-
-        # Else credit a user with the job CPU time.
+        if account != '':
+            job_pi_tag_pctage_list = account_to_pi_tag_pctages[account]
         else:
-            pi_tag_pctages = get_pi_tags_for_username_by_date(job_username, job_timestamp)
+            # No account means credit the job to the user's lab.
+            job_pi_tag_pctage_list = get_pi_tags_for_username_by_date(job_username, job_timestamp)
 
-            if len(pi_tag_pctages) == 0:
-                print "   No PI associated with user %s" % job_username
+        if len(job_pi_tag_pctage_list) == 0:
+            print "   *** No PI associated with job ID %d, pi_tag %s, account %s" % (jobID, pi_tag, account)
+            continue
 
-            for (pi_tag, pctage) in pi_tag_pctages:
+        # Distribute this job's CPU-hrs amongst pi_tags by %ages.
+        for (pi_tag, pctage) in job_pi_tag_pctage_list:
 
-                # if pctage == 0.0: continue
+            # This list is [account, list of [username, cpu_core_hrs, %age]].
+            account_username_cpu_list = pi_tag_to_account_username_cpus.get(pi_tag)
 
-                #
-                # Increment this user's CPU-core-hrs.
-                #
+            # If pi_tag has an existing list of account/username/CPUs:
+            if account_username_cpu_list is not None:
 
-                # This list is (username, cpu_core_hrs, %age).
-                username_cpu_list = pi_tag_to_username_cpus.get(pi_tag)
+                # Find if account for job is in list of account/CPUs for this pi_tag.
+                for pi_username_cpu_pctage_list in account_username_cpu_list:
 
-                # If pi_tag has an existing list of user/CPUs:
-                if username_cpu_list is not None:
+                    (pi_account, pi_username_cpu_pctage_list) = pi_username_cpu_pctage_list
 
-                    # Find if job_username is in list of user/CPUs for this pi_tag.
-                    for username_cpu in username_cpu_list:
-                        username = username_cpu[0]
-                        user_pctage = username_cpu[2]
+                    # If the account we are looking at is the one from the present job:
+                    if pi_account == account:
 
-                        # Increment the user's CPUs if they already exist in the list.
-                        if username == job_username and user_pctage == pctage:
-                            username_cpu[1] += cpu_core_hrs
-                            break
-                    else:
-                        # No matching user in pi_tag list -- add a new one to the list.
-                        username_cpu_list.append([job_username, cpu_core_hrs, pctage])
+                        # Find job username in list for account:
+                        for username_cpu in pi_username_cpu_pctage_list:
+                            if job_username == username_cpu[0]:
+                                username_cpu[1] += cpu_core_hrs
+                                break
+                        else:
+                            pi_username_cpu_pctage_list.append([job_username, cpu_core_hrs, pctage])
 
-                # Else start a new user/CPUs list for the pi_tag.
+                        # Leave account_username_cpu_list loop.
+                        break
+
                 else:
-                    pi_tag_to_username_cpus[pi_tag] = [[job_username, cpu_core_hrs, pctage]]
+                    # No matching account in pi_tag list -- add a new one to the list.
+                    account_username_cpu_list.append([account, [[job_username, cpu_core_hrs, pctage]]])
 
-                #
-                # Save job details for pi_tag.
-                #
-                new_job_details = [job_date, job_username, job_name, account, cpu_core_hrs, jobID, pctage]
-                pi_tag_to_job_details[pi_tag].append(new_job_details)
+            # Else start a new account/CPUs list for the pi_tag.
+            else:
+                pi_tag_to_account_username_cpus[pi_tag] = [[account, [[job_username, cpu_core_hrs, pctage]]]]
+
+            #
+            # Save job details for pi_tag.
+            #
+            new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
+            pi_tag_to_job_details[pi_tag].append(new_job_details)
 
 
 # Read the Cloud sheet from the BillingDetails workbook.
-def read_cloud_sheet(cloud_sheet):
+def read_cloud_sheet(wkbk):
+
+    cloud_sheet = wkbk.sheet_by_name("Cloud")
 
     for row in range(1,cloud_sheet.nrows):
 
@@ -674,7 +631,9 @@ def read_google_invoice(google_invoice_csv_file):
 #
 # It fills in the dict consulting_details.
 #
-def read_consulting_sheet(consulting_sheet):
+def read_consulting_sheet(wkbk):
+
+    consulting_sheet = wkbk.sheet_by_name("Consulting")
 
     for row in range(1, consulting_sheet.nrows):
 
@@ -683,6 +642,7 @@ def read_consulting_sheet(consulting_sheet):
         # Save the consulting item in a list of charges for that PI.
         consulting_details[pi_tag].append((date, summary, float(hours), float(travel_hours), float(cumul_hours)))
 
+
 #
 # Digest cluster data and output Cluster iLab file.
 #
@@ -690,28 +650,22 @@ def process_cluster_data():
 
     # Read in its Storage sheet.
     print "Reading storage sheet."
-    storage_sheet = billing_details_wkbk.sheet_by_name("Storage")
-    read_storage_sheet(storage_sheet)
+    read_storage_sheet(billing_details_wkbk)
 
     # Read in its Computing sheet.
     print "Reading computing sheet."
-    computing_sheet = billing_details_wkbk.sheet_by_name("Computing")
-    read_computing_sheet(computing_sheet)
+    read_computing_sheet(billing_details_wkbk)
+
+
+def open_ilab_output_dictwriter(suffix):
 
     ###
     #
-    # Write iLab export CSV file from output data structures.
-    #
-    ###
-    print "Writing out BillingDetails lines for Cluster into iLab export CSV file."
-
-    ###
-    #
-    # Open the iLab CSV file for writing out.
+    # Open an iLab CSV file for writing out.
     #
     ###
 
-    ilab_export_csv_filename = "%s-Cluster.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
+    ilab_export_csv_filename = "%s-%s.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, suffix, year, month)
     ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
 
     ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
@@ -720,16 +674,7 @@ def process_cluster_data():
 
     ilab_export_csv_dictwriter.writeheader()
 
-    # Write out cluster data to iLab export CSV file.
-    for pi_tag in sorted(pi_tag_list):
-        print " %s" % pi_tag
-
-        _ = output_ilab_csv_data_for_cluster(ilab_export_csv_dictwriter, pi_tag,
-                                             ilab_service_id_local_storage, ilab_service_id_local_computing,
-                                             begin_month_timestamp, end_month_timestamp)
-
-    # Close the iLab export CSV file.
-    ilab_export_csv_file.close()
+    return ilab_export_csv_dictwriter
 
 #
 # Digest cloud data and output Cloud iLab file.
@@ -749,44 +694,13 @@ def process_cloud_data():
     elif "Cloud" in billing_details_wkbk.sheet_names():
 
         print "Reading cloud sheet."
-        cloud_sheet = billing_details_wkbk.sheet_by_name("Cloud")
-        read_cloud_sheet(cloud_sheet)
+
+        read_cloud_sheet(billing_details_wkbk)
 
     else:
         print "No Cloud sheet in BillingDetails nor Google Invoice file...skipping"
         return
 
-    # Open the iLab CSV file for writing out.
-    ilab_export_csv_filename = "%s-Cloud.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
-    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
-
-    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
-
-    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
-
-    ilab_export_csv_dictwriter.writeheader()
-
-    if not args.break_out_cloud:
-        print "Writing out Cloud transactions by project into iLab export CSV file."
-
-        for pi_tag in pi_tag_list:
-            print " %s" % pi_tag
-
-            ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag,
-                                                     ilab_service_id_google_passthrough,
-                                                     begin_month_timestamp, end_month_timestamp)
-
-    else:
-        print "Writing out Cloud details into iLab export CSV file."
-
-        for pi_tag in pi_tag_list:
-            print " %s" % pi_tag
-
-            ret_val = output_ilab_csv_data_for_cloud(ilab_export_csv_dictwriter, pi_tag, ilab_service_id_google_passthrough,
-                                                     begin_month_timestamp, end_month_timestamp)
-
-    # Close the iLab export CSV file.
-    ilab_export_csv_file.close()
 
 #
 # Digest Consulting data and output Consulting iLab file.
@@ -796,33 +710,10 @@ def process_consulting_data():
     # Read in its Consulting sheet.
     if "Consulting" in billing_details_wkbk.sheet_names():
         print "Reading consulting sheet."
-        consulting_sheet = billing_details_wkbk.sheet_by_name("Consulting")
-        read_consulting_sheet(consulting_sheet)
+        read_consulting_sheet(billing_details_wkbk)
     else:
         print "No consulting sheet in BillingDetails: skipping"
         return
-
-    print "Writing out Consulting details into iLab export CSV file."
-
-    # Open the iLab CSV file for writing out.
-    ilab_export_csv_filename = "%s-Consulting.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, year, month)
-    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
-
-    ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
-
-    ilab_export_csv_dictwriter = csv.DictWriter(ilab_export_csv_file, fieldnames=ilab_csv_headers)
-
-    ilab_export_csv_dictwriter.writeheader()
-
-    for pi_tag in pi_tag_list:
-        print " %s" % pi_tag
-
-        _ = output_ilab_csv_data_for_consulting(ilab_export_csv_dictwriter, pi_tag,
-                                                ilab_service_id_consulting_free, ilab_service_id_consulting_paid,
-                                                begin_month_timestamp, end_month_timestamp)
-
-    # Close the iLab export CSV file.
-    ilab_export_csv_file.close()
 
 
 #
@@ -833,14 +724,6 @@ def process_consulting_data():
 def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
                                      storage_service_id, computing_service_id,
                                      begin_month_timestamp, end_month_timestamp):
-
-    # If this PI doesn't have a service request ID, skip them and announce that.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
-        print "  Skipping cluster for %s: no iLab service request ID" % (pi_tag)
-        return False
-    # If the PI explicitly is marked as not having a service request, skip them silently.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
-        return False
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1)  # Last date of billing period.
 
@@ -880,53 +763,34 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
     #
     # Get the Service ID for "Local Cluster Computing".
     #
-    total_computing_cpuhrs  = 0.0
 
-    # Get the job details for the users associated with this PI.
-    if len(pi_tag_to_username_cpus[pi_tag]) > 0:
+    # Loop over pi_tag_to_account_username_cpus for account/username combos.
+    account_username_cpus_list = pi_tag_to_account_username_cpus.get(pi_tag)
 
-        for (username, cpu_core_hrs, pctage) in pi_tag_to_username_cpus[pi_tag]:
+    if account_username_cpus_list is not None:
 
-            fullname = username_to_user_details[username][1]
+        for (account, username_cpu_pctage_list) in account_username_cpus_list:
 
-            # Note format: <user-name> (<user-ID>) [<pct>%, if not 0%]
-            note = "User %s (%s)" % (fullname, username)
+            if len(username_cpu_pctage_list) > 0:
 
-            if 0.0 < pctage < 1.0:
-                note += " [%d%%]" % (pctage * 100)
+                for (username, cpu_core_hrs, pctage) in username_cpu_pctage_list:
 
-            quantity = cpu_core_hrs * pctage
+                    fullname = username_to_user_details[username][1]
 
-            if quantity > 0.0:
-                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, computing_service_id, note, quantity)
+                    # Note format: <user-name> (<user-ID>) [<pct>%, if not 0%]
+                    note = "Account: %s - User: %s (%s)" % (account, fullname, username)
 
-                total_computing_cpuhrs += cpu_core_hrs
+                    if 0.0 < pctage < 1.0:
+                        note += " [%d%%]" % (pctage * 100)
 
-    else:
-        # No users for this PI.
-        pass
+                    quantity = cpu_core_hrs * pctage
 
-    # Get the job details for the job tags associated with this PI.
-    if len(pi_tag_to_account_cpus[pi_tag]) > 0:
+                    if quantity > 0.0:
+                        output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, computing_service_id, note, quantity)
 
-        for (account, cpu_core_hrs, pctage) in pi_tag_to_account_cpus[pi_tag]:
-
-            # Note format: Job Tag <job-tag>) [<pct>%, if not 0%]
-            note = "Account %s" % (account)
-
-            if pctage < 1.0:
-                note += " [%d%%]" % (pctage * 100)
-
-            quantity = cpu_core_hrs * pctage
-
-            if quantity > 0.0:
-                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, computing_service_id, note, quantity)
-
-                total_computing_cpuhrs += cpu_core_hrs
-
-    else:
-        # No job tags for this PI.
-        pass
+            else:
+                # No users for this PI.
+                pass
 
     return True
 
@@ -937,14 +801,6 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
 #
 def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                                    begin_month_timestamp, end_month_timestamp):
-
-    # If this PI doesn't have a service request ID, skip them.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
-        print "  Skipping cloud for %s: no iLab service request ID" % (pi_tag)
-        return False
-    # If the PI explicitly is marked as not having a service request, skip them silently.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
-        return False
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
 
@@ -977,7 +833,7 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
 
                 # Create a note for the rolled-up transactions.
                 if project_name != '':
-                    note = "Google :: Charges for Project '%s' " % (project_name)
+                    note = "Google :: Charges for Project '%s' (%s)" % (project_name, project_id)
                 else:
                     note = "Google :: Misc charges/credits for %s " % (pi_last_name)
 
@@ -998,7 +854,7 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                         quantity_str = ''
 
                     if project_name != '':
-                        proj_str = project_name
+                        proj_str = "%s (%s)" % (project_name, project_id)
                     else:
                         proj_str = 'Misc charges/credits for %s' % pi_last_name
 
@@ -1019,14 +875,6 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
 def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
                                         consulting_free_service_id, consulting_paid_service_id,
                                         begin_month_timestamp, end_month_timestamp):
-
-    # If this PI doesn't have a service request ID, skip them.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
-        print "  Skipping consulting for %s: no iLab service request ID" % (pi_tag)
-        return False
-    # If the PI explicitly is marked as not having a service request, skip them silently.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
-        return False
 
     for (date, summary, hours, travel_hours, cumul_hours) in consulting_details[pi_tag]:
 
@@ -1062,6 +910,8 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
             if paid_hours_used > 0:
                 output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, consulting_paid_service_id,
                                          summary, paid_hours_used)
+
+    return True
 
 
 def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_id, note, amount):
@@ -1357,6 +1207,9 @@ else:
 ####
 if billing_details_file is not None and not args.skip_cluster:
     process_cluster_data()
+    ilab_cluster_export_csv_dictwriter = open_ilab_output_dictwriter("Cluster")
+else:
+    ilab_cluster_export_csv_dictwriter = None
 
 ###
 #
@@ -1366,6 +1219,9 @@ if billing_details_file is not None and not args.skip_cluster:
 ###
 if billing_details_file is not None and not args.skip_cloud:
     process_cloud_data()
+    ilab_cloud_export_csv_dictwriter = open_ilab_output_dictwriter("Cloud")
+else:
+    ilab_cloud_export_csv_dictwriter = None
 
 
 #####
@@ -1375,3 +1231,67 @@ if billing_details_file is not None and not args.skip_cloud:
 ####
 if not args.skip_consulting:
     process_consulting_data()
+    ilab_consulting_export_csv_dictwriter = open_ilab_output_dictwriter("Consulting")
+else:
+    ilab_consulting_export_csv_dictwriter = None
+
+
+# Write out cluster data to iLab export CSV file.
+for pi_tag in sorted(pi_tag_list):
+
+    print " %s:" % pi_tag,
+
+    # Get the iLab service request ID for this PI.
+    ilab_service_req = str(pi_tag_to_ilab_service_req_id[pi_tag])
+
+    # If this PI doesn't have a service request ID, announce that loudly and skip them.
+    if ilab_service_req == '':
+        print "** no iLab service request ID **"
+        continue
+    # If the PI explicitly is marked as not having a service request, skip them quietly.
+    elif ilab_service_req.lower() == 'n/a':
+        print "iLab service request not needed"
+        continue
+    # If the iLab service request ID is "Free", note that they are such and skip them.
+    elif ilab_service_req.lower() == 'free':
+        print "Free Tier - No iLab entries"
+        continue
+    else:
+        pass  # Process this normal PI.
+
+    ###
+    #
+    # Write iLab export CSV file from output data structures.
+    #
+    ###
+
+    if ilab_cluster_export_csv_dictwriter is not None:
+        print "cluster",
+
+        # Output Cluster data into iLab Cluster export file, if requested.
+        _ = output_ilab_csv_data_for_cluster(ilab_cluster_export_csv_dictwriter, pi_tag,
+                                             ilab_service_id_local_storage, ilab_service_id_local_computing,
+                                             begin_month_timestamp, end_month_timestamp)
+
+    # Output Cloud data into iLab Cloud export file, if requested.
+    if ilab_cloud_export_csv_dictwriter is not None:
+
+        # if not args.break_out_cloud:
+        print "cloud",
+
+        _ = output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag,
+                                           ilab_service_id_google_passthrough,
+                                           begin_month_timestamp, end_month_timestamp)
+
+    # Output Consulting data into iLab Cluster export file, if requested.
+    if ilab_consulting_export_csv_dictwriter is not None:
+        print "consulting",
+
+        _ = output_ilab_csv_data_for_consulting(ilab_consulting_export_csv_dictwriter, pi_tag,
+                                                ilab_service_id_consulting_free, ilab_service_id_consulting_paid,
+                                                begin_month_timestamp, end_month_timestamp)
+
+    print  # End line for PI tag.
+
+
+print "iLab FILE CREATIONS COMPLETE!"
