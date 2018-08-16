@@ -127,7 +127,7 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['greenie', 'scg3-0',
 # Job tag/account prefixes for PI Tags. [Format: <Prefix>_<PI_TAG>]
 ACCOUNT_PREFIXES = ['baas', 'baas_lab', 'baas_prj', 'nih', 'prj']
 # List of accounts to ignore.
-IGNORED_ACCOUNTS = ['large_mem', 'default', 'interactive']
+IGNORED_ACCOUNTS = ['large_mem', 'default']
 
 # Beginning of billing process.
 # 8/31/13 00:00:00 GMT (one day before 9/1/13, to represent things that existed before billing started).
