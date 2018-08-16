@@ -106,12 +106,6 @@ folder_to_pi_tag_pctages = defaultdict(list)
 # Mapping from pi_tag to list of [folder, size, %age].
 pi_tag_to_folder_sizes = defaultdict(list)
 
-# Mapping from pi_tag to list of [username, cpu_core_hrs, %age].
-pi_tag_to_username_cpus = defaultdict(list)
-
-# Mapping from pi_tag to list of [account, cpu_core_hrs, %age].
-pi_tag_to_account_cpus = defaultdict(list)
-
 # Mapping from pi_tag to list of [account, list of [username, cpu_core_hrs, %age]].
 pi_tag_to_account_username_cpus = defaultdict(list)
 
@@ -554,13 +548,10 @@ def read_storage_sheet(wkbk):
 
 
 # Reads the Computing sheet of the BillingDetails workbook given, and populates
-# the account_to_pi_tag_cpus, pi_tag_to_account_cpus, pi_tag_to_username_cpus, and
-# pi_tag_to_job_details dicts.
+# the account_to_pi_tag_cpus, pi_tag_to_account_username_cpus, and pi_tag_to_job_details dicts.
 def read_computing_sheet(wkbk):
 
     global pi_tag_to_job_details
-    global pi_tag_to_account_cpus
-    global pi_tag_to_username_cpus
 
     computing_sheet = wkbk.sheet_by_name("Computing")
 
@@ -694,8 +685,8 @@ def read_consulting_sheet(wkbk):
 
 
 # Generates the Billing sheet of a BillingNotifications (or BillingAggregate) workbook for a particular pi_tag.
-# It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_account_cpus, and puts
-# summaries of its results in dict pi_tag_to_charges.
+# It uses dicts pi_tag_to_folder_sizes, and pi_tag_to_account_username_cpus, and puts summaries of its
+# results in dict pi_tag_to_charges.
 def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month_timestamp):
 
     global pi_tag_to_charges
