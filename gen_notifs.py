@@ -573,7 +573,7 @@ def read_computing_sheet(wkbk):
             job_pi_tag_pctage_list = get_pi_tags_for_username_by_date(job_username, job_timestamp)
 
         if len(job_pi_tag_pctage_list) == 0:
-            print "   *** No PI associated with job ID %d, pi_tag %s, account %s" % (jobID, pi_tag, account)
+            print "   *** No PI associated with job ID %d, user %s, account %s" % (jobID, job_username, account)
             continue
 
         # Distribute this job's CPU-hrs amongst pi_tags by %ages.
