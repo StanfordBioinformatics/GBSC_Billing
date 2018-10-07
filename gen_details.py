@@ -263,16 +263,19 @@ def is_valid_account(acct):
     # If this is a known account or matches a PI Tag, we are good.
     if acct in account_list or acct in pi_tag_list:
         return True
-    # Otherwise, does it match
+    # Otherwise, does it match the pattern of <PREFIX>_<PITag>, where PREFIX is in ACCOUNT_PREFIXES?
     else:
-        # Split argument into possible prefix_pi-tag pair.
-        prefix_rest = acct.split('_', 2)
+        # Split account into underline-separated words.
+        ul_words = acct.split('_')
 
-        if len(prefix_rest) == 2:
-            (prefix, rest) = prefix_rest
-            return prefix in ACCOUNT_PREFIXES and rest in pi_tag_list
+        # The prefix is everything but the last word, which is then expected to be a PI Tag.
+        prefix = '_'.join(ul_words[0:-1])
+        pi_tag_word = ul_words[-1]
+
+        if prefix in ACCOUNT_PREFIXES and pi_tag_word in pi_tag_list:
+            return True
         else:
-            print acct, "is not a valid account."
+            print acct, "is not a valid account (%s %s)." % (prefix, pi_tag_word)
             return False
 
 
