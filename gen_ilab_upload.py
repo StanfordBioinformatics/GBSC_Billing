@@ -1246,7 +1246,7 @@ for pi_tag in sorted(pi_tag_list):
 
     # If this PI doesn't have a service request ID, announce that loudly and skip them.
     if ilab_service_req == '':
-        print "** no iLab service request ID **"
+        print "** NO ILAB SERVICE REQUEST ID **"
         continue
     # If the PI explicitly is marked as not having a service request, skip them quietly.
     elif ilab_service_req.lower() == 'n/a':
@@ -1254,7 +1254,7 @@ for pi_tag in sorted(pi_tag_list):
         continue
     # If the iLab service request ID is "Free", note that they are such and skip them.
     elif ilab_service_req.lower() == 'free':
-        print "Free Tier - No iLab entries"
+        print "-- Free Tier - No iLab upload --"
         continue
     else:
         pass  # Process this normal PI.
