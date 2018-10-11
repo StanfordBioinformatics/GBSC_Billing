@@ -116,6 +116,7 @@ ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,18,19,20,21,26,27,28,29,36,38)
 # List of hostname prefixes to determine which jobs on which nodes are billable.
 BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4',
                               'sgisummit-rcf-111', 'sgiuv20-rcf-111', 'dper730xd-srcf-d16', 'dper930-srcf-d15-05',
+                              'dper7425-srcf-d15'
                               ]
 NONBILLABLE_HOSTNAME_PREFIXES = ['greenie', 'scg3-0',
                                  'dper910-rcf-412-20', 'hppsl230s-rcf-412', # greenie and scg3-0, renamed for Slurm
