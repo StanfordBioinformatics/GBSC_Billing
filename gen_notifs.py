@@ -904,7 +904,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_storage_sizes   = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_tb_per_month = get_rates(billing_config_wkbk, 'Local HPC Storage')
+    rate_tb_per_month = get_rates(billing_config_wkbk, 'Local HPC Storage - Full Access')
 
     starting_cloud_row = curr_row
     ending_cloud_row   = curr_row
@@ -971,7 +971,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     ###
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Local Computing')
+    rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Local Computing - Full Access')
 
     # Skip row before Computing header.
     sheet.write(curr_row, 1, None, left_border_fmt)
