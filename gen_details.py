@@ -77,7 +77,7 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 #
 #=====
 # In billing_common.py
-global SGEACCOUNTING_PREFIX
+global SLURMACCOUNTING_PREFIX
 global GOOGLE_INVOICE_PREFIX
 global BILLING_DETAILS_PREFIX
 global CONSULTING_PREFIX
@@ -1057,7 +1057,7 @@ if not os.path.exists(year_month_dir):
 if args.accounting_file is not None:
     accounting_file = args.accounting_file
 else:
-    accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
+    accounting_filename = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year, month)
     accounting_file = os.path.join(year_month_dir, accounting_filename)
 
 # Get absolute path for accounting_file.
