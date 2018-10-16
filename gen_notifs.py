@@ -936,7 +936,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_storage_sizes   = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    cluster_acct_status = pi_tag_to_cluster_acct_status(pi_tag)
+    cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
     if cluster_acct_status == "Full":
         storage_access_string = "Full Access"
     elif cluster_acct_status == "Free":
@@ -1016,7 +1016,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     ###
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    cluster_acct_status = pi_tag_to_cluster_acct_status(pi_tag)
+    cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
     if cluster_acct_status == "Full":
         computing_access_string = "Full Access"
     elif cluster_acct_status == "Free":
