@@ -66,21 +66,6 @@ global ACCOUNT_PREFIXES
 DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
                        'service_request_id','owner_email','pi_email']
 
-# Default available services table (to be used if no available services file given).
-DEFAULT_AVAILABLE_SERVICES_ID_DICT = {
-    'Local HPC Storage'   : ['Local Cluster - HPC Storage', 1991],
-    'Local Object Storage' : ['Local Cluster - Object Storage', 2610],
-    'Local Computing' : ['Local Cluster Computing', 1992],
-    'Cloud Services' : ['Cloud Services (Passthrough)', 2355],
-    'Consulting Free' : ['Consulting - First 1 hour (Units are hours)', 2349],
-    'Consulting Paid' : ['Consulting - Work on a Project beyond 3 hours (Units are hours)', 2350],
-    'Consulting Resources' : ['Consulting Compute Cost (Passthrough)', 2356]
-}
-
-# Available Service ID names (for reading in available service info from iLab Available Services file).
-AVAILABLE_SERVICES_COLUMN_NAME       = 'Name'
-AVAILABLE_SERVICES_COLUMN_SERVICE_ID = 'Service ID'
-
 #=====
 #
 # GLOBALS
@@ -960,9 +945,6 @@ parser.add_argument("-r", "--billing_root",
 parser.add_argument("-t", "--ilab_template",
                     default=None,
                     help='The iLab export file template [default = None]')
-parser.add_argument("-a", "--ilab_available_services",
-                    default=None,
-                    help='The iLab available services file [default = None]')
 parser.add_argument("-c", "--skip_cluster", action="store_true",
                     default=False,
                     help="Don't output cluster iLab file. [default = False]")
@@ -1132,73 +1114,23 @@ else:
 
 ###
 #
-# Read in the iLab Core Service file, if available.
+# List of service IDs from iLab.
 #
-# Set the variables as seen below:
+# Hardcoded -- These won't change from month-to-month, so no reason to read them in.
 #
 ###
-ilab_service_id_local_computing = None
-ilab_service_id_local_storage   = None
-ilab_service_id_google_passthrough = None
-ilab_service_id_consulting_free = None
-ilab_service_id_consulting_paid = None
 
-if args.ilab_available_services is not None:
+global ILAB_SERVICE_ID
 
-    ilab_available_services_file = open(args.ilab_available_services)
+ilab_service_id_local_computing_full = ILAB_SERVICE_ID['Local Computing - Full Access']
+ilab_service_id_local_storage_full   = ILAB_SERVICE_ID['Local HPC Storage - Full Access']
+ilab_service_id_local_computing_free = ILAB_SERVICE_ID['Local Computing - Full Access']
+ilab_service_id_local_storage_free   = ILAB_SERVICE_ID['Local HPC Storage - Free Access']
 
-    csv_dictreader = csv.DictReader(ilab_available_services_file)
+ilab_service_id_google_passthrough = ILAB_SERVICE_ID['Cloud Services - Passthrough']
 
-    for available_services_row_dict in csv_dictreader:
-
-        # Examine the "Name" column from the available services table.
-        row_name_col = available_services_row_dict.get(AVAILABLE_SERVICES_COLUMN_NAME)
-        if row_name_col is not None:
-
-            if row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Computing'][0]:
-                ilab_service_id_local_computing = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
-            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local HPC Storage'][0]:
-                ilab_service_id_local_storage   = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
-            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Cloud Services'][0]:
-                ilab_service_id_google_passthrough = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
-            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Free'][0]:
-                ilab_service_id_consulting_free = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
-            elif row_name_col == DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Paid'][0]:
-                ilab_service_id_consulting_paid = available_services_row_dict[AVAILABLE_SERVICES_COLUMN_SERVICE_ID]
-
-    ilab_available_services_file.close()
-
-    # If we can't find the entries we need from the given available services file,
-    #  mention that and exit.
-    end_run = False
-    if ilab_service_id_local_computing is None:
-        print >> sys.stderr, "available services list: No entry for Local Computing"
-        end_run = True
-    if ilab_service_id_local_storage is None:
-        print >> sys.stderr, "available services list: No entry for Local Storage"
-        end_run = True
-    if ilab_service_id_google_passthrough is None:
-        print >> sys.stderr, "available services list: No entry for Cloud Services"
-        end_run = True
-    if ilab_service_id_consulting_free is None:
-        print >> sys.stderr, "available services list: No entry for Consulting Free"
-        end_run = True
-    if ilab_service_id_consulting_paid is None:
-        print >> sys.stderr, "available services list: No entry for Consulting Paid"
-        end_run = True
-
-    if end_run:
-        print >> sys.stderr, "Problems with available services file: ending run."
-        sys.exit(-1)
-
-else:
-    # Use default values if no available services file.
-    ilab_service_id_local_computing = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local Computing'][1]
-    ilab_service_id_local_storage   = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Local HPC Storage'][1]
-    ilab_service_id_google_passthrough = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Cloud Services'][1]
-    ilab_service_id_consulting_free = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Free'][1]
-    ilab_service_id_consulting_paid = DEFAULT_AVAILABLE_SERVICES_ID_DICT['Consulting Paid'][1]
-
+ilab_service_id_consulting_free = ILAB_SERVICE_ID['Bioinformatics Consulting - Free Access']
+ilab_service_id_consulting_paid = ILAB_SERVICE_ID['Bioinformatics Consulting - Full Access']
 
 #####
 #
@@ -1270,7 +1202,7 @@ for pi_tag in sorted(pi_tag_list):
 
         # Output Cluster data into iLab Cluster export file, if requested.
         _ = output_ilab_csv_data_for_cluster(ilab_cluster_export_csv_dictwriter, pi_tag,
-                                             ilab_service_id_local_storage, ilab_service_id_local_computing,
+                                             ilab_service_id_local_storage_full, ilab_service_id_local_computing_full,
                                              begin_month_timestamp, end_month_timestamp)
 
     # Output Cloud data into iLab Cloud export file, if requested.

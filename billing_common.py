@@ -72,7 +72,7 @@ BILLING_CONFIG_SHEET_COLUMNS = {
 }
 
 # Mapping from sheet name to the column headers within that sheet.
-BILLING_DETAILS_SHEET_COLUMNS = OrderedDict((
+BILLING_DETAILS_SHEET_COLUMNS = OrderedDict( (
     ('Storage'   , ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used')),
     ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID')),
     ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Reason')),
@@ -152,6 +152,17 @@ CONSULTING_HOURS_FREE = 1
 
 # What is the discount rate for travel hours?
 CONSULTING_TRAVEL_RATE_DISCOUNT = 0.5
+
+# Hardcoded iLab Service IDs.
+ILAB_SERVICE_ID = {
+    'Local HPC Storage - Full Access' : 1991,
+    'Local Computing - Full Access' : 1992,
+    'Local HPC Storage - Free Access' : None,
+    'Local Computing - Free Access' : None,
+    'Bioinformatics Consulting - Free Access' : 2349,
+    'Bioinformatics Consulting - Full Access' : 2350,
+    'Cloud Services - Passthrough' : 2355
+}
 
 #=====
 #
