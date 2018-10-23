@@ -153,16 +153,6 @@ CONSULTING_HOURS_FREE = 1
 # What is the discount rate for travel hours?
 CONSULTING_TRAVEL_RATE_DISCOUNT = 0.5
 
-# Hardcoded iLab Service IDs.
-ILAB_SERVICE_ID = {
-    'Local HPC Storage - Full Access' : 1991,
-    'Local Computing - Full Access' : 1992,
-    'Local HPC Storage - Free Access' : None,
-    'Local Computing - Free Access' : None,
-    'Bioinformatics Consulting - Free Access' : 2349,
-    'Bioinformatics Consulting - Full Access' : 2350,
-    'Cloud Services - Passthrough' : 2355
-}
 
 #=====
 #

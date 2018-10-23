@@ -113,6 +113,12 @@ pi_tag_to_job_details = defaultdict(list)
 # Mapping from pi_tag to list of [username, date_added, date_removed, %age].
 pi_tag_to_user_details = defaultdict(list)
 
+# Mapping from pi_tag to string for their service level ('Full', 'Free', 'None').
+pi_tag_to_service_level = dict()
+
+# Mapping from pi_tag to string for their affiliate status ('Stanford', 'Affiliate', 'External').
+pi_tag_to_affiliation = dict()
+
 # Mapping from pi_tag to set of (cloud account, %age) tuples.
 pi_tag_to_cloud_account_pctages = defaultdict(set)
 
@@ -207,6 +213,24 @@ def get_google_invoice_csv_subtable_lines(csvfile_obj):
     return subtable
 
 
+#
+# Gets the iLab Service ID from the Rates sheet by querying from a Type string.
+#
+def get_ilab_service_id(wkbk, type_name):
+
+    rates_sheet = wkbk.sheet_by_name("Rates")
+
+    type_column = sheet_get_named_column(rates_sheet,"Type")
+    iLab_column = sheet_get_named_column(rates_sheet,"iLab Service ID")
+
+    for (type, id) in zip(type_column, iLab_column):
+        if type == type_name:
+            return int(id)
+    else:
+        return None
+
+
+
 # Creates all the data structures used to write the BillingNotification workbook.
 # The overall goal is to mimic the tables of the notification sheets so that
 # to build the table, all that is needed is to print out one of these data structures.
@@ -296,6 +320,23 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
             # Associate the project name with its project ID.
             cloud_projid_to_cloud_projname[projid] = project
 
+    #
+    # Create mapping from pi_tags to a string denoting service level on cluster.
+    #
+    global pi_tag_to_service_level
+
+    levels_column = sheet_get_named_column(pis_sheet,"Cluster?")
+
+    pi_tag_to_service_level = dict(zip(pi_tag_list, levels_column))
+
+    #
+    # Create mapping from pi_tags to a string denoting affiliation (Stanford/Affiliate/External).
+    #
+    global pi_tag_to_affiliation
+
+    affiliation_column = sheet_get_named_column(pis_sheet, "Affiliation")
+
+    pi_tag_to_affiliation = dict(zip(pi_tag_list, affiliation_column))
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -1114,23 +1155,29 @@ else:
 
 ###
 #
-# List of service IDs from iLab.
-#
-# Hardcoded -- These won't change from month-to-month, so no reason to read them in.
+# Variables of service IDs from iLab, indexed by affiliation.
 #
 ###
 
-global ILAB_SERVICE_ID
+ilab_service_id_local_computing = dict()
+ilab_service_id_local_computing[('free','stanford')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
+ilab_service_id_local_computing[('full','stanford')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Stanford')
+ilab_service_id_local_computing[('full','affiliate')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Affiliates')
+ilab_service_id_local_computing[('full','external')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - External')
 
-ilab_service_id_local_computing_full = ILAB_SERVICE_ID['Local Computing - Full Access']
-ilab_service_id_local_storage_full   = ILAB_SERVICE_ID['Local HPC Storage - Full Access']
-ilab_service_id_local_computing_free = ILAB_SERVICE_ID['Local Computing - Full Access']
-ilab_service_id_local_storage_free   = ILAB_SERVICE_ID['Local HPC Storage - Free Access']
+ilab_service_id_local_storage = dict()
+ilab_service_id_local_storage[('free','stanford')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
+ilab_service_id_local_storage[('full','stanford')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Stanford')
+ilab_service_id_local_storage[('full','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Affiliates')
+ilab_service_id_local_storage[('full','external')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - External')
 
-ilab_service_id_google_passthrough = ILAB_SERVICE_ID['Cloud Services - Passthrough']
+ilab_service_id_google_passthrough    = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - Passthrough')
 
-ilab_service_id_consulting_free = ILAB_SERVICE_ID['Bioinformatics Consulting - Free Access']
-ilab_service_id_consulting_paid = ILAB_SERVICE_ID['Bioinformatics Consulting - Full Access']
+ilab_service_id_consulting = dict()
+ilab_service_id_consulting['free']       = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Free Access')
+ilab_service_id_consulting['stanford']   = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Stanford')
+ilab_service_id_consulting['affiliate']  = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Affiliates')
+ilab_service_id_consulting['external']   = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - External')
 
 #####
 #
@@ -1184,12 +1231,13 @@ for pi_tag in sorted(pi_tag_list):
     elif ilab_service_req.lower() == 'n/a':
         print "iLab service request not needed"
         continue
-    # If the iLab service request ID is "Free", note that they are such and skip them.
-    elif ilab_service_req.lower() == 'free':
-        print "-- Free Tier - No iLab upload --"
-        continue
     else:
         pass  # Process this normal PI.
+
+    # Get the cluster service level for this PI.
+    service_level = pi_tag_to_service_level[pi_tag].lower()
+    # Get the affiliation of this PI.
+    affiliation = pi_tag_to_affiliation[pi_tag].lower()
 
     ###
     #
@@ -1202,7 +1250,8 @@ for pi_tag in sorted(pi_tag_list):
 
         # Output Cluster data into iLab Cluster export file, if requested.
         _ = output_ilab_csv_data_for_cluster(ilab_cluster_export_csv_dictwriter, pi_tag,
-                                             ilab_service_id_local_storage_full, ilab_service_id_local_computing_full,
+                                             ilab_service_id_local_storage[service_level, affiliation],
+                                             ilab_service_id_local_computing[service_level,affiliation],
                                              begin_month_timestamp, end_month_timestamp)
 
     # Output Cloud data into iLab Cloud export file, if requested.
@@ -1220,7 +1269,7 @@ for pi_tag in sorted(pi_tag_list):
         print "consulting",
 
         _ = output_ilab_csv_data_for_consulting(ilab_consulting_export_csv_dictwriter, pi_tag,
-                                                ilab_service_id_consulting_free, ilab_service_id_consulting_paid,
+                                                ilab_service_id_consulting['free'], ilab_service_id_consulting[affiliation],
                                                 begin_month_timestamp, end_month_timestamp)
 
     print  # End line for PI tag.
