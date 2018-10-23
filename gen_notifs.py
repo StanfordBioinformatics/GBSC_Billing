@@ -103,6 +103,15 @@ folder_to_pi_tag_pctages = defaultdict(list)
 # These globals are data structures used to write the BillingNotification workbooks.
 #
 
+# Mapping from pi_tag to cluster account status.
+pi_tag_to_cluster_acct_status = dict()
+
+# Mapping from pi_tag to cloud account status.
+pi_tag_to_cloud_acct_status = dict()
+
+# Mapping from pi_tag to consulting account status.
+pi_tag_to_consulting_acct_status = dict()
+
 # Mapping from pi_tag to list of [folder, size, %age].
 pi_tag_to_folder_sizes = defaultdict(list)
 
@@ -483,6 +492,28 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
         for pi_folder in pi_folder_list:
             folder_to_pi_tag_pctages[pi_folder].append([pi_tag, pctage])
 
+    #
+    # Create mappings from pi_tags to statuses for cluster, cloud, and consulting.
+    #
+    pi_tags = sheet_get_named_column(pis_sheet, "PI Tag")
+
+    global pi_tag_to_cluster_acct_status
+    cluster_statuses = sheet_get_named_column(pis_sheet, "Cluster?")
+
+    pi_tag_to_cluster_acct_status = dict(zip(pi_tags, cluster_statuses))
+
+
+    global pi_tag_to_cloud_acct_status
+    cloud_statuses = sheet_get_named_column(pis_sheet, "Google Cloud?")
+
+    pi_tag_to_cloud_acct_status = dict(zip(pi_tags, cloud_statuses))
+
+
+    global pi_tag_to_consulting_acct_status
+    consulting_statuses = sheet_get_named_column(pis_sheet, "BaaS?")
+
+    pi_tag_to_consulting_acct_status = dict(zip(pi_tags, consulting_statuses))
+
 
 # Reads the particular rate requested from the Rates sheet of the BillingConfig workbook.
 def get_rates(wkbk, rate_type):
@@ -497,6 +528,7 @@ def get_rates(wkbk, rate_type):
             return amount
     else:
         return None
+
 
 def get_rate_a1_cell(wkbk, rate_type):
 
@@ -525,7 +557,7 @@ def get_rate_a1_cell(wkbk, rate_type):
             # +1 is for "GBSC Rates:" above header line, +1 is for header line.
             return 'Rates!%s' % xl_rowcol_to_cell(idx + 1 + 1, amt_col, True, True)
     else:
-        return None
+        return 0.0
 
 
 # Reads the Storage sheet of the BillingDetails workbook given, and populates
@@ -904,10 +936,24 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_storage_sizes   = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_tb_per_month = get_rates(billing_config_wkbk, 'Local HPC Storage - Full Access')
+    cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
+    if cluster_acct_status == "Full":
+        storage_access_string = "Full Access"
+    elif cluster_acct_status == "Free":
+        storage_access_string = "Free Access"
+    elif cluster_acct_status == "No":
+        storage_access_string = "No Access"
+    else:
+        print >> sys.stderr, "  Unexpected cluster status of '%s' for %s" % (cluster_acct_status, pi_tag)
+        storage_access_string = "No Access"
 
-    starting_cloud_row = curr_row
-    ending_cloud_row   = curr_row
+    storage_rate_string = "Local HPC Storage - %s" % (storage_access_string)
+
+    rate_tb_per_month = get_rates(billing_config_wkbk, storage_rate_string)
+    rate_storage_a1_cell = get_rate_a1_cell(billing_config_wkbk, storage_rate_string)
+
+    starting_storage_row = curr_row
+    ending_storage_row   = curr_row
     for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
         sheet.write(curr_row, 1, folder, item_entry_fmt)
         sheet.write(curr_row, 2, size, float_entry_fmt)
@@ -924,12 +970,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
         cost_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
         pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-        sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell,
-                                                        get_rate_a1_cell(billing_config_wkbk, 'Local HPC Storage')),
+        sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell, rate_storage_a1_cell),
                             charge_fmt, charge)
 
         # Keep track of last row with storage values.
-        ending_cloud_row = curr_row
+        ending_storage_row = curr_row
 
         # Advance to the next row.
         curr_row += 1
@@ -940,15 +985,15 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     curr_row += 1
 
     # Write the Total Storage line.
-    sheet.write(curr_row, 1, "Total Storage", bot_header_fmt)
+    sheet.write(curr_row, 1, "Total Storage:", bot_header_fmt)
     # sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
-    top_sizes_a1_cell = xl_rowcol_to_cell(starting_cloud_row, 2)
-    bot_sizes_a1_cell = xl_rowcol_to_cell(ending_cloud_row, 2)
+    top_sizes_a1_cell = xl_rowcol_to_cell(starting_storage_row, 2)
+    bot_sizes_a1_cell = xl_rowcol_to_cell(ending_storage_row, 2)
     sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell),
                         float_entry_fmt, total_storage_sizes)
     # sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
-    top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_cloud_row, 4)
-    bot_hours_a1_cell = xl_rowcol_to_cell(ending_cloud_row, 4)
+    top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_storage_row, 4)
+    bot_hours_a1_cell = xl_rowcol_to_cell(ending_storage_row, 4)
     sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_billable_hours_a1_cell, bot_hours_a1_cell),
                         charge_fmt, total_storage_charges)
 
@@ -971,7 +1016,21 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     ###
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_cpu_per_hour = get_rates(billing_config_wkbk, 'Local Computing - Full Access')
+    cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
+    if cluster_acct_status == "Full":
+        computing_access_string = "Full Access"
+    elif cluster_acct_status == "Free":
+        computing_access_string = "Free Access"
+    elif cluster_acct_status == "No":
+        computing_access_string = "No Access"
+    else:
+        print >> sys.stderr, "  Unexpected cluster status of '%s' for %s" % (cluster_acct_status, pi_tag)
+        computing_access_string = "No Access"
+
+    computing_rate_string = "Local Computing - %s" % (computing_access_string)
+
+    rate_cpu_per_hour = get_rates(billing_config_wkbk, computing_rate_string)
+    rate_cpu_a1_cell = get_rate_a1_cell(billing_config_wkbk, computing_rate_string)
 
     # Skip row before Computing header.
     sheet.write(curr_row, 1, None, left_border_fmt)
@@ -1048,8 +1107,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
                     cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
                     pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-                    sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell,
-                                                                    get_rate_a1_cell(billing_config_wkbk, 'Local Computing')),
+                    sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell, rate_cpu_a1_cell),
                                         charge_fmt, charge)
 
                     # Keep track of last row with computing values.
@@ -1208,7 +1266,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     curr_row += 1
 
     # Write the "Total Cloud Services" line.
-    sheet.write(curr_row, 1, "Total Cloud Services", bot_header_fmt)
+    sheet.write(curr_row, 1, "Total Cloud Services:", bot_header_fmt)
     top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_cloud_row, 4)
     bot_hours_a1_cell = xl_rowcol_to_cell(ending_cloud_row, 4)
     sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_billable_hours_a1_cell, bot_hours_a1_cell),
@@ -1294,7 +1352,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the Total Consulting line.
-    sheet.write(curr_row, 1, "Total Consulting", bot_header_fmt)
+    sheet.write(curr_row, 1, "Total Consulting:", bot_header_fmt)
     # sheet.write(curr_row, 2, total_consulting_hours, float_entry_fmt
     # top_hours_a1_cell = xl_rowcol_to_cell(starting_consulting_row, 2)
     # bot_hours_a1_cell = xl_rowcol_to_cell(ending_consulting_row, 2)
@@ -1338,11 +1396,13 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # Write the Storage line.
     sheet.write(curr_row, 1, "Storage", header_no_ul_fmt)
     sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
+    sheet.write(curr_row, 3, storage_access_string)
     sheet.write_formula(curr_row, 4, '=%s' % total_storage_charges_a1_cell, big_charge_fmt, total_storage_charges)
     curr_row += 1
     # Write the Computing line.
     sheet.write(curr_row, 1, "Computing", header_no_ul_fmt)
     # sheet.write(curr_row, 2, total_computing_cpuhrs, float_entry_fmt)
+    sheet.write(curr_row, 3, computing_access_string)
     # sheet.write(curr_row, 4, total_computing_charges, big_charge_fmt)
     sheet.write_formula(curr_row, 4, '=%s' % total_computing_charges_a1_cell, big_charge_fmt)
     curr_row += 1
