@@ -93,7 +93,7 @@ global read_config_sheet
 def get_device_and_fileset_from_folder(folder):
 
     # We have a list of top-level directories for the GPFS and Isilon systems, respectively.
-    if 0 in map(lambda d: folder.index(d), GPFS_TOPLEVEL_DIRECTORIES):
+    if 0 in map(lambda d: folder.find(d), GPFS_TOPLEVEL_DIRECTORIES):
 
         # Find the two path elements after "/srv/gsfs0/".
         path_elts = os.path.normpath(folder).split(os.path.sep)
@@ -110,7 +110,7 @@ def get_device_and_fileset_from_folder(folder):
             print >> sys.stderr, "get_device_and_fileset_from_folder(): Path %s is not long enough" % folder
             return None
 
-    elif 0 in map(lambda d: folder.index(d), ISILON_TOPLEVEL_DIRECTORIES):
+    elif 0 in map(lambda d: folder.find(d), ISILON_TOPLEVEL_DIRECTORIES):
 
         device = "ifs"
         fileset = folder
