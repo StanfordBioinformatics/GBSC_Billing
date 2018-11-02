@@ -66,6 +66,8 @@ global USAGE_EXECUTABLE
 global STORAGE_BLOCK_SIZE_ARG
 global STORAGE_PREFIX
 global BILLING_DETAILS_SHEET_COLUMNS
+global GPFS_TOPLEVEL_DIRECTORIES
+global ISILON_TOPLEVEL_DIRECTORIES
 
 #=====
 #
@@ -90,8 +92,8 @@ global read_config_sheet
 #
 def get_device_and_fileset_from_folder(folder):
 
-    # We know about "/srv/gsfs0" and "/ifs/" paths.
-    if folder.startswith("/srv/gsfs0"):
+    # We have a list of top-level directories for the GPFS and Isilon systems, respectively.
+    if 0 in map(lambda d: folder.index(d), GPFS_TOPLEVEL_DIRECTORIES):
 
         # Find the two path elements after "/srv/gsfs0/".
         path_elts = os.path.normpath(folder).split(os.path.sep)
@@ -108,7 +110,7 @@ def get_device_and_fileset_from_folder(folder):
             print >> sys.stderr, "get_device_and_fileset_from_folder(): Path %s is not long enough" % folder
             return None
 
-    elif folder.startswith("/ifs"):
+    elif 0 in map(lambda d: folder.index(d), ISILON_TOPLEVEL_DIRECTORIES):
 
         device = "ifs"
         fileset = folder
@@ -117,13 +119,8 @@ def get_device_and_fileset_from_folder(folder):
 
     else:
 
-        device = "ifs"
-        fileset = folder
-
-        return (device, fileset)
-
-        # print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s" % folder
-        # return None
+        print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s" % folder
+        return None
 
 
 def get_folder_quota_from_gpfs(machine, device, fileset):

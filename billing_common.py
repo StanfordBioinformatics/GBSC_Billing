@@ -138,6 +138,10 @@ IGNORED_ACCOUNTS = ['large_mem', 'default']
 # 8/31/13 00:00:00 GMT (one day before 9/1/13, to represent things that existed before billing started).
 EARLIEST_VALID_DATE_EXCELDATE = 41517.0
 
+# Top-=level directories for various file systems.
+GPFS_TOPLEVEL_DIRECTORIES = ['/srv/gsfs0']
+ISILON_TOPLEVEL_DIRECTORIES = ['/ifs', '/BaaS', '/labs', '/projects', '/reference', '/scg' ]
+
 # Commands for determining folder quotas and usages.
 QUOTA_EXECUTABLE_GPFS = ['ssh', 'root@scg-gs0', '/usr/lpp/mmfs/bin/mmlsquota', '-j']
 QUOTA_EXECUTABLE_ISILON = ['df']
