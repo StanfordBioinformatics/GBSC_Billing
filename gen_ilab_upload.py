@@ -113,7 +113,7 @@ pi_tag_to_job_details = defaultdict(list)
 # Mapping from pi_tag to list of [username, date_added, date_removed, %age].
 pi_tag_to_user_details = defaultdict(list)
 
-# Mapping from pi_tag to string for their service level ('Full', 'Free', 'None').
+# Mapping from pi_tag to string for their cluster service level ('Full', 'Free', 'None').
 pi_tag_to_service_level = dict()
 
 # Mapping from pi_tag to string for their affiliate status ('Stanford', 'Affiliate', 'External').
