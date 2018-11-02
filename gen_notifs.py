@@ -112,6 +112,9 @@ pi_tag_to_cloud_acct_status = dict()
 # Mapping from pi_tag to consulting account status.
 pi_tag_to_consulting_acct_status = dict()
 
+# Mapping from pi_tag to string for their affiliate status ('Stanford', 'Affiliate', 'External').
+pi_tag_to_affiliation = dict()
+
 # Mapping from pi_tag to list of [folder, size, %age].
 pi_tag_to_folder_sizes = defaultdict(list)
 
@@ -363,6 +366,15 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
         # Associate the project ID with its project number.
         cloud_projnum_to_cloud_project[projnum] = projid
+
+    #
+    # Create mapping from pi_tags to a string denoting affiliation (Stanford/Affiliate/External).
+    #
+    global pi_tag_to_affiliation
+
+    affiliation_column = sheet_get_named_column(pis_sheet, "Affiliation")
+
+    pi_tag_to_affiliation = dict(zip(pi_tag_list, affiliation_column))
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -723,15 +735,18 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     global pi_tag_to_charges
 
+    # Get affiliation status for the current PI.
+    affiliation = pi_tag_to_affiliation[pi_tag]
+
     #
     # Set the column and row widths to contain all our data.
     #
 
     # Give the first column 1 unit of space.
     sheet.set_column('A:A', 1)
-    # Give the second column 35 units of space.
+    # Give the second column 40 units of space.
     sheet.set_column('B:B', 40)
-    # Give the third, fourth, and fifth columns 10 units of space each.
+    # Give the third, fourth, and fifth columns 11 units of space each.
     sheet.set_column('C:C', 11)
     sheet.set_column('D:D', 11)
     sheet.set_column('E:E', 11)
@@ -935,19 +950,18 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_storage_charges = 0.0
     total_storage_sizes   = 0.0
 
+
     # Get the rate from the Rates sheet of the BillingConfig workbook.
     cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
-    if cluster_acct_status == "Full":
-        storage_access_string = "Full Access"
-    elif cluster_acct_status == "Free":
-        storage_access_string = "Free Access"
-    elif cluster_acct_status == "No":
-        storage_access_string = "No Access"
-    else:
+    if cluster_acct_status != "Full" and cluster_acct_status != "Free" and cluster_acct_status != "No":
         print >> sys.stderr, "  Unexpected cluster status of '%s' for %s" % (cluster_acct_status, pi_tag)
-        storage_access_string = "No Access"
+
+    storage_access_string = "%s Access" % (cluster_acct_status.capitalize())
 
     storage_rate_string = "Local HPC Storage - %s" % (storage_access_string)
+
+    if cluster_acct_status != "Free":
+        storage_rate_string += " - " + affiliation.capitalize()
 
     rate_tb_per_month = get_rates(billing_config_wkbk, storage_rate_string)
     rate_storage_a1_cell = get_rate_a1_cell(billing_config_wkbk, storage_rate_string)
@@ -1016,18 +1030,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     ###
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
-    if cluster_acct_status == "Full":
-        computing_access_string = "Full Access"
-    elif cluster_acct_status == "Free":
-        computing_access_string = "Free Access"
-    elif cluster_acct_status == "No":
-        computing_access_string = "No Access"
-    else:
-        print >> sys.stderr, "  Unexpected cluster status of '%s' for %s" % (cluster_acct_status, pi_tag)
-        computing_access_string = "No Access"
-
+    computing_access_string = "%s Access" % (cluster_acct_status.capitalize())
     computing_rate_string = "Local Computing - %s" % (computing_access_string)
+
+    if cluster_acct_status != "Free":
+        computing_rate_string += " - " + affiliation.capitalize()
 
     rate_cpu_per_hour = get_rates(billing_config_wkbk, computing_rate_string)
     rate_cpu_a1_cell = get_rate_a1_cell(billing_config_wkbk, computing_rate_string)
