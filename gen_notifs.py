@@ -599,68 +599,79 @@ def read_computing_sheet(wkbk):
 
     computing_sheet = wkbk.sheet_by_name("Computing")
 
-    for row in range(1, computing_sheet.nrows):
+    sheet_number = 1
 
-        (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
-            computing_sheet.row_values(row)
+    while True:
 
-        # Calculate CPU-core-hrs for job.
-        cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
+        for row in range(1, computing_sheet.nrows):
 
-        # Rename this variable for easier understanding.
-        account = account.lower()
+            (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
+                computing_sheet.row_values(row)
 
-        if account != '':
-            job_pi_tag_pctage_list = account_to_pi_tag_pctages[account]
-        else:
-            # No account means credit the job to the user's lab.
-            job_pi_tag_pctage_list = get_pi_tags_for_username_by_date(job_username, job_timestamp)
+            # Calculate CPU-core-hrs for job.
+            cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
 
-        if len(job_pi_tag_pctage_list) == 0:
-            print "   *** No PI associated with job ID %d, user %s, account %s" % (jobID, job_username, account)
-            continue
+            # Rename this variable for easier understanding.
+            account = account.lower()
 
-        # Distribute this job's CPU-hrs amongst pi_tags by %ages.
-        for (pi_tag, pctage) in job_pi_tag_pctage_list:
-
-            # This list is [account, list of [username, cpu_core_hrs, %age]].
-            account_username_cpu_list = pi_tag_to_account_username_cpus.get(pi_tag)
-
-            # If pi_tag has an existing list of account/username/CPUs:
-            if account_username_cpu_list is not None:
-
-                # Find if account for job is in list of account/CPUs for this pi_tag.
-                for pi_username_cpu_pctage_list in account_username_cpu_list:
-
-                    (pi_account, pi_username_cpu_pctage_list) = pi_username_cpu_pctage_list
-
-                    # If the account we are looking at is the one from the present job:
-                    if pi_account == account:
-
-                        # Find job username in list for account:
-                        for username_cpu in pi_username_cpu_pctage_list:
-                            if job_username == username_cpu[0]:
-                                username_cpu[1] += cpu_core_hrs
-                                break
-                        else:
-                            pi_username_cpu_pctage_list.append([job_username, cpu_core_hrs, pctage])
-
-                        # Leave account_username_cpu_list loop.
-                        break
-
-                else:
-                    # No matching account in pi_tag list -- add a new one to the list.
-                    account_username_cpu_list.append([account, [[job_username, cpu_core_hrs, pctage]]])
-
-            # Else start a new account/CPUs list for the pi_tag.
+            if account != '':
+                job_pi_tag_pctage_list = account_to_pi_tag_pctages[account]
             else:
-                pi_tag_to_account_username_cpus[pi_tag] = [[account, [[job_username, cpu_core_hrs, pctage]]]]
+                # No account means credit the job to the user's lab.
+                job_pi_tag_pctage_list = get_pi_tags_for_username_by_date(job_username, job_timestamp)
 
-            #
-            # Save job details for pi_tag.
-            #
-            new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
-            pi_tag_to_job_details[pi_tag].append(new_job_details)
+            if len(job_pi_tag_pctage_list) == 0:
+                print "   *** No PI associated with job ID %d, user %s, account %s" % (jobID, job_username, account)
+                continue
+
+            # Distribute this job's CPU-hrs amongst pi_tags by %ages.
+            for (pi_tag, pctage) in job_pi_tag_pctage_list:
+
+                # This list is [account, list of [username, cpu_core_hrs, %age]].
+                account_username_cpu_list = pi_tag_to_account_username_cpus.get(pi_tag)
+
+                # If pi_tag has an existing list of account/username/CPUs:
+                if account_username_cpu_list is not None:
+
+                    # Find if account for job is in list of account/CPUs for this pi_tag.
+                    for pi_username_cpu_pctage_list in account_username_cpu_list:
+
+                        (pi_account, pi_username_cpu_pctage_list) = pi_username_cpu_pctage_list
+
+                        # If the account we are looking at is the one from the present job:
+                        if pi_account == account:
+
+                            # Find job username in list for account:
+                            for username_cpu in pi_username_cpu_pctage_list:
+                                if job_username == username_cpu[0]:
+                                    username_cpu[1] += cpu_core_hrs
+                                    break
+                            else:
+                                pi_username_cpu_pctage_list.append([job_username, cpu_core_hrs, pctage])
+
+                            # Leave account_username_cpu_list loop.
+                            break
+
+                    else:
+                        # No matching account in pi_tag list -- add a new one to the list.
+                        account_username_cpu_list.append([account, [[job_username, cpu_core_hrs, pctage]]])
+
+                # Else start a new account/CPUs list for the pi_tag.
+                else:
+                    pi_tag_to_account_username_cpus[pi_tag] = [[account, [[job_username, cpu_core_hrs, pctage]]]]
+
+                #
+                # Save job details for pi_tag.
+                #
+                new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
+                pi_tag_to_job_details[pi_tag].append(new_job_details)
+
+        sheet_number += 1
+
+        try:
+            computing_sheet = wkbk.sheet_by_name("Computing %d" % sheet_number)
+        except xlrd.biffh.XLRDError:
+            break  # No more computing sheets: exit the while True loop.
 
 
 # Read the Cloud sheet from the BillingDetails workbook.

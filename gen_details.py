@@ -83,6 +83,7 @@ global BILLING_DETAILS_PREFIX
 global CONSULTING_PREFIX
 global STORAGE_PREFIX
 global ACCOUNT_PREFIXES
+global EXCEL_MAX_ROWS
 
 #
 # Formats for the output workbook, to be initialized along with the workbook.
@@ -159,7 +160,7 @@ def init_billing_details_wkbk(workbook):
 # Given a list of tuples of job details, writes the job details to
 # the sheet given.  Possible sheets for use in this method are
 # typically the "Computing", "Nonbillable Jobs", and "Failed Jobs" sheets.
-def write_job_details(sheet, job_details):
+def write_job_details(workbook, sheet, sheet_name, job_details):
 
     # If no job details, write "No Jobs".
     if len(job_details) == 0:
@@ -167,69 +168,101 @@ def write_job_details(sheet, job_details):
         print
         return
 
-    # If we have job details, write them to the sheet, below the headers.
-    for row in range(0, len(job_details)):
+    num_jobs = len(job_details)
+    job_rows_left = num_jobs
 
-        # Bump rows down below header line.
-        sheet_row = row + 1
+    first_job_row = 0
+    last_job_row = first_job_row + min(job_rows_left, EXCEL_MAX_ROWS)
 
-        # A little feedback for the people.
-        if not args.verbose:
-            if sheet_row % 1000 == 0:
-                sys.stdout.write('.')
-                sys.stdout.flush()
+    sheet_number = 1
 
-        # 'Job Date'
-        col = 0
-        sheet.write(sheet_row, col, from_timestamp_to_excel_date(job_details[row][col]), DATE_FORMAT)
+    print num_jobs
 
-        # 'Job Timestamp'
-        col += 1
-        sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
-        if args.verbose: print job_details[row][col],
+    while True:
 
-        # 'Username'
-        col += 1
-        sheet.write(sheet_row, col, job_details[row][col])
-        if args.verbose: print job_details[row][col],
+        sheet_row = 0
 
-        # 'Job Name'
-        col += 1
-        sheet.write(sheet_row, col, unicode(job_details[row][col],'utf-8'))
-        if args.verbose: print job_details[row][col],
+        # If we have job details, write them to the sheet, below the headers.
+        for row in range(first_job_row, last_job_row):
 
-        # 'Account'
-        col += 1
-        sheet.write(sheet_row, col, job_details[row][col])
-        if args.verbose: print job_details[row][col],
+            # Bump rows down below header line.
+            sheet_row += 1
 
-        # 'Node'
-        col += 1
-        sheet.write(sheet_row, col, job_details[row][col])
-        if args.verbose: print job_details[row][col],
+            # A little feedback for the people.
+            if not args.verbose:
+                if sheet_row % 1000 == 0:
+                    sys.stdout.write('.')
+                    sys.stdout.flush()
 
-        # 'Slots'
-        col += 1
-        sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
-        if args.verbose: print job_details[row][col],
+            # 'Job Date'
+            col = 0
+            sheet.write(sheet_row, col, from_timestamp_to_excel_date(job_details[row][col]), DATE_FORMAT)
 
-        # 'Wallclock Secs'
-        col += 1
-        sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
-        if args.verbose: print job_details[row][col],
+            # 'Job Timestamp'
+            col += 1
+            sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            if args.verbose: print job_details[row][col],
 
-        # 'JobID'
-        col += 1
-        sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
-        if args.verbose: print job_details[row][col],
-
-        # Extra column if needed: 'Reason' or 'Failed Code'
-        if col < len(job_details[row])-1:
+            # 'Username'
             col += 1
             sheet.write(sheet_row, col, job_details[row][col])
             if args.verbose: print job_details[row][col],
 
-        if args.verbose: print
+            # 'Job Name'
+            col += 1
+            sheet.write(sheet_row, col, unicode(job_details[row][col],'utf-8'))
+            if args.verbose: print job_details[row][col],
+
+            # 'Account'
+            col += 1
+            sheet.write(sheet_row, col, job_details[row][col])
+            if args.verbose: print job_details[row][col],
+
+            # 'Node'
+            col += 1
+            sheet.write(sheet_row, col, job_details[row][col])
+            if args.verbose: print job_details[row][col],
+
+            # 'Slots'
+            col += 1
+            sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            if args.verbose: print job_details[row][col],
+
+            # 'Wallclock Secs'
+            col += 1
+            sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            if args.verbose: print job_details[row][col],
+
+            # 'JobID'
+            col += 1
+            sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            if args.verbose: print job_details[row][col],
+
+            # Extra column if needed: 'Reason' or 'Failed Code'
+            if col < len(job_details[row])-1:
+                col += 1
+                sheet.write(sheet_row, col, job_details[row][col])
+                if args.verbose: print job_details[row][col],
+
+            if args.verbose: print
+
+        job_rows_left -= last_job_row - first_job_row
+
+        first_job_row = last_job_row
+        last_job_row = first_job_row + min(job_rows_left, EXCEL_MAX_ROWS)
+
+        if job_rows_left > 0:
+            # Generate new sheet of the form "<sheet name> <sheet number>" (starting with 2).
+            sheet_number += 1
+            sheet = workbook.add_worksheet("%s %d" % (sheet_name, sheet_number))
+
+            # Create same headers on new numbered sheets as on the original sheet name.
+            for col in range(0, len(BILLING_DETAILS_SHEET_COLUMNS[sheet_name])):
+                sheet.write(0, col, BILLING_DETAILS_SHEET_COLUMNS[sheet_name][col], BOLD_FORMAT)
+            sys.stdout.write('|')
+            sys.stdout.flush()
+        else:
+            break  # Leave while True loop.
 
     print
 
@@ -634,19 +667,19 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     # Output jobs to sheet for billable jobs.
     if len(billable_job_details) > 0:
         print "    Billable Jobs:    ",
-        write_job_details(computing_sheet, billable_job_details)
+        write_job_details(billing_details_wkbk, computing_sheet, "Computing", billable_job_details)
 
     # Output nonbillable jobs to sheet for nonbillable jobs.
     if len(nonbillable_node_job_details) > 0:
         print "    Nonbillable Jobs: ",
         all_nonbillable_job_details = \
             nonbillable_node_job_details + unknown_user_job_details + unknown_node_job_details + both_billable_and_non_node_job_details
-        write_job_details(nonbillable_job_sheet, all_nonbillable_job_details)
+        write_job_details(billing_details_wkbk, nonbillable_job_sheet, "Nonbillable Jobs", all_nonbillable_job_details)
 
     # Output jobs to sheet for failed jobs.
     if len(failed_job_details) > 0:
         print "    Failed Jobs:      ",
-        write_job_details(failed_job_sheet, failed_job_details)
+        write_job_details(billing_details_wkbk, failed_job_sheet, "Failed Jobs", failed_job_details)
 
     print "Computing charges computed."
 
