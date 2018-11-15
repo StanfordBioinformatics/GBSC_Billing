@@ -224,7 +224,7 @@ def get_ilab_service_id(wkbk, type_name):
     iLab_column = sheet_get_named_column(rates_sheet,"iLab Service ID")
 
     for (type, id) in zip(type_column, iLab_column):
-        if type == type_name:
+        if type == type_name and id != 'None':
             return int(id)
     else:
         return None
@@ -259,8 +259,9 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     pi_first_names = sheet_get_named_column(pis_sheet, "PI First Name")
     pi_last_names  = sheet_get_named_column(pis_sheet, "PI Last Name")
     pi_emails      = sheet_get_named_column(pis_sheet, "PI Email")
+    owner_emails   = sheet_get_named_column(pis_sheet, "iLab Owner Email")
 
-    pi_details_list = zip(pi_first_names, pi_last_names, pi_emails)
+    pi_details_list = zip(pi_first_names, pi_last_names, pi_emails, owner_emails)
 
     pi_tag_to_names_email = dict(zip(pi_tag_list, pi_details_list))
 
@@ -769,27 +770,23 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
     # STORAGE Subtable
     #
     ###
-
-    #
-    # Get the Service ID for "Local Storage".
-    #
     total_storage_sizes = 0.0
+    if storage_service_id is not None:
 
-    for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
+        for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
 
-        # Note format: <folder> [<pct>%, if not 0%]
-        note = "%s" % (folder)
+            # Note format: <folder> [<pct>%, if not 0%]
+            note = "%s" % (folder)
 
-        if 0.0 < pctage < 1.0:
-            note += " [%d%%]" % (pctage * 100)
+            if 0.0 < pctage < 1.0:
+                note += " [%d%%]" % (pctage * 100)
 
-        quantity = size * pctage
+            quantity = size * pctage
 
-        if quantity > 0.0:
-            output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, storage_service_id, note, quantity)
+            if quantity > 0.0:
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, storage_service_id, note, quantity)
 
-            total_storage_sizes += size
-
+                total_storage_sizes += size
 
     ###
     #
@@ -797,37 +794,35 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
     #
     ###
 
-    #
-    # Get the Service ID for "Local Cluster Computing".
-    #
+    if computing_service_id is not None:
 
-    # Loop over pi_tag_to_account_username_cpus for account/username combos.
-    account_username_cpus_list = pi_tag_to_account_username_cpus.get(pi_tag)
+        # Loop over pi_tag_to_account_username_cpus for account/username combos.
+        account_username_cpus_list = pi_tag_to_account_username_cpus.get(pi_tag)
 
-    if account_username_cpus_list is not None:
+        if account_username_cpus_list is not None:
 
-        for (account, username_cpu_pctage_list) in account_username_cpus_list:
+            for (account, username_cpu_pctage_list) in account_username_cpus_list:
 
-            if len(username_cpu_pctage_list) > 0:
+                if len(username_cpu_pctage_list) > 0:
 
-                for (username, cpu_core_hrs, pctage) in username_cpu_pctage_list:
+                    for (username, cpu_core_hrs, pctage) in username_cpu_pctage_list:
 
-                    fullname = username_to_user_details[username][1]
+                        fullname = username_to_user_details[username][1]
 
-                    # Note format: <user-name> (<user-ID>) [<pct>%, if not 0%]
-                    note = "Account: %s - User: %s (%s)" % (account, fullname, username)
+                        # Note format: <user-name> (<user-ID>) [<pct>%, if not 0%]
+                        note = "Account: %s - User: %s (%s)" % (account, fullname, username)
 
-                    if 0.0 < pctage < 1.0:
-                        note += " [%d%%]" % (pctage * 100)
+                        if 0.0 < pctage < 1.0:
+                            note += " [%d%%]" % (pctage * 100)
 
-                    quantity = cpu_core_hrs * pctage
+                        quantity = cpu_core_hrs * pctage
 
-                    if quantity > 0.0:
-                        output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, computing_service_id, note, quantity)
+                        if quantity > 0.0:
+                            output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, computing_service_id, note, quantity)
 
-            else:
-                # No users for this PI.
-                pass
+                else:
+                    # No users for this PI.
+                    pass
 
     return True
 
@@ -842,7 +837,7 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
 
     # Get PI Last name for some situations below.
-    (_, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
+    (_, pi_last_name, _, _) = pi_tag_to_names_email[pi_tag]
 
     # Get list of (account, %ages) tuples for given PI.
     for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
@@ -963,8 +958,12 @@ def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_i
 
     # Create a dictionary to be written out as CSV.
     csv_dict = dict()
-    csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][2]
-    csv_dict['pi_email']    = ''
+    # If there is an 'iLab Owner Email' available, use that, o/w, use the PI email.
+    if pi_tag_to_names_email[pi_tag][3] != '':
+        csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][3]
+    else:
+        csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][2]
+    csv_dict['pi_email']    = pi_tag_to_names_email[pi_tag][2]
     csv_dict['service_request_id'] = int(pi_tag_to_ilab_service_req_id[pi_tag])
     csv_dict['purchased_on'] = end_month_string  # Last date of billing period.
     csv_dict['service_id'] = service_id
