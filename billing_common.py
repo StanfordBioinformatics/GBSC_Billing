@@ -126,6 +126,7 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'hppsl230s-rcf-412',                    # WAS scg3-0
                                  'sgiuv300-srcf',                        # The supercomputer
                                  'cfxs2600gz-rcf-114',                   # Data Mover nodes
+                                 'dper7425-srcf-d10-37',                 # Free node from Dell
                                  'None assigned'
                                  ]
 
