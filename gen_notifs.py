@@ -1474,7 +1474,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
 
     # Freeze the first row.
-    rates_input_sheet.freeze_panes(1, 0)
+    rates_output_sheet.freeze_panes(1, 0)
 
     curr_row = 0
     rates_output_sheet.write(curr_row, 0, "GBSC Rates:", BOLD_FORMAT)
