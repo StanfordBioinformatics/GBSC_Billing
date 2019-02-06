@@ -130,6 +130,9 @@ pi_tag_to_user_details = defaultdict(list)
 # Mapping from pi_tag to list of [storage_charge, computing_charge, cloud_charge, consulting_charge, total_charge].
 pi_tag_to_charges = defaultdict(list)
 
+# Mapping from pi_tag to list of [iLab service request ID, iLab service request name, iLab service request owner].
+pi_tag_to_iLab_info = defaultdict(list)
+
 # Mapping from pi_tag to set of (cloud account, %age) tuples.
 pi_tag_to_cloud_account_pctages = defaultdict(set)
 
@@ -446,6 +449,17 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
         for (pi_tag, date_added, date_removed, pctage) in pi_tag_date_list:
             pi_tag_to_user_details[pi_tag].append([username, date_added, date_removed, pctage])
+
+    global pi_tag_to_iLab_info
+
+    serv_req_ids    = sheet_get_named_column(pis_sheet, "iLab Service Request ID")
+    serv_req_names  = sheet_get_named_column(pis_sheet, "iLab Service Request Name")
+    serv_req_owners = sheet_get_named_column(pis_sheet, "iLab Service Request Owner")
+
+    iLab_info_rows = zip(pi_tags, serv_req_ids, serv_req_names, serv_req_owners)
+
+    for (pi_tag, serv_req_id, serv_req_name, serv_req_owner) in iLab_info_rows:
+        pi_tag_to_iLab_info[pi_tag].append([serv_req_id, serv_req_name, serv_req_owner])
 
     #
     # Create mapping from account to list of pi_tags and %ages.
@@ -1459,6 +1473,9 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 # a BillingNotification workbook.
 def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
 
+    # Freeze the first row.
+    rates_input_sheet.freeze_panes(1, 0)
+
     curr_row = 0
     rates_output_sheet.write(curr_row, 0, "GBSC Rates:", BOLD_FORMAT)
     rates_output_sheet.write(curr_row, 1, "", BOLD_FORMAT)
@@ -1489,6 +1506,9 @@ def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
 # job details associated with a particular PI.  It reads from dict pi_tag_to_job_details.
 def generate_computing_details_sheet(sheet, pi_tag):
 
+    # Freeze the first row.
+    sheet.freeze_panes(1, 0)
+
     # Write the job details, sorted by username.
     curr_row = 1
     for (date, username, job_name, account, node, cpu_core_hrs, jobID, pctage) in sorted(pi_tag_to_job_details[pi_tag],key=lambda s: s[1]):
@@ -1512,6 +1532,9 @@ def generate_computing_details_sheet(sheet, pi_tag):
 #  cloud_project_account_to_cloud_details
 #  pi_tag_to_cloud_account_pctages
 def generate_cloud_details_sheet(sheet, pi_tag):
+
+    # Freeze the first row.
+    sheet.freeze_panes(1, 0)
 
     curr_row = 1
 
@@ -1549,6 +1572,9 @@ def generate_cloud_details_sheet(sheet, pi_tag):
 #  pi_tag_to_consulting_details
 def generate_consulting_details_sheet(sheet, pi_tag):
 
+    # Freeze the first row.
+    sheet.freeze_panes(1, 0)
+
     curr_row = 1  # The header is already in this sheet
 
     for (date, summary, notes, consultant, hours, travel_hours, cumul_hours) in pi_tag_to_consulting_details[pi_tag]:
@@ -1569,6 +1595,9 @@ def generate_consulting_details_sheet(sheet, pi_tag):
 # Generates the Lab Users sheet for a BillingNotification workbook with
 # username details for a particular PI.  It reads from dicts pi_tag_to_user_details and username_to_user_details.
 def generate_lab_users_sheet(sheet, pi_tag):
+
+    # Freeze the first row.
+    sheet.freeze_panes(1, 0)
 
     # Write the user details for active users and moving the inactive users to a separate list.
     past_user_details = []
@@ -1623,6 +1652,7 @@ def generate_aggregrate_sheet(sheet):
     sheet.set_column("F:F", 12)
     sheet.set_column("G:G", 12)
     sheet.set_column("H:H", 12)
+    sheet.set_column("I:I", 12)
 
     total_fmt = make_format(billing_aggreg_wkbk,
                             {'font_size': 14, 'bold': True})
@@ -1653,11 +1683,13 @@ def generate_aggregrate_sheet(sheet):
 
         (storage, computing, cloud, consulting, total_charges) = pi_tag_to_charges[pi_tag]
         (pi_first_name, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
+        (serv_req_id, serv_req_name, serv_req_owner) = pi_tag_to_iLab_info[pi_tag]
 
         curr_col = 0
         sheet.write(curr_row, curr_col, pi_first_name) ; curr_col += 1
         sheet.write(curr_row, curr_col, pi_last_name) ; curr_col += 1
         sheet.write(curr_row, curr_col, pi_tag) ; curr_col += 1
+        sheet.write(curr_row, curr_col, serv_req_name) ; curr_col += 1
         sheet.write(curr_row, curr_col, storage, charge_fmt) ; curr_col += 1
         sheet.write(curr_row, curr_col, computing, charge_fmt) ; curr_col += 1
         sheet.write(curr_row, curr_col, cloud, charge_fmt) ; curr_col += 1

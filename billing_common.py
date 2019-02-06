@@ -62,12 +62,16 @@ STORAGE_PREFIX = "StorageUsage"
 # Mapping from BillingConfig sheets to their column headers.
 #
 BILLING_CONFIG_SHEET_COLUMNS = {
-    'Rates'   : ['Type', 'Amount', 'Unit', 'Time'],
-    'PIs'     : ['PI First Name', 'PI Last Name', 'PI Tag', 'Group Name', 'PI Email', 'iLab Service Request ID', 'Date Added', 'Date Removed'],
+    'PIs'     : ['PI First Name', 'PI Last Name', 'PI Tag', 'Old PI Tag', 'PI Email', 'Group Name', 'PI Folder',
+                 'Cluster?', 'Google Cloud?', 'BaaS?', 'Affiliation',
+                 'iLab Service Request ID', 'iLab Service Request Name', 'iLab Service Request Owner',
+                 'ExPORTER PI ID',
+                 'Date Added', 'Date Removed'],
+    'Users'   : ['Username', 'Email', 'Full Name', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
     'Folders' : ['Folder', 'PI Tag', '%age', 'Method', 'Date Added', 'Date Removed'],
-    'Users'   : ['PI Tag', 'Username', 'Email', 'Full Name', 'Date Added', 'Date Removed'],
     'Accounts' : ['Account', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
-    'Cloud'   : ['Platform', 'Project', 'Project Number', 'Account', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
+    'Cloud'   : ['Platform', 'Project', 'Project Number', 'Project ID', 'Account', 'PI Tag', '%age', 'Date Added', 'Date Removed'],
+    'Rates'   : ['Type', 'Amount', 'Unit', 'Time'],
     'Config'  : ['Key', 'Value']
 }
 
@@ -93,7 +97,7 @@ BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
 
 # Mapping from sheet name in BillingAggregate workbook to the column headers within that sheet.
 BILLING_AGGREG_SHEET_COLUMNS = OrderedDict( [
-    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'Storage', 'Computing', 'Cloud', 'Consulting', 'Total Charges') )
+    ('Totals', ('PI First Name', 'PI Last Name', 'PI Tag', 'iLab Request Name', 'Storage', 'Computing', 'Cloud', 'Consulting', 'Total Charges') )
 ] )
 
 # OGE accounting file column info:
