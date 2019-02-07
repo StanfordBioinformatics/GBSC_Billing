@@ -1679,8 +1679,12 @@ def generate_aggregrate_sheet(sheet):
     cloud_column_num       = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Cloud')
     consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting')
 
+    # Sort PI Tags by PI's last name
+    pi_tags_sorted = sorted([[pi_tag, pi_tag_to_names_email[pi_tag][1]] for pi_tag in pi_tag_to_charges.iterkeys()],
+                            key=lambda a: a[1])
+
     curr_row = 1
-    for pi_tag in sorted(pi_tag_to_charges.iterkeys()):
+    for pi_tag in pi_tags_sorted:
 
         (storage, computing, cloud, consulting, total_charges) = pi_tag_to_charges[pi_tag]
         (pi_first_name, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
