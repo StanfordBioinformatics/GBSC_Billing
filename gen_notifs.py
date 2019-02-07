@@ -452,6 +452,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
     global pi_tag_to_iLab_info
 
+    pi_tags         = sheet_get_named_column(pis_sheet, "PI Tag")
     serv_req_ids    = sheet_get_named_column(pis_sheet, "iLab Service Request ID")
     serv_req_names  = sheet_get_named_column(pis_sheet, "iLab Service Request Name")
     serv_req_owners = sheet_get_named_column(pis_sheet, "iLab Service Request Owner")
@@ -459,7 +460,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     iLab_info_rows = zip(pi_tags, serv_req_ids, serv_req_names, serv_req_owners)
 
     for (pi_tag, serv_req_id, serv_req_name, serv_req_owner) in iLab_info_rows:
-        pi_tag_to_iLab_info[pi_tag].append([serv_req_id, serv_req_name, serv_req_owner])
+        pi_tag_to_iLab_info[pi_tag] = [serv_req_id, serv_req_name, serv_req_owner]
 
     #
     # Create mapping from account to list of pi_tags and %ages.
@@ -1647,7 +1648,7 @@ def generate_aggregrate_sheet(sheet):
     sheet.set_column("A:A", 12)
     sheet.set_column("B:B", 12)
     sheet.set_column("C:C", 12)
-    sheet.set_column("D:D", 12)
+    sheet.set_column("D:D", 76) # iLab service request name
     sheet.set_column("E:E", 12)
     sheet.set_column("F:F", 12)
     sheet.set_column("G:G", 12)
@@ -1700,7 +1701,6 @@ def generate_aggregrate_sheet(sheet):
         cloud_a1_cell = xl_rowcol_to_cell(curr_row, cloud_column_num)
         consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
 
-
         sheet.write_formula(curr_row, curr_col, '=SUM(%s:%s)' % (storage_a1_cell, consulting_a1_cell),
                             charge_fmt, total_charges) ; curr_col += 1
 
@@ -1718,12 +1718,12 @@ def generate_aggregrate_sheet(sheet):
     consulting_a1_cell = xl_rowcol_to_cell(curr_row, consulting_column_num)
 
     sheet.write(curr_row, 0, "TOTALS", total_fmt)
-    #sheet.write(curr_row, storage_column_num, sub_total_storage, sub_total_charge_fmt)
+    # sheet.write(curr_row, storage_column_num, sub_total_storage, sub_total_charge_fmt)
     top_storage_a1_cell = xl_rowcol_to_cell(1, storage_column_num)
     bot_storage_a1_cell = xl_rowcol_to_cell(curr_row - 1, storage_column_num)
     sheet.write_formula(curr_row, storage_column_num, '=SUM(%s:%s)' % (top_storage_a1_cell, bot_storage_a1_cell),
                         sub_total_charge_fmt, sub_total_storage)
-    #sheet.write(curr_row, computing_column_num, sub_total_computing, sub_total_charge_fmt)
+    # sheet.write(curr_row, computing_column_num, sub_total_computing, sub_total_charge_fmt)
     top_computing_a1_cell = xl_rowcol_to_cell(1, computing_column_num)
     bot_computing_a1_cell = xl_rowcol_to_cell(curr_row - 1, computing_column_num)
     sheet.write_formula(curr_row, computing_column_num, '=SUM(%s:%s)' % (top_computing_a1_cell, bot_computing_a1_cell),
@@ -1734,7 +1734,7 @@ def generate_aggregrate_sheet(sheet):
     sheet.write_formula(curr_row, cloud_column_num, '=SUM(%s:%s)' % (top_cloud_a1_cell, bot_cloud_a1_cell),
                         sub_total_charge_fmt, sub_total_cloud)
 
-    #sheet.write(curr_row, consulting_column_num, sub_total_consulting, sub_total_charge_fmt)
+    # sheet.write(curr_row, consulting_column_num, sub_total_consulting, sub_total_charge_fmt)
     top_consulting_a1_cell = xl_rowcol_to_cell(1, consulting_column_num)
     bot_consulting_a1_cell = xl_rowcol_to_cell(curr_row - 1, consulting_column_num)
     sheet.write_formula(curr_row, consulting_column_num, '=SUM(%s:%s)' % (top_consulting_a1_cell, bot_consulting_a1_cell),
