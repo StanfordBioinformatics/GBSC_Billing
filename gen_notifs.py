@@ -1648,7 +1648,7 @@ def generate_aggregrate_sheet(sheet):
     sheet.set_column("A:A", 12)
     sheet.set_column("B:B", 12)
     sheet.set_column("C:C", 12)
-    sheet.set_column("D:D", 76) # iLab service request name
+    sheet.set_column("D:D", 20) # iLab service request name
     sheet.set_column("E:E", 12)
     sheet.set_column("F:F", 12)
     sheet.set_column("G:G", 12)
