@@ -230,7 +230,6 @@ def get_ilab_service_id(wkbk, type_name):
         return None
 
 
-
 # Creates all the data structures used to write the BillingNotification workbook.
 # The overall goal is to mimic the tables of the notification sheets so that
 # to build the table, all that is needed is to print out one of these data structures.
@@ -259,7 +258,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     pi_first_names = sheet_get_named_column(pis_sheet, "PI First Name")
     pi_last_names  = sheet_get_named_column(pis_sheet, "PI Last Name")
     pi_emails      = sheet_get_named_column(pis_sheet, "PI Email")
-    owner_emails   = sheet_get_named_column(pis_sheet, "iLab Owner Email")
+    owner_emails   = sheet_get_named_column(pis_sheet, "iLab Service Request Owner")
 
     pi_details_list = zip(pi_first_names, pi_last_names, pi_emails, owner_emails)
 
