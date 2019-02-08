@@ -1684,7 +1684,7 @@ def generate_aggregrate_sheet(sheet):
                             key=lambda a: a[1])
 
     curr_row = 1
-    for pi_tag in pi_tags_sorted:
+    for pi_tag in [pi_tag_list[0] for pi_tag_list in pi_tags_sorted]:
 
         (storage, computing, cloud, consulting, total_charges) = pi_tag_to_charges[pi_tag]
         (pi_first_name, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
