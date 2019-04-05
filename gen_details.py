@@ -717,12 +717,24 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
     notes   = sheet_get_named_column(hours_sheet, "Notes")
     cumul_hours = sheet_get_named_column(hours_sheet, "Cumul Hours")
 
+    # Mar 2018: new column denoting that these entries should be ignored
+    # (this entries are paid for by FTE% and not hourly).
+    sdrc_members = sheet_get_named_column(hours_sheet, "SDRC ?")
+    # If there is no "SDRC ?" column (backward compatibility),
+    # just make a list of empty strings to zip with the columns above.
+    if sdrc_members is None:
+        sdrc_members = [""] * len(dates)
+
     # Convert empty travel hours to zeros.
     travel_hours = map(lambda h: 0 if h=='' else h, travel_hours)
 
     row = 1
-    for (date, pi_tag, hours_spent, travel_hrs, participant, summary, note, cumul_hours_spent) in \
-            zip(dates, pi_tags, hours, travel_hours, participants, summaries, notes, cumul_hours):
+    for (date, pi_tag, hours_spent, travel_hrs, participant, summary, note, cumul_hours_spent, sdrc_member) in \
+            zip(dates, pi_tags, hours, travel_hours, participants, summaries, notes, cumul_hours, sdrc_members):
+
+        # Ignore this entry if there is anything in the "SDRC ?" column.
+        if len(sdrc_member) > 0:
+            continue
 
         # Confirm date is within this month.
         date_timestamp = from_excel_date_to_timestamp(date)
