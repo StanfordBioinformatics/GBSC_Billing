@@ -137,7 +137,7 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  ]
 
 # Job tag/account prefixes for PI Tags. [Format: <Prefix>_<PI_TAG>]
-ACCOUNT_PREFIXES = ['apps', ''baas', 'baas_lab', 'baas_prj', 'nih', 'prj']
+ACCOUNT_PREFIXES = ['apps', 'baas', 'baas_lab', 'baas_prj', 'nih', 'prj']
 # List of accounts to ignore.
 IGNORED_ACCOUNTS = ['large_mem', 'default']
 
