@@ -31,6 +31,8 @@ import calendar
 import csv
 import time
 
+import job_accounting_file
+
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 execfile(os.path.join(SCRIPT_DIR, "..", "billing_common.py"))

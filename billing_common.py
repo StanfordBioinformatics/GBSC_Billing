@@ -131,11 +131,13 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'sgiuv300-srcf',                        # The supercomputer
                                  'cfxs2600gz-rcf-114',                   # Data Mover nodes
                                  'dper7425-srcf-d10-37',                 # Free node from Dell
+                                 'dper740xd-srcf-d6-22',                 # PI server: Khavari
+                                 'dper740xd-srcf-d5-35',                 # PI server: Howard Chang
                                  'None assigned'
                                  ]
 
 # Job tag/account prefixes for PI Tags. [Format: <Prefix>_<PI_TAG>]
-ACCOUNT_PREFIXES = ['baas', 'baas_lab', 'baas_prj', 'nih', 'prj']
+ACCOUNT_PREFIXES = ['apps', 'baas', 'baas_lab', 'baas_prj', 'nih', 'prj']
 # List of accounts to ignore.
 IGNORED_ACCOUNTS = ['large_mem', 'default']
 
