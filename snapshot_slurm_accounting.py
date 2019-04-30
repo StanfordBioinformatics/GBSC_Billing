@@ -201,9 +201,9 @@ print "Getting Slurm accounting for %d-%02d to %s" % (year, month, slurm_this_mo
 
 # Create the start and end dates switches to the command.
 slurm_command_starttime_switch = ["--starttime","%02d/01/%02d" % (month, year - 2000)]
-# If we are in the month we are querying for, don't use --endtime (defaults to now), excludes running jobs.
+# If we are in the month we are querying for, use the current date
 if month == todays_month and year == todays_year:
-    slurm_command_endtime_switch = list()
+    slurm_command_endtime_switch = ["--endtime", datetime.datetime.today().strftime("%m/%d/%y-%H:%M:%S")]
 else:
     slurm_command_endtime_switch = ["--endtime","%02d/01/%02d" % (next_month, next_month_year - 2000)]
 
