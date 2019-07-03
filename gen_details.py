@@ -732,6 +732,10 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
     for (date, pi_tag, hours_spent, travel_hrs, participant, summary, note, cumul_hours_spent, sdrc_member) in \
             zip(dates, pi_tags, hours, travel_hours, participants, summaries, notes, cumul_hours, sdrc_members):
 
+        # If date and pi_tag are blank, we are done.
+        if date == "" and pi_tag == "":
+            break
+
         # Ignore this entry if there is anything in the "SDRC ?" column.
         if len(sdrc_member) > 0:
             continue
