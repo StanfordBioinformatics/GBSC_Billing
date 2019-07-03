@@ -736,8 +736,8 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
         if date == "" and pi_tag == "":
             break
 
-        # Ignore this entry if there is anything in the "SDRC ?" column.
-        if len(sdrc_member) > 0:
+        # Ignore this entry if there is an X in the "SDRC ?" column.
+        if sdrc_member == "X":
             continue
 
         # Confirm date is within this month.
