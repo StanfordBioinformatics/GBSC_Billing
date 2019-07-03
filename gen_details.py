@@ -720,7 +720,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
     # Mar 2018: new column denoting that these entries should be ignored
     # (this entries are paid for by FTE% and not hourly).
     sdrc_members = sheet_get_named_column(hours_sheet, "SDRC ?")
-    # If there is no "SDRC ?" column (backward compatibility),
+    # If there is no "SDRC?" column (backward compatibility),
     # just make a list of empty strings to zip with the columns above.
     if sdrc_members is None:
         sdrc_members = [""] * len(dates)
