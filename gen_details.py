@@ -737,7 +737,11 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
             continue
 
         # Confirm date is within this month.
-        date_timestamp = from_excel_date_to_timestamp(date)
+        try:
+            date_timestamp = from_excel_date_to_timestamp(date)
+        except:
+            print >> sys.stderr, "Date Error:", date, "Summary:", summary, "Hours:", hours_spent, "Cumul:", cumul_hours_spent
+            continue
 
         # If date is before beginning of the month or after the end of the month, skip this entry.
         if begin_timestamp > date_timestamp or date_timestamp >= end_timestamp: continue
