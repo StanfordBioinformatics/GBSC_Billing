@@ -587,6 +587,21 @@ def get_rate_a1_cell(wkbk, rate_type):
         return 0.0
 
 
+#
+def get_rate_amount_and_a1_cell_from_prefix(service_str, tier_str, affiliation_str):
+
+    tier_string = "%s Access" % (tier_str.capitalize())
+    rate_string = "%s - %s" % (service_str, tier_string)
+
+    if tier_str != "Free":
+        rate_string += " - " + affiliation_str.capitalize()
+
+    rate_amount = get_rates(billing_config_wkbk, rate_string)
+    rate_a1_cell = get_rate_a1_cell(billing_config_wkbk, rate_string)
+
+    return (rate_amount, rate_a1_cell)
+
+
 # Reads the Storage sheet of the BillingDetails workbook given, and populates
 # the pi_tag_to_folder_sizes dict with the folder measurements for each PI.
 def read_storage_sheet(wkbk):
@@ -976,7 +991,6 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_storage_charges = 0.0
     total_storage_sizes   = 0.0
 
-
     # Get the rate from the Rates sheet of the BillingConfig workbook.
     cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
     if cluster_acct_status != "Full" and cluster_acct_status != "Free" and cluster_acct_status != "No":
@@ -984,13 +998,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     storage_access_string = "%s Access" % (cluster_acct_status.capitalize())
 
-    storage_rate_string = "Local HPC Storage - %s" % (storage_access_string)
-
-    if cluster_acct_status != "Free":
-        storage_rate_string += " - " + affiliation.capitalize()
-
-    rate_tb_per_month = get_rates(billing_config_wkbk, storage_rate_string)
-    rate_storage_a1_cell = get_rate_a1_cell(billing_config_wkbk, storage_rate_string)
+    (rate_tb_per_month, rate_storage_a1_cell) = get_rate_amount_and_a1_cell_from_prefix("Local HPC Storage", cluster_acct_status, affiliation)
 
     starting_storage_row = curr_row
     ending_storage_row   = curr_row
@@ -1059,11 +1067,15 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     computing_access_string = "%s Access" % (cluster_acct_status.capitalize())
     computing_rate_string = "Local Computing - %s" % (computing_access_string)
 
-    if cluster_acct_status != "Free":
-        computing_rate_string += " - " + affiliation.capitalize()
+    # Get both rates for CPU, in case someone outside the lab runs a job for a Free Tier lab (usually Consulting).
+    (free_rate_cpu_per_hour, free_rate_cpu_a1_cell) = get_rate_amount_and_a1_cell_from_prefix("Local Computing", "Free", affiliation)
+    (full_rate_cpu_per_hour, full_rate_cpu_a1_cell) = get_rate_amount_and_a1_cell_from_prefix("Local Computing", "Full", affiliation)
 
-    rate_cpu_per_hour = get_rates(billing_config_wkbk, computing_rate_string)
-    rate_cpu_a1_cell = get_rate_a1_cell(billing_config_wkbk, computing_rate_string)
+    # Choose the default rate for the lab.
+    if cluster_acct_status != "Free":
+        (rate_cpu_per_hour, rate_cpu_a1_cell) = (full_rate_cpu_per_hour, full_rate_cpu_a1_cell)
+    else:
+        (rate_cpu_per_hour, rate_cpu_a1_cell) = (free_rate_cpu_per_hour, free_rate_cpu_a1_cell)
 
     # Skip row before Computing header.
     sheet.write(curr_row, 1, None, left_border_fmt)
@@ -1118,16 +1130,20 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
                     if pi_tag in map(lambda pi_pct: pi_pct[0], pi_tags_for_username):
                         username_fmt = item_entry_fmt
+                        user_rate_cpu_per_hour = rate_cpu_per_hour
+                        user_rate_cpu_a1_cell  = rate_cpu_a1_cell
                     else:
                         username_fmt = item_entry_italics_fmt
+                        user_rate_cpu_per_hour = full_rate_cpu_per_hour
+                        user_rate_cpu_a1_cell  = full_rate_cpu_a1_cell
 
                     fullname = username_to_user_details[username][1]
                     sheet.write(curr_row, 1, "%s (%s)" % (fullname, username), username_fmt)
                     sheet.write(curr_row, 2, cpu_core_hrs, float_entry_fmt)
                     sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
 
-                    if rate_cpu_per_hour is not None:
-                        charge = cpu_core_hrs * pctage * rate_cpu_per_hour
+                    if user_rate_cpu_per_hour is not None:
+                        charge = cpu_core_hrs * pctage * user_rate_cpu_per_hour
                         total_computing_charges += charge
                     else:
                         charge = "No rate"
@@ -1140,7 +1156,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
                     cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
                     pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-                    sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell, rate_cpu_a1_cell),
+                    sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell, user_rate_cpu_a1_cell),
                                         charge_fmt, charge)
 
                     # Keep track of last row with computing values.
