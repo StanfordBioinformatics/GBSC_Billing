@@ -759,7 +759,7 @@ def process_consulting_data():
 # It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_account_cpus.
 #
 def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
-                                     storage_service_id, computing_service_id,
+                                     storage_service_id, lab_computing_service_id, full_computing_service_id,
                                      begin_month_timestamp, end_month_timestamp):
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1)  # Last date of billing period.
@@ -793,37 +793,47 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
     #
     ###
 
-    if computing_service_id is not None:
+    # Loop over pi_tag_to_account_username_cpus for account/username combos.
+    account_username_cpus_list = pi_tag_to_account_username_cpus.get(pi_tag)
 
-        # Loop over pi_tag_to_account_username_cpus for account/username combos.
-        account_username_cpus_list = pi_tag_to_account_username_cpus.get(pi_tag)
+    if account_username_cpus_list is not None:
 
-        if account_username_cpus_list is not None:
+        for (account, username_cpu_pctage_list) in account_username_cpus_list:
 
-            for (account, username_cpu_pctage_list) in account_username_cpus_list:
+            if len(username_cpu_pctage_list) > 0:
 
-                if len(username_cpu_pctage_list) > 0:
+                for (username, cpu_core_hrs, pctage) in username_cpu_pctage_list:
 
-                    for (username, cpu_core_hrs, pctage) in username_cpu_pctage_list:
+                    fullname = username_to_user_details[username][1]
 
-                        fullname = username_to_user_details[username][1]
+                    # Note format: <user-name> (<user-ID>) [<pct>%, if not 0%]
+                    note = "Account: %s - User: %s (%s)" % (account, fullname, username)
 
-                        # Note format: <user-name> (<user-ID>) [<pct>%, if not 0%]
-                        note = "Account: %s - User: %s (%s)" % (account, fullname, username)
+                    if 0.0 < pctage < 1.0:
+                        note += " [%d%%]" % (pctage * 100)
 
-                        if 0.0 < pctage < 1.0:
-                            note += " [%d%%]" % (pctage * 100)
+                    quantity = cpu_core_hrs * pctage
 
-                        quantity = cpu_core_hrs * pctage
+                    if quantity > 0.0:
+                        if lab_computing_service_id is not None:
+                            output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, lab_computing_service_id,
+                                                     note, quantity)
+                        # Lab is in Free Tier, and we can charge them if someone outside the lab ran the job.
+                        else:
+                            pi_tags_for_username = get_pi_tags_for_username_by_date(username, begin_month_timestamp)
 
-                        if quantity > 0.0:
-                            output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, computing_service_id, note, quantity)
+                            # If the user is not within the lab membership, then use the full tier service ID.
+                            if pi_tag not in map(lambda pi_pct: pi_pct[0], pi_tags_for_username):
+                                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, full_computing_service_id, note, quantity)
+                            else:
+                                print >> sys.stderr, "  *** In Free Tier Lab %s, lab member %s ran billable jobs (%f)." % (pi_tag, username, quantity)
 
-                else:
-                    # No users for this PI.
-                    pass
+            else:
+                # No users for this PI.
+                pass
 
     return True
+
 
 #
 # Generates the iLab Cloud CSV entries for a particular pi_tag.
@@ -1260,7 +1270,8 @@ for pi_tag in sorted(pi_tag_list):
         # Output Cluster data into iLab Cluster export file, if requested.
         _ = output_ilab_csv_data_for_cluster(ilab_cluster_export_csv_dictwriter, pi_tag,
                                              ilab_service_id_local_storage[service_level, affiliation],
-                                             ilab_service_id_local_computing[service_level,affiliation],
+                                             ilab_service_id_local_computing[service_level, affiliation],
+                                             ilab_service_id_local_computing["full", affiliation],
                                              begin_month_timestamp, end_month_timestamp)
 
     # Output Cloud data into iLab Cloud export file, if requested.
