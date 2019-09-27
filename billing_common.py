@@ -123,7 +123,8 @@ BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4',
                               'sgiuv20-rcf-111',                         # WAS scg3-1-fatnode
                               'dper730xd-srcf-d16',                      # WAS scg4-h17
                               'dper930-srcf-d15-05',                     # WAS scg4-h16-05
-                              'dper7425-srcf-d15'                        # Nodes installed 9/2018.
+                              'dper7425-srcf-d15',                       # Nodes installed 9/2018.
+                              'smsh11dsu-srcf-d15'                       # Login nodes installed 9/19.
                               ]
 NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'dper910-rcf-412-20', 'greenie',        # Synonyms for greenie
@@ -134,11 +135,12 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'dper740xd-srcf-d6-22',                 # PI server: Khavari
                                  'dper740xd-srcf-d5-35',                 # PI server: Howard Chang
                                  'smsx10srw-srcf-d15',                   # Login nodes
+                                 'smsh11dsu-frcf-212',                   # GSSC-owned nodes
                                  'None assigned'
                                  ]
 
 # Job tag/account prefixes for PI Tags. [Format: <Prefix>_<PI_TAG>]
-ACCOUNT_PREFIXES = ['apps', 'baas', 'baas_lab', 'baas_prj', 'nih', 'prj']
+ACCOUNT_PREFIXES = ['apps', 'baas', 'baas_lab', 'baas_prj', 'nih', 'owner', 'org', 'prj']
 # List of accounts to ignore.
 IGNORED_ACCOUNTS = ['large_mem', 'default']
 
@@ -151,7 +153,7 @@ EXCEL_MAX_ROWS = 1048576
 
 # Top-level directories for various file systems.
 GPFS_TOPLEVEL_DIRECTORIES = ['/srv/gsfs0']
-ISILON_TOPLEVEL_DIRECTORIES = ['/ifs', '/BaaS', '/labs', '/projects', '/reference', '/scg' ]
+ISILON_TOPLEVEL_DIRECTORIES = ['/ifs', '/BaaS', '/labs', '/projects', '/reference', '/scg']
 
 # Commands for determining folder quotas and usages.
 QUOTA_EXECUTABLE_GPFS = ['ssh', 'root@scg-gs0', '/usr/lpp/mmfs/bin/mmlsquota', '-j']
@@ -161,6 +163,9 @@ STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in all above commands.
 
 # Pathname to root of PI project directories.
 PI_PROJECT_ROOT_DIR = '/labs'
+
+# Subdirectory name for BaaS, found in PI Folders.
+BAAS_SUBDIR_NAME = "BaaS"
 
 # How many hours of consulting are free.
 CONSULTING_HOURS_FREE = 1
