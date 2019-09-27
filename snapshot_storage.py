@@ -68,6 +68,7 @@ global STORAGE_PREFIX
 global BILLING_DETAILS_SHEET_COLUMNS
 global GPFS_TOPLEVEL_DIRECTORIES
 global ISILON_TOPLEVEL_DIRECTORIES
+global BAAS_SUBDIR_NAME
 
 #=====
 #
@@ -267,20 +268,41 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
     # Get lists of folders, quota booleans from PIs sheet.
     pis_sheet = config_wkbk.sheet_by_name('PIs')
 
-    folders     = sheet_get_named_column(pis_sheet, 'PI Folder')
-    pi_tags     = sheet_get_named_column(pis_sheet, 'PI Tag')
-    measure_types = ['quota'] * len(folders)   # All PI folders are measured by quota.
-    dates_added = sheet_get_named_column(pis_sheet, 'Date Added')
-    dates_remvd = sheet_get_named_column(pis_sheet, 'Date Removed')
+    pis_sheet_folders     = sheet_get_named_column(pis_sheet, 'PI Folder')
+    pis_sheet_pi_tags     = sheet_get_named_column(pis_sheet, 'PI Tag')
+    pis_sheet_measure_types = ['quota'] * len(pis_sheet_folders)   # All PI folders are measured by quota.
+    pis_sheet_dates_added = sheet_get_named_column(pis_sheet, 'Date Added')
+    pis_sheet_dates_remvd = sheet_get_named_column(pis_sheet, 'Date Removed')
+
+    # Potentially add "BaaS" subfolders to PI folder names, if switch given.
+    if args.include_baas_folders:
+        pis_sheet_baas_folders = map(lambda x: x + "/" + BAAS_SUBDIR_NAME, pis_sheet_folders)
+        pis_sheet_baas_pi_tags = pis_sheet_pi_tags
+        pis_sheet_baas_measure_types = ['usage'] * len(pis_sheet_baas_folders)   # All PI BaaS folders are measured by usage.
+        pis_sheet_baas_dates_added = pis_sheet_dates_added
+        pis_sheet_baas_dates_remvd = pis_sheet_dates_remvd
+    else:
+        pis_sheet_baas_folders = []
+        pis_sheet_baas_pi_tags = []
+        pis_sheet_baas_measure_types = []
+        pis_sheet_baas_dates_added = []
+        pis_sheet_baas_dates_remvd = []
 
     # Get lists of folders, quota booleans from Folders sheet.
     folder_sheet = config_wkbk.sheet_by_name('Folders')
 
-    folders     += sheet_get_named_column(folder_sheet, 'Folder')
-    pi_tags     += sheet_get_named_column(folder_sheet, 'PI Tag')
-    measure_types += sheet_get_named_column(folder_sheet, 'Method')
-    dates_added += sheet_get_named_column(folder_sheet, 'Date Added')
-    dates_remvd += sheet_get_named_column(folder_sheet, 'Date Removed')
+    folders_sheet_folders     = sheet_get_named_column(folder_sheet, 'Folder')
+    folders_sheet_pi_tags     = sheet_get_named_column(folder_sheet, 'PI Tag')
+    folders_sheet_measure_types = sheet_get_named_column(folder_sheet, 'Method')
+    folders_sheet_dates_added = sheet_get_named_column(folder_sheet, 'Date Added')
+    folders_sheet_dates_remvd = sheet_get_named_column(folder_sheet, 'Date Removed')
+
+    # Assemble the lists from above.
+    folders       = pis_sheet_folders + pis_sheet_baas_folders + folders_sheet_folders
+    pi_tags       = pis_sheet_pi_tags + pis_sheet_baas_pi_tags + folders_sheet_pi_tags
+    measure_types = pis_sheet_measure_types + pis_sheet_baas_measure_types + folders_sheet_measure_types
+    dates_added   = pis_sheet_dates_added + pis_sheet_baas_dates_added + folders_sheet_dates_added
+    dates_remvd   = pis_sheet_dates_remvd + pis_sheet_baas_dates_remvd + folders_sheet_dates_remvd
 
     # List of dictionaries with keys from BILLING_DETAILS_SHEET_COLUMNS['Storage'].
     folder_size_dicts = []
@@ -383,6 +405,9 @@ parser.add_argument("-r", "--billing_root",
 parser.add_argument("--no_usage", action="store_true",
                     default=False,
                     help="Don't run storage usage calculations [default = false]")
+parser.add_argument("--include_baas_folders", action="store_true",
+                    default=False,
+                    help="In PI Folders, also measure 'FOLDER/BaaS' [default = false]")
 parser.add_argument("-s", "--storage_usage_csv",
                     default=None,
                     help="The storage usage CSV file.")
