@@ -313,7 +313,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
     for (folder, pi_tag, measure_type, date_added, date_removed) in zip(folders, pi_tags, measure_types, dates_added, dates_remvd):
 
         # Skip measuring this folder entry if the folder is None.
-        if folder == 'None': continue
+        if folder.startswith('None'): continue
 
         # Account for multiple folders separated by commas.
         pi_folder_list = folder.split(',')
