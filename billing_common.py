@@ -136,6 +136,8 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'dper740xd-srcf-d5-35',                 # PI server: Howard Chang
                                  'smsx10srw-srcf-d15',                   # Login nodes
                                  'smsh11dsu-frcf-212',                   # GSSC-owned nodes
+                                 'dper630-frcf-212',                     # Test login node/warm spares for maintenance nodes
+                                 'smsx11dsc-frcf-212',                   # Storage node
                                  'None assigned'
                                  ]
 
