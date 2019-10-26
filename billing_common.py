@@ -131,7 +131,7 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'sgiuv300-srcf',                        # The supercomputer
                                  'cfxs2600gz-rcf-114',                   # Data Mover nodes
                                  'dper7425-srcf-d10-37',                 # Free node from Dell
-                                 'smsh11dsu-srcf-d15'                    # Login nodes installed 9/19.
+                                 'smsh11dsu-srcf-d15',                   # Login nodes installed 9/19.
                                  'dper740xd-srcf-d6-22',                 # PI server: Khavari
                                  'dper740xd-srcf-d5-35',                 # PI server: Howard Chang
                                  'smsx10srw-srcf-d15',                   # Login nodes
