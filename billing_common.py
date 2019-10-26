@@ -123,8 +123,7 @@ BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4',
                               'sgiuv20-rcf-111',                         # WAS scg3-1-fatnode
                               'dper730xd-srcf-d16',                      # WAS scg4-h17
                               'dper930-srcf-d15-05',                     # WAS scg4-h16-05
-                              'dper7425-srcf-d15',                       # Nodes installed 9/2018.
-                              'smsh11dsu-srcf-d15'                       # Login nodes installed 9/19.
+                              'dper7425-srcf-d15'                        # Nodes installed 9/2018.
                               ]
 NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'dper910-rcf-412-20', 'greenie',        # Synonyms for greenie
@@ -132,6 +131,7 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'sgiuv300-srcf',                        # The supercomputer
                                  'cfxs2600gz-rcf-114',                   # Data Mover nodes
                                  'dper7425-srcf-d10-37',                 # Free node from Dell
+                                 'smsh11dsu-srcf-d15'                    # Login nodes installed 9/19.
                                  'dper740xd-srcf-d6-22',                 # PI server: Khavari
                                  'dper740xd-srcf-d5-35',                 # PI server: Howard Chang
                                  'smsx10srw-srcf-d15',                   # Login nodes
