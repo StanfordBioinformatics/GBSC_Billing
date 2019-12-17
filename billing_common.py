@@ -82,7 +82,7 @@ BILLING_DETAILS_SHEET_COLUMNS = OrderedDict( (
     ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Reason')),
     ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Failed Code')),
     ('Cloud', ('Platform', 'Account', 'Project', 'Description', 'Dates', 'Quantity', 'Unit of Measure', 'Charge')),
-    ('Consulting', ('Date', 'PI Tag', 'Hours', 'Travel Hours', 'Participants', 'Summary', 'Notes', 'Cumul Hours')) )
+    ('Consulting', ('Date', 'PI Tag', 'Hours', 'Travel Hours', 'Participants', 'Clients', 'Summary', 'Notes', 'Cumul Hours')) )
 )
 
 # Mapping from sheet name to the column headers within that sheet.
@@ -91,7 +91,7 @@ BILLING_NOTIFS_SHEET_COLUMNS = OrderedDict( (
     ('Lab Users', ('Username', 'Full Name', 'Email', 'Date Added', 'Date Removed') ),
     ('Computing Details' , ('Job Date', 'Username', 'Job Name', 'Job Tag', 'Node', 'CPU-core Hours', 'Job ID', '%age') ),
     ('Cloud Details', ('Platform', 'Project', 'Description', 'Dates', 'Quantity', 'Unit of Measure', 'Charge', '%age', 'Lab Cost') ),
-    ('Consulting Details', ('Date', 'Summary', 'Notes', 'Participants', 'Hours', 'Travel Hours', 'Cumul Hours')),
+    ('Consulting Details', ('Date', 'Summary', 'Notes', 'Participants', 'Clients', 'Hours', 'Travel Hours', 'Cumul Hours')),
     ('Rates'      , ('Type', 'Amount', 'Unit', 'Time' ) )
 ) )
 

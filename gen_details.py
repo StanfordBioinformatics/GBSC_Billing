@@ -713,6 +713,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
     hours   = sheet_get_named_column(hours_sheet, "Hours")
     travel_hours = sheet_get_named_column(hours_sheet, "Travel Hours")
     participants = sheet_get_named_column(hours_sheet, "Participants")
+    clients = sheet_get_named_column(hours_sheet, "Clients")
     summaries = sheet_get_named_column(hours_sheet, "Summary")
     notes   = sheet_get_named_column(hours_sheet, "Notes")
     cumul_hours = sheet_get_named_column(hours_sheet, "Cumul Hours")
@@ -729,8 +730,8 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
     travel_hours = map(lambda h: 0 if h=='' else h, travel_hours)
 
     row = 1
-    for (date, pi_tag, hours_spent, travel_hrs, participant, summary, note, cumul_hours_spent, sdrc_member) in \
-            zip(dates, pi_tags, hours, travel_hours, participants, summaries, notes, cumul_hours, sdrc_members):
+    for (date, pi_tag, hours_spent, travel_hrs, participant, client, summary, note, cumul_hours_spent, sdrc_member) in \
+            zip(dates, pi_tags, hours, travel_hours, participants, clients, summaries, notes, cumul_hours, sdrc_members):
 
         # If date and pi_tag are blank, we are done.
         if date == "" and pi_tag == "":
@@ -765,6 +766,8 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
         consulting_sheet.write(row, col, float(travel_hrs), FLOAT_FORMAT)
         col += 1
         consulting_sheet.write(row, col, participant)
+        col += 1
+        consulting_sheet.write(row, col, client)
         col += 1
         consulting_sheet.write(row, col, summary)
         col += 1

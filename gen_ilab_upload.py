@@ -674,10 +674,10 @@ def read_consulting_sheet(wkbk):
 
     for row in range(1, consulting_sheet.nrows):
 
-        (date, pi_tag, hours, travel_hours, participants, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
+        (date, pi_tag, hours, travel_hours, participants, clients, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
 
         # Save the consulting item in a list of charges for that PI.
-        consulting_details[pi_tag].append((date, summary, float(hours), float(travel_hours), float(cumul_hours)))
+        consulting_details[pi_tag].append((date, summary, clients, float(hours), float(travel_hours), float(cumul_hours)))
 
 
 #
@@ -917,7 +917,7 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
                                         consulting_free_service_id, consulting_paid_service_id,
                                         begin_month_timestamp, end_month_timestamp):
 
-    for (date, summary, hours, travel_hours, cumul_hours) in consulting_details[pi_tag]:
+    for (date, summary, client, hours, travel_hours, cumul_hours) in consulting_details[pi_tag]:
 
         date_timestamp = from_excel_date_to_timestamp(date)
         purchased_on_date = from_excel_date_to_date_string(date)
@@ -945,12 +945,12 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
             # Write out the iLab export line for the free hours used.
             if free_hours_used > 0:
                 output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, consulting_free_service_id,
-                                         summary, free_hours_used)
+                                         "%s [%s]" % (summary, client), free_hours_used)
 
             # Write out the iLab export line for the paid hours used.
             if paid_hours_used > 0:
                 output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, consulting_paid_service_id,
-                                         summary, paid_hours_used)
+                                         "%s [%s]" % (summary, client), paid_hours_used)
 
     return True
 

@@ -737,16 +737,17 @@ def read_consulting_sheet(wkbk):
     hours       = sheet_get_named_column(consulting_sheet, 'Hours')
     travel_hours= sheet_get_named_column(consulting_sheet, 'Travel Hours')
     consultants = sheet_get_named_column(consulting_sheet, 'Participants')
+    clients     = sheet_get_named_column(consulting_sheet, 'Clients')
     summaries   = sheet_get_named_column(consulting_sheet, 'Summary')
     notes       = sheet_get_named_column(consulting_sheet, 'Notes')
     cumul_hours = sheet_get_named_column(consulting_sheet, 'Cumul Hours')
 
-    consulting_details = zip(dates, pi_tags, hours, travel_hours, consultants, summaries, notes, cumul_hours)
+    consulting_details = zip(dates, pi_tags, hours, travel_hours, consultants, clients, summaries, notes, cumul_hours)
 
-    for (date, pi_tag, hours, travel_hours, consultant, summary, notes, cumul_hours) in consulting_details:
+    for (date, pi_tag, hours, travel_hours, consultant, client, summary, notes, cumul_hours) in consulting_details:
 
         # Save the consulting item in a list of details for each PI.
-        pi_tag_to_consulting_details[pi_tag].append((date, summary, notes, consultant, float(hours), float(travel_hours), float(cumul_hours)))
+        pi_tag_to_consulting_details[pi_tag].append((date, summary, notes, consultant, client, float(hours), float(travel_hours), float(cumul_hours)))
 
         #
         # Calculate the number of free hours and billable hours in this transaction.
@@ -766,7 +767,7 @@ def read_consulting_sheet(wkbk):
         billable_hours = hours - free_hours_used + (travel_hours * CONSULTING_TRAVEL_RATE_DISCOUNT)
 
         # Save the consulting charges in a list of items for each PI.
-        pi_tag_to_consulting_charges[pi_tag].append((date, summary, consultant, float(hours), float(travel_hours), float(billable_hours)))
+        pi_tag_to_consulting_charges[pi_tag].append((date, summary, consultant, client, float(hours), float(travel_hours), float(billable_hours)))
 
 
 # Generates the Billing sheet of a BillingNotifications (or BillingAggregate) workbook for a particular pi_tag.
@@ -1348,7 +1349,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, right_border_fmt)
     curr_row += 1
     # Write the consulting headers.
-    sheet.write(curr_row, 1, "Date: Task (Consultant)", col_header_left_fmt)
+    sheet.write(curr_row, 1, "Date: Task (Consultant) [Client]", col_header_left_fmt)
     sheet.write(curr_row, 2, "Hours (Travel Hours)", col_header_textwrap_fmt)
     sheet.write(curr_row, 3, "Billable Hours", col_header_textwrap_fmt)
     sheet.write(curr_row, 4, "Charge", col_header_right_fmt)
@@ -1367,9 +1368,9 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
         rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting - Stanford')
         rate_consulting_a1_cell  = get_rate_a1_cell(billing_config_wkbk, 'Bioinformatics Consulting - Stanford')
 
-        for (date, summary, consultant, hours, travel_hours, billable_hours) in pi_tag_to_consulting_charges[pi_tag]:
+        for (date, summary, consultant, client, hours, travel_hours, billable_hours) in pi_tag_to_consulting_charges[pi_tag]:
 
-            date_task_consultant_str = "%s: %s (%s)" % (from_excel_date_to_date_string(date), summary, consultant)
+            date_task_consultant_str = "%s: %s (%s) [%s]" % (from_excel_date_to_date_string(date), summary, consultant, client)
             sheet.write(curr_row, 1, date_task_consultant_str, item_entry_textwrap_fmt)
 
             hours_travel_hours_str = "%s (%s)" % (hours, travel_hours)
@@ -1594,13 +1595,14 @@ def generate_consulting_details_sheet(sheet, pi_tag):
 
     curr_row = 1  # The header is already in this sheet
 
-    for (date, summary, notes, consultant, hours, travel_hours, cumul_hours) in pi_tag_to_consulting_details[pi_tag]:
+    for (date, summary, notes, consultant, client, hours, travel_hours, cumul_hours) in pi_tag_to_consulting_details[pi_tag]:
 
         curr_col = 0
         sheet.write(curr_row, curr_col, date, DATE_FORMAT) ; curr_col += 1
         sheet.write(curr_row, curr_col, summary) ; curr_col += 1
         sheet.write(curr_row, curr_col, notes) ; curr_col += 1
         sheet.write(curr_row, curr_col, consultant) ; curr_col += 1
+        sheet.write(curr_row, curr_col, client) ; curr_col += 1
         sheet.write(curr_row, curr_col, hours, FLOAT_FORMAT) ; curr_col += 1
         sheet.write(curr_row, curr_col, travel_hours, FLOAT_FORMAT) ; curr_col += 1
         sheet.write(curr_row, curr_col, cumul_hours, FLOAT_FORMAT) ; curr_col += 1
