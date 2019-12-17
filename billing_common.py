@@ -138,6 +138,9 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'smsh11dsu-frcf-212',                   # GSSC-owned nodes
                                  'dper630-frcf-212',                     # Test login node/warm spares for maintenance nodes
                                  'smsx11dsc-frcf-212',                   # Storage node
+                                 'ddnr620-frcf-213',                     # Old DDN storage nodes, repurposed
+                                 'dper820-frcf-212',                     # Obsolete Sherlock nodes
+                                 'smsh11dsu-srcf-d10',                   # Slurm management nodes
                                  'None assigned'
                                  ]
 
