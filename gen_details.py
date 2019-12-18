@@ -267,22 +267,6 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
     print
 
 #
-# Reads a subtable from the CSVFile fileobject, which is all the lines
-# between blank lines.
-#
-def get_google_invoice_csv_subtable_lines(csvfile_obj):
-
-    subtable = []
-
-    line = csvfile_obj.readline()
-    while line != '' and line != '\n':
-        subtable.append(line)
-        line = csvfile_obj.readline()
-
-    return subtable
-
-
-#
 # Returns True/False if string is a valid account.
 #
 def is_valid_account(acct):
@@ -888,10 +872,67 @@ def write_cloud_details_V2(cloud_sheet, row_dict, output_row):
     return total_amount
 
 
+def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
+
+    output_col = 0
+    total_amount = 0.0
+
+    # Write Google data into Cloud sheet.
+
+    # Output 'Platform' field.
+    cloud_sheet.write(output_row, output_col, "Google Cloud Platform")
+    output_col += 1
+
+    # Output 'Account' field. (subacccount)
+    cloud_sheet.write(output_row, output_col, row_dict['Billing account ID'])
+    output_col += 1
+
+    # Output 'Project' field.  (Project Name + Project ID)
+    cloud_sheet.write(output_row, output_col, row_dict['Project ID'])
+    output_col += 1
+
+    # Output 'Description' field. (SKU description of the charge)
+    sku_description = "%s %s" % (row_dict['Service description'], row_dict['SKU description'])
+    cloud_sheet.write(output_row, output_col, sku_description)
+    output_col += 1
+
+    # Output 'Dates' field.
+    date_range = "%s-%s" % (row_dict['Usage start date'], row_dict['Usage end date'])
+    cloud_sheet.write(output_row, output_col, date_range)
+    output_col += 1
+
+    # Parse quantity.
+    quantity_str = row_dict['Usage amount'].strip()
+    if len(quantity_str) > 0:
+        quantity = locale.atof(quantity_str)
+    else:
+        quantity = ''
+
+    # Output 'Quantity' field.
+    cloud_sheet.write(output_row, output_col, quantity, FLOAT_FORMAT)
+    output_col += 1
+
+    # Output 'Unit of Measure' field.
+    cloud_sheet.write(output_row, output_col, row_dict['Usage unit'])
+    output_col += 1
+
+    # Parse charge.
+    amount = locale.atof(row_dict['Cost ($)'])
+    # Accumulate total charges.
+    total_amount += amount
+
+    # Output 'Charge' field.
+    cloud_sheet.write(output_row, output_col, amount, MONEY_FORMAT)
+    output_col += 1
+
+    return total_amount
+
 # Generates the "Cloud" sheet.
 def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
 
     print "Computing cloud charges..."
+
+    google_invoice_version = "V3"  # Hardcoded to only work with latest version
 
     ###
     # Read the Google Invoice CSV File
@@ -900,88 +941,37 @@ def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
     # Google Invoice CSV files are Unicode with BOM.
     google_invoice_csv_file_obj = codecs.open(google_invoice_csv, 'rU', encoding='utf-8-sig')
 
-    #  Read the header subtable
-    google_invoice_header_subtable = get_google_invoice_csv_subtable_lines(google_invoice_csv_file_obj)
-
-    google_invoice_header_csvreader = csv.DictReader(google_invoice_header_subtable, fieldnames=['key','value'])
-
-    # Determine version of Google CSV file from header subtable.
-    # Version 1: has keys "Issue date" and "Amount due".
-    # Version 2: has keys "Invoice date" and no "Amount due".
-    google_invoice_version = None
-    for row in google_invoice_header_csvreader:
-
-        #
-        #   Extract invoice date from "Issue Date" or "Invoice date".
-        #
-        if row['key'] == 'Issue date':
-            google_invoice_issue_date = row['value']
-            google_invoice_version = 'V1'
-
-        elif row['key'] == 'Invoice date':
-            google_invoice_issue_date = row['value']
-            google_invoice_version = 'V2'
-
-        #
-        #   Extract the "Amount Due" value.
-        #
-        elif row['key'] == 'Amount due':
-            google_invoice_amount_due = locale.atof(row['value'])
-            google_invoice_version = "V1"
-
-        elif row['key'] == 'Invoice amount':
-            google_invoice_amount_due = locale.atof(row['value'])
-            google_invoice_version = "V2"
-
-    if google_invoice_version is None:
-        print >> sys.stderr, "  Google Invoice Version not recognized...skipping cloud"
-        return
-
-    if args.verbose:
-        print >> sys.stderr, "  Google Invoice Version %s" % (google_invoice_version)
-        print >> sys.stderr, "  Amount due: $%0.2f" % (google_invoice_amount_due)
-
     # Accumulate the total amount of charges while processing each line,
     #  to compare with total amount in header in google_invoice_amount_due above.
     google_invoice_total_amount = 0.0
 
     output_row = 1  # Keeps track of output row in Cloud sheet; starts at 1, below header.
 
-    #  While there are still more subtables...
-    while True:
+    #   Create CSVReader from subtable
+    google_invoice_subtable_csvreader = csv.DictReader(google_invoice_csv_file_obj)
 
-        #   Read subtable.
-        google_invoice_subtable = get_google_invoice_csv_subtable_lines(google_invoice_csv_file_obj)
+    #   Foreach row in CSVReader
+    for row_dict in google_invoice_subtable_csvreader:
 
-        #   No more subtables?!  Let's get out of here!
-        if len(google_invoice_subtable) == 0:
-            break
+        if google_invoice_version == 'V1':
+            row_amount = write_cloud_details_V1(cloud_sheet, row_dict, output_row)
+            if args.verbose: print ".",
+        elif google_invoice_version == 'V2':
+            row_amount = write_cloud_details_V2(cloud_sheet, row_dict, output_row)
+            if args.verbose: print ".",
+        elif google_invoice_version == 'V3':
+            row_amount = write_cloud_details_V3(cloud_sheet, row_dict, output_row)
+            if args.verbose: print ".",
 
-        #   Create CSVReader from subtable
-        google_invoice_subtable_csvreader = csv.DictReader(google_invoice_subtable)
+        # Add up the row charges to compare to total invoice amount.
+        google_invoice_total_amount += row_amount
 
-        #   Foreach row in CSVReader
-        for row_dict in google_invoice_subtable_csvreader:
+        # Move to next row.
+        output_row += 1
 
-            if google_invoice_version == 'V1':
-                row_amount = write_cloud_details_V1(cloud_sheet, row_dict, output_row)
-                if args.verbose: print ".",
-            elif google_invoice_version == 'V2':
-                row_amount = write_cloud_details_V2(cloud_sheet, row_dict, output_row)
-                if args.verbose: print ".",
-
-            # Add up the row charges to compare to total invoice amount.
-            google_invoice_total_amount += row_amount
-
-            # Move to next row.
-            output_row += 1
-
-    if args.verbose: print
-
-    # Compare total charges to "Amount Due".
-    if abs(google_invoice_total_amount - google_invoice_amount_due) >= 0.01:  # Ignore differences less than a penny.
-        print >> sys.stderr, "  WARNING: Google accumulated amounts do not equal amount due: ($%.2f != $%.2f)" % (google_invoice_total_amount,
-                                                                                                           google_invoice_amount_due)
+    if args.verbose:
+        print
+        print "  Google Cloud Total Amount: %5.2f" % (google_invoice_total_amount)
 
 
 #=====
