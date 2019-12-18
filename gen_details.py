@@ -887,16 +887,18 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
     cloud_sheet.write(output_row, output_col, "Google Cloud Platform")
     output_col += 1
 
-    # Output 'Account' field. (subacccount)
-    cloud_sheet.write(output_row, output_col, row_dict['Billing account ID'])
-    output_col += 1
-
     service = row_dict['Service description']
 
     if service.startswith("Support"):
         project_id = "gbsc-gcp-lab-gbsc"
+        account = "0012EA-13271E-94ABF6"
     else:
         project_id = row_dict['Project ID']
+        account    = row_dict['Billing account ID']
+
+    # Output 'Account' field. (subacccount)
+    cloud_sheet.write(output_row, output_col, account)
+    output_col += 1
 
     # Output 'Project' field.  (Project Name + Project ID)
     cloud_sheet.write(output_row, output_col, project_id)
