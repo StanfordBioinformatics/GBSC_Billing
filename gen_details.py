@@ -891,12 +891,19 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
     cloud_sheet.write(output_row, output_col, row_dict['Billing account ID'])
     output_col += 1
 
+    service = row_dict['Service description']
+
+    if service.startswith("Support"):
+        project_id = "gbsc-gcp-lab-gbsc"
+    else:
+        project_id = row_dict['Project ID']
+
     # Output 'Project' field.  (Project Name + Project ID)
-    cloud_sheet.write(output_row, output_col, row_dict['Project ID'])
+    cloud_sheet.write(output_row, output_col, project_id)
     output_col += 1
 
     # Output 'Description' field. (SKU description of the charge)
-    sku_description = "%s %s" % (row_dict['Service description'], row_dict['SKU description'])
+    sku_description = "%s %s" % (service, row_dict['SKU description'])
     cloud_sheet.write(output_row, output_col, sku_description)
     output_col += 1
 
