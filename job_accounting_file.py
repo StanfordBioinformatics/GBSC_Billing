@@ -12,7 +12,7 @@ class JobAccountingFile:
     # =====
     class SlurmDialect(csv.Dialect):
 
-        delimiter = '|'
+        delimiter = SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER
         doublequote = False
         escapechar = '\\'
         lineterminator = '\n'
@@ -36,12 +36,12 @@ class JobAccountingFile:
 
     csv.register_dialect("sge", SGEDialect)
 
-
     # File object of open file controlled by this object.
     fp = None
 
     # Fields of each line from a possible header.
     raw_line_fields = None
+
 
     def __init__(self, filename, dialect=None):
 
@@ -105,7 +105,7 @@ class JobAccountingFile:
             return "sge"
 
         # Is it Slurm?  There would be at least 5 pipes in it.
-        elif header_line.count('|') >= 5:
+        elif header_line.count(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER) >= 5:
 
             return "slurm"
 

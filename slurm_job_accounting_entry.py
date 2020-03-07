@@ -3,6 +3,10 @@ import job_accounting_entry
 
 class SlurmJobAccountingEntry(job_accounting_entry.JobAccountingEntry):
 
+    # The delimiter to use when exporting Slurm accounting data using 'sacct'
+    #  (The default for sacct, '|', doesn't work, because field Constraints can contain a pipe.)
+    SLURMACCOUNTING_DELIMITER = '!'
+
     def parse_line_dict(self, slurm_line_dict):
 
         # Fill in the object's fields from the data in the dict given.
