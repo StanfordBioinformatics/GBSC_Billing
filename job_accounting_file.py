@@ -58,7 +58,7 @@ class JobAccountingFile:
         elif self.dialect == "slurm":
             # Read first line to get fields for Slurm
             header_line = self.fp.readline()
-            self.raw_line_fields = header_line.split('|')
+            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER)
         else:
             self.fp.close()
             raise ValueError
