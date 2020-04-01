@@ -62,7 +62,7 @@ global SLURMACCOUNTING_DELIMITER
 SLURM_ACCT_COMMAND_NAME = "sacct"
 SLURM_ACCT_STATE_SWITCHES = "--state=CA,CD,DL,F,NF,PR,TO,OOM,RQ"
 SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--duplicates","--format=ALL",
-                             "--delimiter=%s" % (slurm_job_accounting_entry.SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER)]
+                             "--delimiter=%s" % (slurm_job_accounting_entry.SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_BANG)]
 
 #=====
 #
