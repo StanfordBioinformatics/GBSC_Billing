@@ -37,6 +37,7 @@ class JobAccountingEntry:
         self.failed_code = None
 
         self.submission_time = None
+        self.start_time = None
         self.end_time = None
 
         self.owner = None

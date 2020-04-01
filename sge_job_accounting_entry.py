@@ -24,6 +24,8 @@ class SGEJobAccountingEntry(job_accounting_entry.JobAccountingEntry):
 
         self.submission_time = self.dict_get_int(sge_line_dict, 'submission_time')
 
+        self.start_time = self.dict_get_int(sge_line_dict, 'start_time')
+
         # Fill in the object's fields from the data in the dict given.
         self.failed_code = int(sge_line_dict.get('failed'))
 

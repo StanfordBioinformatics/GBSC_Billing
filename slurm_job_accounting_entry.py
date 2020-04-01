@@ -13,6 +13,7 @@ class SlurmJobAccountingEntry(job_accounting_entry.JobAccountingEntry):
         self.failed_code = 0  # TODO: get proper value for this failed code
 
         self.submission_time = self.dict_get_timestamp(slurm_line_dict, 'Submit')
+        self.start_time = self.dict_get_timestamp(slurm_line_dict, 'Start')
         self.end_time = self.dict_get_timestamp(slurm_line_dict, 'End')
 
         self.owner = slurm_line_dict['User']
