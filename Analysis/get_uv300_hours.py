@@ -23,15 +23,12 @@
 #
 #=====
 import argparse
-import os
 import os.path
 import sys
 import datetime
 import calendar
-import csv
-import time
 
-import job_accounting_file
+from job_accounting_file import JobAccountingFile
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -125,8 +122,6 @@ billing_root = os.path.abspath(billing_root)
 
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
-if not os.path.exists(year_month_dir):
-    os.makedirs(year_month_dir)
 
 # Use switch arg for accounting_file if present, else use file in BillingRoot.
 if args.slurm_accounting_file is not None:
@@ -154,10 +149,7 @@ total_jobs = 0
 #
 
 # Read in the header line from the Slurm file to use for the DictReader
-slurm_fp = open(accounting_file, "r")
-header = slurm_fp.readline()
-fieldnames = header.split('|')
-reader = csv.DictReader(slurm_fp, fieldnames=fieldnames, dialect="slurm")
+slurm_file = JobAccountingFile(accounting_file)
 
 one_hour = datetime.timedelta(hours=1)
 
@@ -165,13 +157,13 @@ one_hour = datetime.timedelta(hours=1)
 #     For each hour from 'start' to 'end':
 #       Increment jobs_per_hour for that [day,hour].
 #
-for slurm_job in reader:
+for slurm_rec in slurm_file:
 
-    if 'sgiuv300' in slurm_job['NodeList']:
+    if 'sgiuv300' in slurm_rec.node_list:
         total_jobs += 1
 
-        start_date = datetime.datetime.strptime(slurm_job['Start'], "%Y-%m-%dT%H:%M:%S")
-        end_date   = datetime.datetime.strptime(slurm_job['End'], "%Y-%m-%dT%H:%M:%S")
+        start_date = datetime.datetime.fromtimestamp(slurm_rec.start_time)
+        end_date   = datetime.datetime.fromtimestamp(slurm_rec.end_time)
 
         # Account for jobs which start in previous months.
         if start_date < first_day_of_this_month:
