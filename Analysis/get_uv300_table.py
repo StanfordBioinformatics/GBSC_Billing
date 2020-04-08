@@ -145,11 +145,10 @@ billing_config_wkbk = xlrd.open_workbook(args.billing_config_file)
 #
 # Build data structures.
 #
-print "Building configuration data structures."
 build_global_data(billing_config_wkbk)
 
 # print header for table
-print "start_date,jobID,user,wallclock,account,pilist"
+print "start_date,jobID,user,wallclock,cpus,account,pilist"
 
 total_jobs = 0
 for accounting_file in args.slurm_accounting_files:
