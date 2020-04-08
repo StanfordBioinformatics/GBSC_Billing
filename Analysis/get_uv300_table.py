@@ -169,8 +169,6 @@ for accounting_file in args.slurm_accounting_files:
     slurm_file = JobAccountingFile(accounting_file)
 
     #   For lines which include "uv300" in the NodeList:
-    #     For each hour from 'start' to 'end':
-    #       Increment jobs_per_hour for that [day,hour].
     #
     for slurm_rec in slurm_file:
 
@@ -182,21 +180,20 @@ for accounting_file in args.slurm_accounting_files:
             jobID = slurm_rec.job_id
             user = slurm_rec.owner
             wallclock = slurm_rec.wallclock
+            cpus = slurm_rec.cpus
             account = slurm_rec.account
 
             pi_pct_list = get_pi_tags_for_username_by_date(user, start_date)
             pi_list = list(set(map(lambda x: x[0], pi_pct_list)))
             pis = "+".join(pi_list)
 
-            print ",".join(map(str,[start_date,jobID,user,wallclock,account,pis]))
+            print ",".join(map(str,[start_date,jobID,user,wallclock,cpus,account,pis]))
 
             if total_jobs % 1000 == 0:
                 sys.stderr.write('.')
                 sys.stderr.flush()
 
     print >> sys.stderr
-
-    print >> sys.stderr
-    print >> sys.stderr, "Total UV300 jobs for %s: %d" % (accounting_file, total_jobs)
+    print >> sys.stderr, "  Total UV300 jobs for %s: %d" % (accounting_file, total_jobs)
 
 
