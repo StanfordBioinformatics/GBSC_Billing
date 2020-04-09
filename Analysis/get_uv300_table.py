@@ -186,7 +186,7 @@ for accounting_file in args.slurm_accounting_files:
             pi_list = list(set(map(lambda x: x[0], pi_pct_list)))
             pis = "+".join(pi_list)
 
-            print ",".join(map(str,[start_date,jobID,user,wallclock,cpus,account,pis]))
+            print ",".join(map(str,[from_timestamp_to_excel_date(start_date),jobID,user,wallclock,cpus,account,pis]))
 
             if total_jobs % 1000 == 0:
                 sys.stderr.write('.')
