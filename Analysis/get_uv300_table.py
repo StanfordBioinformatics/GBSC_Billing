@@ -193,10 +193,10 @@ for accounting_file in args.slurm_accounting_files:
                 sys.stderr.write('.')
                 sys.stderr.flush()
 
-        print >> sys.stderr
-        print >> sys.stderr, "  Total UV300 jobs for %s: %d" % (accounting_file, total_jobs_in_file)
+    print >> sys.stderr
+    print >> sys.stderr, "  Total UV300 jobs for %s: %d" % (accounting_file, total_jobs_in_file)
 
-        total_uv300_jobs += total_jobs_in_file
+    total_uv300_jobs += total_jobs_in_file
 
 print >> sys.stderr
 print >> sys.stderr, "Total UV300 jobs in all files: %d" % total_uv300_jobs
