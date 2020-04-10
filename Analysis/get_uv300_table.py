@@ -151,6 +151,7 @@ build_global_data(billing_config_wkbk)
 print "start_date,jobID,user,wallclock,cpus,account,pilist"
 
 total_jobs = 0
+total_uv300_jobs = 0
 for accounting_file in args.slurm_accounting_files:
 
     # Get absolute path for accounting_file.
@@ -192,7 +193,11 @@ for accounting_file in args.slurm_accounting_files:
                 sys.stderr.write('.')
                 sys.stderr.flush()
 
-    print >> sys.stderr
-    print >> sys.stderr, "  Total UV300 jobs for %s: %d" % (accounting_file, total_jobs)
+        print >> sys.stderr
+        print >> sys.stderr, "  Total UV300 jobs for %s: %d" % (accounting_file, total_jobs_in_file)
 
+        total_uv300_jobs += total_jobs_in_file
 
+print >> sys.stderr
+print >> sys.stderr, "Total UV300 jobs in all files: %d" % total_uv300_jobs
+print >> sys.stderr, "Total jobs in all files: %d" % total_jobs
