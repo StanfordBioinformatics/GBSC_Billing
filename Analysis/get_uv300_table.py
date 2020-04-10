@@ -159,7 +159,7 @@ for accounting_file in args.slurm_accounting_files:
 
     print >> sys.stderr, "  Accounting File: %s" % accounting_file
 
-    total_jobs_in_file = 0
+    total_uv300_jobs_in_file = 0
 
     #
     # Read the Slurm accounting file.
@@ -171,10 +171,10 @@ for accounting_file in args.slurm_accounting_files:
     #   For lines which include "uv300" in the NodeList:
     #
     for slurm_rec in slurm_file:
+        total_jobs += 1
 
         if 'sgiuv300' in slurm_rec.node_list:
-            total_jobs += 1
-            total_jobs_in_file += 1
+            total_uv300_jobs_in_file += 1
 
             start_date = slurm_rec.start_time
             jobID = slurm_rec.job_id
@@ -194,9 +194,9 @@ for accounting_file in args.slurm_accounting_files:
                 sys.stderr.flush()
 
     print >> sys.stderr
-    print >> sys.stderr, "  Total UV300 jobs for %s: %d" % (accounting_file, total_jobs_in_file)
+    print >> sys.stderr, "  Total UV300 jobs for %s: %d" % (accounting_file, total_uv300_jobs_in_file)
 
-    total_uv300_jobs += total_jobs_in_file
+    total_uv300_jobs += total_uv300_jobs_in_file
 
 print >> sys.stderr
 print >> sys.stderr, "Total UV300 jobs in all files: %d" % total_uv300_jobs
