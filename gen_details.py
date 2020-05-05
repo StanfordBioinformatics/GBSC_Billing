@@ -874,8 +874,8 @@ def write_cloud_details_V2(cloud_sheet, row_dict, output_row):
 
 def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
 
-    # If "Cost type" == "Total", we are done.
-    if row_dict['Cost type'] == "Total":
+    # If Cost type is not Usage, then ignore line.
+    if row_dict['Cost type'] != "Usage":
         return 0.0
 
     output_col = 0
