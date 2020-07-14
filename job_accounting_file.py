@@ -144,14 +144,14 @@ class JobAccountingFile:
             return "sge"
 
         # Is it Slurm?  There would be at least 5 of some delimiter in it.
-        elif header_line.count(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_PIPE) >= 5:
+        elif header_line.count(SlurmJobAccountingEntry.DELIMITER_PIPE) >= 5:
             return "slurm_pipe"
 
-        elif header_line.count(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_BANG) >= 5:
+        elif header_line.count(SlurmJobAccountingEntry.DELIMITER_BANG) >= 5:
             return "slurm_bang"
 
-        elif header_line.count(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_BANG) >= 5:
-            return "slurm_bang"
+        elif header_line.count(SlurmJobAccountingEntry.DELIMITER_HASH) >= 5:
+            return "slurm_hash"
 
         else:
             return None
