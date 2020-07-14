@@ -4,8 +4,9 @@ class SlurmJobAccountingEntry(job_accounting_entry.JobAccountingEntry):
 
    # The delimiter to use when exporting Slurm accounting data using 'sacct'
    #  (The default for sacct, '|', doesn't work, because field Constraints can contain a pipe.)
-   SLURMACCOUNTING_DELIMITER_PIPE = '|' 
-   SLURMACCOUNTING_DELIMITER_BANG = '!'
+   DELIMITER_PIPE = '|'
+   DELIMITER_BANG = '!'  # Doesn't work either, occurred in job names?
+   DELIMITER_HASH = '#'
 
    def parse_line_dict(self, slurm_line_dict):
 

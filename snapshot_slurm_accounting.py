@@ -44,7 +44,7 @@ import tempfile
 import xlrd
 
 # for SLURMACCOUNTING_DELIMITER
-import slurm_job_accounting_entry
+from slurm_job_accounting_entry import SlurmJobAccountingEntry
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -62,7 +62,7 @@ global SLURMACCOUNTING_DELIMITER
 SLURM_ACCT_COMMAND_NAME = "sacct"
 SLURM_ACCT_STATE_SWITCHES = "--state=CA,CD,DL,F,NF,PR,TO,OOM,RQ"
 SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--duplicates","--format=ALL",
-                             "--delimiter=%s" % (slurm_job_accounting_entry.SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_BANG)]
+                             "--delimiter=%s" % (SlurmJobAccountingEntry.DELIMITER_HASH)]
 
 #=====
 #
