@@ -13,7 +13,7 @@ class JobAccountingFile:
     # =====
     class SlurmDialect_Pipe(csv.Dialect):
 
-        delimiter = SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_PIPE
+        delimiter = SlurmJobAccountingEntry.DELIMITER_PIPE
         doublequote = False
         escapechar = '\\'
         lineterminator = '\n'
@@ -26,7 +26,7 @@ class JobAccountingFile:
 
     class SlurmDialect_Bang(csv.Dialect):
 
-        delimiter = SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_BANG
+        delimiter = SlurmJobAccountingEntry.DELIMITER_BANG
         doublequote = False
         escapechar = '\\'
         lineterminator = '\n'
@@ -36,6 +36,19 @@ class JobAccountingFile:
         strict = True
 
     csv.register_dialect("slurm_bang", SlurmDialect_Bang)
+
+    class SlurmDialect_Hash(csv.Dialect):
+
+        delimiter = SlurmJobAccountingEntry.DELIMITER_HASH
+        doublequote = False
+        escapechar = '\\'
+        lineterminator = '\n'
+        quotechar = '"'
+        quoting = csv.QUOTE_MINIMAL
+        skipinitialspace = True
+        strict = True
+
+    csv.register_dialect("slurm_hash", SlurmDialect_Hash)
 
     class SGEDialect(csv.Dialect):
 
@@ -72,11 +85,15 @@ class JobAccountingFile:
         elif self.dialect == "slurm_pipe":
             # Read first line to get fields for Slurm
             header_line = self.fp.readline()
-            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_PIPE)
+            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_PIPE)
         elif self.dialect == "slurm_bang":
             # Read first line to get fields for Slurm
             header_line = self.fp.readline()
-            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_BANG)
+            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_BANG)
+        elif self.dialect == "slurm_hash":
+            # Read first line to get fields for Slurm
+            header_line = self.fp.readline()
+            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_HASH)
         else:
             print >> sys.stderr, "Cannot determine dialect from file %s" % (filename)
             self.fp.close()
@@ -100,6 +117,8 @@ class JobAccountingFile:
             return SlurmJobAccountingEntry(line_dict, self.dialect)
         elif self.dialect == "slurm_bang":
             return SlurmJobAccountingEntry(line_dict, self.dialect)
+        elif self.dialect == "slurm_hash":
+            return SlurmJobAccountingEntry(line_dict, self.dialect)
 
 
     def __del__(self):
@@ -122,16 +141,16 @@ class JobAccountingFile:
 
         # Is it SGE?  There would be at least 44 colons in the string then.
         if header_line.count(':') >= 44:
-
             return "sge"
 
-        # Is it Slurm?  There would be at least 5 pipes in it.
+        # Is it Slurm?  There would be at least 5 of some delimiter in it.
         elif header_line.count(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_PIPE) >= 5:
-
             return "slurm_pipe"
 
         elif header_line.count(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_BANG) >= 5:
+            return "slurm_bang"
 
+        elif header_line.count(SlurmJobAccountingEntry.SLURMACCOUNTING_DELIMITER_BANG) >= 5:
             return "slurm_bang"
 
         else:
