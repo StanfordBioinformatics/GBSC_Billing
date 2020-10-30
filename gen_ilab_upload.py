@@ -1180,12 +1180,16 @@ else:
 
 ilab_service_id_local_computing = dict()
 ilab_service_id_local_computing[('free','stanford')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
+ilab_service_id_local_computing[('free','affiliate')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
+ilab_service_id_local_computing[('free','external')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
 ilab_service_id_local_computing[('full','stanford')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Stanford')
 ilab_service_id_local_computing[('full','affiliate')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Affiliates')
 ilab_service_id_local_computing[('full','external')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - External')
 
 ilab_service_id_local_storage = dict()
 ilab_service_id_local_storage[('free','stanford')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
+ilab_service_id_local_storage[('free','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
+ilab_service_id_local_storage[('free','external')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
 ilab_service_id_local_storage[('full','stanford')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Stanford')
 ilab_service_id_local_storage[('full','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Affiliates')
 ilab_service_id_local_storage[('full','external')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - External')
@@ -1258,39 +1262,44 @@ for pi_tag in sorted(pi_tag_list):
     # Get the affiliation of this PI.
     affiliation = pi_tag_to_affiliation[pi_tag].lower()
 
-    ###
-    #
-    # Write iLab export CSV file from output data structures.
-    #
-    ###
+    if affiliation != "external":
 
-    if ilab_cluster_export_csv_dictwriter is not None:
-        print "cluster",
+       ###
+       #
+       # Write iLab export CSV file from output data structures.
+       #
+       ###
 
-        # Output Cluster data into iLab Cluster export file, if requested.
-        _ = output_ilab_csv_data_for_cluster(ilab_cluster_export_csv_dictwriter, pi_tag,
-                                             ilab_service_id_local_storage[service_level, affiliation],
-                                             ilab_service_id_local_computing[service_level, affiliation],
-                                             ilab_service_id_local_computing["full", affiliation],
-                                             begin_month_timestamp, end_month_timestamp)
+       if ilab_cluster_export_csv_dictwriter is not None:
+           print "cluster",
 
-    # Output Cloud data into iLab Cloud export file, if requested.
-    if ilab_cloud_export_csv_dictwriter is not None:
+           # Output Cluster data into iLab Cluster export file, if requested.
+	   if service_level != "no":
+              _ = output_ilab_csv_data_for_cluster(ilab_cluster_export_csv_dictwriter, pi_tag,
+                                                   ilab_service_id_local_storage[service_level, affiliation],
+                                                   ilab_service_id_local_computing[service_level, affiliation],
+                                                   ilab_service_id_local_computing["full", affiliation],
+                                                   begin_month_timestamp, end_month_timestamp)
 
-        # if not args.break_out_cloud:
-        print "cloud",
+       # Output Cloud data into iLab Cloud export file, if requested.
+       if ilab_cloud_export_csv_dictwriter is not None:
 
-        _ = output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag,
-                                           ilab_service_id_google_passthrough,
-                                           begin_month_timestamp, end_month_timestamp)
+           # if not args.break_out_cloud:
+           print "cloud",
 
-    # Output Consulting data into iLab Cluster export file, if requested.
-    if ilab_consulting_export_csv_dictwriter is not None:
-        print "consulting",
+           _ = output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag,
+                                              ilab_service_id_google_passthrough,
+                                              begin_month_timestamp, end_month_timestamp)
 
-        _ = output_ilab_csv_data_for_consulting(ilab_consulting_export_csv_dictwriter, pi_tag,
-                                                ilab_service_id_consulting['free'], ilab_service_id_consulting[affiliation],
-                                                begin_month_timestamp, end_month_timestamp)
+       # Output Consulting data into iLab Cluster export file, if requested.
+       if ilab_consulting_export_csv_dictwriter is not None:
+           print "consulting",
+
+           _ = output_ilab_csv_data_for_consulting(ilab_consulting_export_csv_dictwriter, pi_tag,
+                                                   ilab_service_id_consulting['free'], ilab_service_id_consulting[affiliation],
+                                                   begin_month_timestamp, end_month_timestamp)
+    else:
+	print "EXTERNAL - No iLab transactions",
 
     print  # End line for PI tag.
 
