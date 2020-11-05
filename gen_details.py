@@ -172,7 +172,7 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
     job_rows_left = num_jobs
 
     first_job_row = 0
-    last_job_row = first_job_row + min(job_rows_left, EXCEL_MAX_ROWS)
+    last_job_row = first_job_row + min(job_rows_left, EXCEL_MAX_ROWS-1)  # Subtract 1 for header line
 
     sheet_number = 1
 
@@ -183,6 +183,7 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
         sheet_row = 0
 
         # If we have job details, write them to the sheet, below the headers.
+	print first_job_row, last_job_row, job_rows_left, EXCEL_MAX_ROWS
         for row in range(first_job_row, last_job_row):
 
             # Bump rows down below header line.
@@ -249,7 +250,7 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
         job_rows_left -= last_job_row - first_job_row
 
         first_job_row = last_job_row
-        last_job_row = first_job_row + min(job_rows_left, EXCEL_MAX_ROWS)
+        last_job_row = first_job_row + min(job_rows_left, EXCEL_MAX_ROWS-1)  # Subtract 1 for header line
 
         if job_rows_left > 0:
             # Generate new sheet of the form "<sheet name> <sheet number>" (starting with 2).

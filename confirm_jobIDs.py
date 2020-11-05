@@ -45,16 +45,17 @@ import xlrd
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 
+from job_accounting_file import JobAccountingFile
+
 #=====
 #
 # GLOBALS
 #
 #=====
 # In billing_common.py
-global SGEACCOUNTING_PREFIX
+global SLURMACCOUNTING_PREFIX
 global BILLING_DETAILS_PREFIX
 global BILLING_NOTIFS_PREFIX
-global ACCOUNTING_FIELDS
 
 #=====
 #
@@ -119,6 +120,7 @@ def read_jobIDs(wkbk, sheet_name):
     jobIDs = sheet_get_named_column(sheet, "Job ID")
 
     return map(lambda x: int(x), jobIDs)
+
 
 def print_set(my_set, max_elts=10000):
 
@@ -231,7 +233,7 @@ year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
 if args.accounting_file is not None:
     accounting_file = args.accounting_file
 else:
-    accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
+    accounting_filename = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year, month)
     accounting_file = os.path.join(year_month_dir, accounting_filename)
 
 # If BillingDetails file given, use that, else look in BillingRoot.
@@ -245,18 +247,11 @@ else:
 #
 accounting_jobIDs = []
 
-accounting_file_fp = open(accounting_file)
+accounting_file_fp = JobAccountingFile(accounting_file)
 
-for line in accounting_file_fp:
+for accounting_record in accounting_file_fp:
 
-    if line[0] == "#": continue
-
-    fields = line.split(':')
-    fields_dict = dict(zip(ACCOUNTING_FIELDS,fields))
-
-    accounting_jobIDs.append(int(fields_dict['job_number']))
-
-accounting_file_fp.close()
+    accounting_jobIDs.append(accounting_record.job_id)
 
 #
 # Read all JobIDs from BillingDetails file.
@@ -268,6 +263,21 @@ accounting_file_fp.close()
 billing_details_wkbk = xlrd.open_workbook(billing_details_file)
 
 details_billable_jobIDs    = read_jobIDs(billing_details_wkbk, 'Computing')
+
+computing_extra_page = 2
+while (True):
+
+   more_computing_details_sheet_name = "Computing %d" % computing_extra_page
+   try:
+     _ = billing_details_wkbk.sheet_by_name(more_computing_details_sheet_name)
+   except xlrd.biffh.XLRDError:
+     break  # No more computing sheets: exit the while True loop.
+
+   more_details_billable_jobIDs = read_jobIDs(billing_details_wkbk, more_computing_details_sheet_name)
+   details_billable_jobIDs.extend(more_details_billable_jobIDs)
+
+   computing_extra_page += 1
+
 details_nonbillable_jobIDs = read_jobIDs(billing_details_wkbk, 'Nonbillable Jobs')
 details_failed_jobIDs      = read_jobIDs(billing_details_wkbk, 'Failed Jobs')
 
