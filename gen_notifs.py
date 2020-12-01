@@ -1365,8 +1365,8 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     if len(pi_tag_to_consulting_details[pi_tag]) > 0:
 
         # Get the rate from the Rates sheet of the BillingConfig workbook.
-        rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting - Stanford')
-        rate_consulting_a1_cell  = get_rate_a1_cell(billing_config_wkbk, 'Bioinformatics Consulting - Stanford')
+        rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
+        rate_consulting_a1_cell  = get_rate_a1_cell(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
 
         for (date, summary, consultant, client, hours, travel_hours, billable_hours) in pi_tag_to_consulting_charges[pi_tag]:
 

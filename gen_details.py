@@ -183,7 +183,6 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
         sheet_row = 0
 
         # If we have job details, write them to the sheet, below the headers.
-	print first_job_row, last_job_row, job_rows_left, EXCEL_MAX_ROWS
         for row in range(first_job_row, last_job_row):
 
             # Bump rows down below header line.
