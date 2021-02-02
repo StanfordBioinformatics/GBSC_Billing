@@ -1183,7 +1183,7 @@ ilab_service_id_local_computing[('free','stanford')] = get_ilab_service_id(billi
 ilab_service_id_local_computing[('free','affiliate')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
 ilab_service_id_local_computing[('free','external')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
 ilab_service_id_local_computing[('full','stanford')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Stanford')
-ilab_service_id_local_computing[('full','affiliate')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Affiliates')
+ilab_service_id_local_computing[('full','affiliate')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Affiliate')
 ilab_service_id_local_computing[('full','external')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - External')
 
 ilab_service_id_local_storage = dict()
@@ -1191,7 +1191,7 @@ ilab_service_id_local_storage[('free','stanford')]   = get_ilab_service_id(billi
 ilab_service_id_local_storage[('free','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
 ilab_service_id_local_storage[('free','external')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
 ilab_service_id_local_storage[('full','stanford')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Stanford')
-ilab_service_id_local_storage[('full','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Affiliates')
+ilab_service_id_local_storage[('full','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Affiliate')
 ilab_service_id_local_storage[('full','external')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - External')
 
 ilab_service_id_google_passthrough    = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - Passthrough')
@@ -1199,7 +1199,7 @@ ilab_service_id_google_passthrough    = get_ilab_service_id(billing_config_wkbk,
 ilab_service_id_consulting = dict()
 ilab_service_id_consulting['free']       = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Free Access')
 ilab_service_id_consulting['stanford']   = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Stanford')
-ilab_service_id_consulting['affiliate']  = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Affiliates')
+ilab_service_id_consulting['affiliate']  = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Affiliate')
 ilab_service_id_consulting['external']   = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - External')
 
 #####
