@@ -940,6 +940,7 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
 
     return total_amount
 
+
 # Generates the "Cloud" sheet.
 def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
 
