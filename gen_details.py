@@ -955,6 +955,14 @@ def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
     # Google Invoice CSV files are Unicode with BOM.
     google_invoice_csv_file_obj = codecs.open(google_invoice_csv, 'rU', encoding='utf-8-sig')
 
+    # Consume summary table at top of file
+    if google_invoice_version == "V3":
+        # Read lines until line that starts with "Total amount"
+        for line in google_invoice_csv_file_obj:
+            first_field = line.split(',')[0]
+            if first_field == "Total amount due":
+                break
+
     # Accumulate the total amount of charges while processing each line,
     #  to compare with total amount in header in google_invoice_amount_due above.
     google_invoice_total_amount = 0.0
