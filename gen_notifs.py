@@ -1266,6 +1266,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     total_cloud_charges = 0.0
 
+    # Get the rate from the Rates sheet of the BillingConfig workbook.
+    rate_cloud_per_dollar = get_rates(billing_config_wkbk, 'Cloud Services - %s' % affiliation)
+    rate_cloud_a1_cell = get_rate_a1_cell(billing_config_wkbk, 'Cloud Services - %s' % affiliation)
+
     starting_cloud_row = curr_row
     ending_cloud_row   = curr_row - 1 # Inverted order means no projects found.
     for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
@@ -1288,13 +1292,13 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
                 sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
 
                 # Calculate charges.
-                charge = project_cost * pctage
+                charge = project_cost * pctage * rate_cloud_per_dollar
                 total_cloud_charges += charge
 
                 # Write formula for charges to the sheet.
                 cost_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
                 pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-                sheet.write_formula(curr_row, 4, '=%s*%s' % (cost_a1_cell, pctage_a1_cell),
+                sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell, rate_cloud_a1_cell),
                                     charge_fmt, charge)
 
                 # Keep track of last row with cloud project values.
