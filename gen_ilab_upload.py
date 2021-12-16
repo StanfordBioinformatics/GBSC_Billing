@@ -1194,7 +1194,10 @@ ilab_service_id_local_storage[('full','stanford')]   = get_ilab_service_id(billi
 ilab_service_id_local_storage[('full','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Affiliate')
 ilab_service_id_local_storage[('full','external')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - External')
 
-ilab_service_id_google_passthrough    = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - Passthrough')
+ilab_service_id_cloud_passthrough = dict()
+ilab_service_id_cloud_passthrough['stanford']    = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - Stanford')
+ilab_service_id_cloud_passthrough['affiliate']   = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - Affiliate')
+ilab_service_id_cloud_passthrough['external']    = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - External')
 
 ilab_service_id_consulting = dict()
 ilab_service_id_consulting['free']       = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Free Access')
@@ -1271,7 +1274,7 @@ for pi_tag in sorted(pi_tag_list):
     if ilab_cluster_export_csv_dictwriter is not None:
        print "cluster",
 
-       # Output Cluster data into iLab Cluster export file, if requested.
+    # Output Cluster data into iLab Cluster export file, if requested.
     if service_level != "no":
           _ = output_ilab_csv_data_for_cluster(ilab_cluster_export_csv_dictwriter, pi_tag,
                                                ilab_service_id_local_storage[service_level, affiliation],
@@ -1286,7 +1289,7 @@ for pi_tag in sorted(pi_tag_list):
        print "cloud",
 
        _ = output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag,
-                                          ilab_service_id_google_passthrough,
+                                          ilab_service_id_cloud_passthrough[affiliation],
                                           begin_month_timestamp, end_month_timestamp)
 
     # Output Consulting data into iLab Cluster export file, if requested.
