@@ -82,22 +82,20 @@ class JobAccountingFile:
         # Determine the fields from the header, if any:
         if self.dialect == "sge":
             self.raw_line_fields = SGEJobAccountingEntry.SGE_ACCOUNTING_FIELDS
-        elif self.dialect == "slurm_pipe":
-            # Read first line to get fields for Slurm
-            header_line = self.fp.readline()
-            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_PIPE)
-        elif self.dialect == "slurm_bang":
-            # Read first line to get fields for Slurm
-            header_line = self.fp.readline()
-            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_BANG)
-        elif self.dialect == "slurm_hash":
-            # Read first line to get fields for Slurm
-            header_line = self.fp.readline()
-            self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_HASH)
         else:
-            print >> sys.stderr, "Cannot determine dialect from file %s" % (filename)
-            self.fp.close()
-            raise ValueError
+            # Read first line to get fields for Slurm
+            header_line = self.fp.readline().rstrip()
+
+            if self.dialect == "slurm_pipe":
+                self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_PIPE)
+            elif self.dialect == "slurm_bang":
+                self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_BANG)
+            elif self.dialect == "slurm_hash":
+                self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_HASH)
+            else:
+                print >> sys.stderr, "Cannot determine dialect from file %s" % (filename)
+                self.fp.close()
+                raise ValueError
 
 
     def __iter__(self):
