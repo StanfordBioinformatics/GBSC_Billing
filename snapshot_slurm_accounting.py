@@ -60,8 +60,14 @@ global SLURMACCOUNTING_PREFIX
 global SLURMACCOUNTING_DELIMITER
 
 SLURM_ACCT_COMMAND_NAME = "sacct"
-SLURM_ACCT_STATE_SWITCHES = "--state=CA,CD,DL,F,NF,PR,TO,OOM,RQ"
-SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--duplicates","--format=ALL",
+SLURM_ACCT_STATE_SWITCHES = ["--state=CA,CD,DL,F,NF,PR,TO,OOM,RQ"]
+
+# We will collect both all the fields from Slurm records
+# and just the ones we need for reports within our system.
+SLURM_ACCT_FIELDS_ALL_SWITCHES = ["--format=ALL"]
+SLURM_ACCT_FIELDS_MIN_SWITCHES = ["--format=User,JobName,Account,WCKey,NodeList,NCPUS,ElapsedRaw,JobIDRaw,MaxVMSize,Submit,Start,End"]
+
+SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--duplicates",
                              "--delimiter=%s" % (SlurmJobAccountingEntry.DELIMITER_HASH)]
 
 #=====
@@ -71,6 +77,89 @@ SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--dupli
 #=====
 # From billing_common.py
 global config_sheet_get_dict
+
+def get_slurm_accounting(output_pathname, slurm_field_switches):
+
+    slurm_accounting_file = open(output_pathname, "w")
+
+    ###
+    #
+    # Steps to get Slurm accounting for only this month:
+    #   1. Get Slurm accounting for <MN>/01/<YR> through <MN+1>/01/<YR>.
+    #       - This data includes jobs running during the month but ending after, so...
+    #   2. Get Slurm account for <MN+1>/01/<YR> through now (no End date needed).
+    #   3. Subtract the lines from 2. from the lines in 1.
+    #
+    ###
+
+    temp_filename_prefix = "%s.%d-%02d" % (SLURMACCOUNTING_PREFIX, year, month)
+
+    #
+    # "1. Get Slurm accounting for <MN>/01/<YR> through <MN+1>/01/<YR>."
+    #
+
+    (slurm_this_month_temp_file, slurm_this_month_temp_filename) = tempfile.mkstemp(".txt",
+                                                                                    "%s-thisMonth." % temp_filename_prefix)
+
+    print  "Getting Slurm accounting for %d-%02d to %s" % (year, month, slurm_this_month_temp_filename)
+
+    # Create the start and end dates switches to the command.
+    slurm_command_starttime_switch = ["--starttime", "%02d/01/%02d" % (month, year - 2000)]
+    # If we are in the month we are querying for, use the current date
+    if month == todays_month and year == todays_year:
+        slurm_command_endtime_switch = ["--endtime", datetime.datetime.today().strftime("%m/%d/%y-%H:%M:%S")]
+    else:
+        slurm_command_endtime_switch = ["--endtime", "%02d/01/%02d" % (next_month, next_month_year - 2000)]
+
+    slurm_command_list = SLURM_ACCT_COMMAND_NAME + SLURM_ACCT_STATE_SWITCHES + \
+                         slurm_field_args + \
+                         SLURM_ACCT_OTHER_SWITCHES + \
+                         slurm_command_starttime_switch + slurm_command_endtime_switch
+
+    if args.verbose:
+        print slurm_command_list
+
+    sacct_process = subprocess.Popen(slurm_command_list, stdout=subprocess.PIPE)
+
+    fgrep_command_list = ['fgrep', '-v', '|PENDING|']
+
+    fgrep_process = subprocess.Popen(fgrep_command_list,
+                                     stdin=sacct_process.stdout,
+                                     stdout=slurm_this_month_temp_file)
+
+    (fgrep_process_stdout, fgrep_process_stderr) = fgrep_process.communicate()
+    (sacct_process_stdout, sacct_process_stderr) = sacct_process.communicate()
+
+    #
+    # "2. Get Slurm account for <MN+1>/01/<YR> through now (no End date needed)."
+    #
+
+    (slurm_next_month_temp_file, slurm_next_month_temp_filename) = tempfile.mkstemp(".txt",
+                                                                                    "%s-nextMonth." % temp_filename_prefix)
+
+    print "Getting Slurm accounting for %d-%02d to %s" % (next_month_year, next_month, slurm_next_month_temp_filename)
+
+    # Create the start date switch to the command.
+    slurm_command_starttime_switch = ["--starttime", "%02d/01/%02d" % (next_month, next_month_year - 2000)]
+
+    slurm_command_list = [SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES + \
+                         slurm_command_starttime_switch + ["--noheader"]
+
+    if args.verbose:
+        print slurm_command_list
+
+    ret_val = subprocess.call(slurm_command_list,
+                              stdout=slurm_next_month_temp_file)
+
+    #
+    # 3. Subtract the lines from 2. from the lines in 1.
+    #
+    print "Subtracting the two files"
+
+    ret_val = subprocess.call(["awk", "{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } }",
+                               "f=1", slurm_next_month_temp_filename, "f=2", slurm_this_month_temp_filename],
+                             stdout=slurm_accounting_file)
+
 
 #=====
 #
@@ -89,12 +178,18 @@ parser.add_argument("-r", "--billing_root",
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2021),
+parser.add_argument("-y","--year", type=int, choices=range(2013,2040),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
 parser.add_argument("-m", "--month", type=int, choices=range(1,13),
                     default=None,
                     help="The month to be filtered out. [default = last month]")
+parser.add_argument("-a", "--all_only", action="store_true",
+                    default=False,
+                    help='Only output the complete accounting file [default = output both all and min]')
+parser.add_argument("-m", "--min_only", action="store_true",
+                    default=False,
+                    help='Only output the minimum accounting file [default = output both all and min]')
 
 args = parser.parse_args()
 
@@ -174,91 +269,29 @@ print "TAKING SLURM ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year)
 print "  BillingConfigFile: %s" % (billing_config_file)
 print "  BillingRoot: %s" % (billing_root)
 
-# Create output accounting pathname.
-slurm_accounting_filename = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year, month)
-slurm_accounting_pathname = os.path.join(year_month_dir, slurm_accounting_filename)
+# Create output accounting pathnames.
+slurm_accounting_filename_all = "%s.%d-%02d.all.txt" % (SLURMACCOUNTING_PREFIX, year, month)
+slurm_accounting_pathname_all = os.path.join(year_month_dir, slurm_accounting_filename_all)
+
+slurm_accounting_filename_min = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year, month)
+slurm_accounting_pathname_min = os.path.join(year_month_dir, slurm_accounting_filename_min)
 
 print
-print "  SlurmAccountingFile: %s" % (slurm_accounting_pathname)
+if not args.min_only: print "  SlurmAccountingFile (all): %s" % (slurm_accounting_pathname_all)
+if not args.all_only: print "  SlurmAccountingFile (min): %s" % (slurm_accounting_pathname_min)
 print
 
-slurm_accounting_file = open(slurm_accounting_pathname,"w")
-
-###
-#
-# Steps to get Slurm accounting for only this month:
-#   1. Get Slurm accounting for <MN>/01/<YR> through <MN+1>/01/<YR>.
-#       - This data includes jobs running during the month but ending after, so...
-#   2. Get Slurm account for <MN+1>/01/<YR> through now (no End date needed).
-#   3. Subtract the lines from 2. from the lines in 1.
-#
-###
-
-temp_filename_prefix = "%s.%d-%02d" % (SLURMACCOUNTING_PREFIX, year, month)
-
-#
-# "1. Get Slurm accounting for <MN>/01/<YR> through <MN+1>/01/<YR>."
-#
-
-(slurm_this_month_temp_file,slurm_this_month_temp_filename) = tempfile.mkstemp(".txt","%s-thisMonth." % temp_filename_prefix)
-
-print "Getting Slurm accounting for %d-%02d to %s" % (year, month, slurm_this_month_temp_filename)
-
-# Create the start and end dates switches to the command.
-slurm_command_starttime_switch = ["--starttime","%02d/01/%02d" % (month, year - 2000)]
-# If we are in the month we are querying for, use the current date
-if month == todays_month and year == todays_year:
-    slurm_command_endtime_switch = ["--endtime", datetime.datetime.today().strftime("%m/%d/%y-%H:%M:%S")]
+if not args.min_only:
+    print "GETTING SLURM ACCOUNTING - ALL FIELDS"
+    get_slurm_accounting(slurm_accounting_pathname_all, SLURM_ACCT_FIELDS_ALL_SWITCHES)
 else:
-    slurm_command_endtime_switch = ["--endtime","%02d/01/%02d" % (next_month, next_month_year - 2000)]
+    print "**SKIPPING** SLURM ACCOUNTING - ALL FIELDS"
+print
 
-slurm_command_list = [SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES + \
-                     slurm_command_starttime_switch + slurm_command_endtime_switch
+if not args.all_only:
+    print "GETTING SLURM ACCOUNTING - MINIMUM FIELDS"
+    get_slurm_accounting(slurm_accounting_pathname_min, SLURM_ACCT_FIELDS_MIN_SWITCHES)
+else
+    print "**SKIPPING** SLURM ACCOUNTING - MINIMUM FIELDS"
+print
 
-if args.verbose:
-    print slurm_command_list
-
-sacct_process = subprocess.Popen(slurm_command_list, stdout=subprocess.PIPE)
-
-
-fgrep_command_list = ['fgrep', '-v', '|PENDING|']
-
-fgrep_process = subprocess.Popen(fgrep_command_list,
-                                 stdin=sacct_process.stdout,
-                                 stdout=slurm_this_month_temp_file)
-
-(fgrep_process_stdout, fgrep_process_stderr) = fgrep_process.communicate()
-
-(sacct_process_stdout, sacct_process_stderr) = sacct_process.communicate()
-
-
-#
-# "2. Get Slurm account for <MN+1>/01/<YR> through now (no End date needed)."
-#
-
-(slurm_next_month_temp_file,slurm_next_month_temp_filename) = tempfile.mkstemp(".txt","%s-nextMonth." % temp_filename_prefix)
-
-print "Getting Slurm accounting for %d-%02d to %s" % (next_month_year, next_month, slurm_next_month_temp_filename)
-
-# Create the start date switch to the command.
-slurm_command_starttime_switch = ["--starttime","%02d/01/%02d" % (next_month, next_month_year - 2000)]
-
-slurm_command_list = [SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES + \
-                          slurm_command_starttime_switch + ["--noheader"]
-
-if args.verbose:
-    print slurm_command_list
-
-ret_val = subprocess.call(slurm_command_list,
-                          stdout=slurm_next_month_temp_file)
-
-#
-# 3. Subtract the lines from 2. from the lines in 1.
-#
-print "Subtracting the two files"
-
-ret_val = subprocess.call(["awk","{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } }",
-                          "f=1", slurm_next_month_temp_filename, "f=2", slurm_this_month_temp_filename],
-                          stdout=slurm_accounting_file)
-
-#print "Jobs found for %02d/%d:\t\t%d" % (month, year)
