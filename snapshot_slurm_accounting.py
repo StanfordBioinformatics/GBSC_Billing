@@ -142,7 +142,9 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
     # Create the start date switch to the command.
     slurm_command_starttime_switch = ["--starttime", "%02d/01/%02d" % (next_month, next_month_year - 2000)]
 
-    slurm_command_list = [SLURM_ACCT_COMMAND_NAME, SLURM_ACCT_STATE_SWITCHES] + SLURM_ACCT_OTHER_SWITCHES + \
+    slurm_command_list = SLURM_ACCT_COMMAND_NAME + SLURM_ACCT_STATE_SWITCHES + \
+                         slurm_field_switches + \
+                         SLURM_ACCT_OTHER_SWITCHES + \
                          slurm_command_starttime_switch + ["--noheader"]
 
     if args.verbose:
@@ -158,7 +160,7 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
 
     ret_val = subprocess.call(["awk", "{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } }",
                                "f=1", slurm_next_month_temp_filename, "f=2", slurm_this_month_temp_filename],
-                             stdout=slurm_accounting_file)
+                              stdout=slurm_accounting_file)
 
 
 #=====
