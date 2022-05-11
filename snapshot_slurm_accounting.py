@@ -291,7 +291,7 @@ print
 if not args.all_only:
     print "GETTING SLURM ACCOUNTING - MINIMUM FIELDS"
     get_slurm_accounting(slurm_accounting_pathname_min, SLURM_ACCT_FIELDS_MIN_SWITCHES)
-else
+else:
     print "**SKIPPING** SLURM ACCOUNTING - MINIMUM FIELDS"
 print
 
