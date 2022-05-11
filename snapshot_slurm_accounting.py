@@ -187,7 +187,7 @@ parser.add_argument("-m", "--month", type=int, choices=range(1,13),
 parser.add_argument("-a", "--all_only", action="store_true",
                     default=False,
                     help='Only output the complete accounting file [default = output both all and min]')
-parser.add_argument("-m", "--min_only", action="store_true",
+parser.add_argument("-n", "--min_only", action="store_true",
                     default=False,
                     help='Only output the minimum accounting file [default = output both all and min]')
 
