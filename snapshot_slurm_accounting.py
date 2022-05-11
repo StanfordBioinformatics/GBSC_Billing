@@ -59,7 +59,7 @@ execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
 global SLURMACCOUNTING_PREFIX
 global SLURMACCOUNTING_DELIMITER
 
-SLURM_ACCT_COMMAND_NAME = "sacct"
+SLURM_ACCT_COMMAND_NAME = ["sacct"]
 SLURM_ACCT_STATE_SWITCHES = ["--state=CA,CD,DL,F,NF,PR,TO,OOM,RQ"]
 
 # We will collect both all the fields from Slurm records
