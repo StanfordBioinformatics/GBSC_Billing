@@ -112,7 +112,7 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
         slurm_command_endtime_switch = ["--endtime", "%02d/01/%02d" % (next_month, next_month_year - 2000)]
 
     slurm_command_list = SLURM_ACCT_COMMAND_NAME + SLURM_ACCT_STATE_SWITCHES + \
-                         slurm_field_args + \
+                         slurm_field_switches + \
                          SLURM_ACCT_OTHER_SWITCHES + \
                          slurm_command_starttime_switch + slurm_command_endtime_switch
 
