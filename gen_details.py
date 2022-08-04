@@ -596,14 +596,16 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                 unknown_user_job_details.append(job_details + ['Unknown User'])
 
         else:
-            if job_date != 0:
+            if job_date != 0 and job_date is not None:
                 dates_tuple = (from_timestamp_to_date_string(job_date),
                                from_timestamp_to_date_string(begin_timestamp),
                                from_timestamp_to_date_string(end_timestamp))
                 print "Job date %s is not between %s and %s" % dates_tuple
             else:
-                print "Job date is zero."
+                print "Job date is zero/None."
             #print ':'.join(accounting_record.values())
+
+ #	print "%d " % (accounting_record.job_id)
 
     #
     # ERROR FLAGGING:
