@@ -65,7 +65,7 @@ SLURM_ACCT_STATE_SWITCHES = ["--state=CA,CD,DL,F,NF,PR,TO,OOM,RQ"]
 # We will collect both all the fields from Slurm records
 # and just the ones we need for reports within our system.
 SLURM_ACCT_FIELDS_ALL_SWITCHES = ["--format=ALL"]
-SLURM_ACCT_FIELDS_MIN_SWITCHES = ["--format=User,JobName,Account,WCKey,NodeList,NCPUS,ElapsedRaw,JobIDRaw,MaxVMSize,Submit,Start,End"]
+SLURM_ACCT_FIELDS_MIN_SWITCHES = ["--format=User,JobName,Account,WCKey,NodeList,NCPUS,ElapsedRaw,JobID,JobIDRaw,MaxVMSize,Submit,Start,End"]
 
 SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--duplicates",
                              "--delimiter=%s" % (SlurmJobAccountingEntry.DELIMITER_HASH)]
