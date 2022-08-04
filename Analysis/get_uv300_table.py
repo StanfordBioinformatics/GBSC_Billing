@@ -13,7 +13,7 @@
 #
 # OUTPUT:
 #    To stdout: CSV table with columns of:
-#       Start Date, User, JobID, Wallclock, Account, PI list
+#       Start Date, JobID, User, Wallclock, Account, PI list
 
 # ASSUMPTIONS:
 #

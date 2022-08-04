@@ -48,6 +48,7 @@ class JobAccountingEntry:
         self.cpus = None
         self.wallclock = None
         self.job_id = None
+        self.mem = None
 
         # Extract the above fields from the line dictionary.
         self.parse_line_dict(job_sched_line_dict)

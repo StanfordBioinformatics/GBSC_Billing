@@ -25,4 +25,4 @@ class SlurmJobAccountingEntry(job_accounting_entry.JobAccountingEntry):
         self.cpus = self.dict_get_int(slurm_line_dict, 'NCPUS')
         self.wallclock = self.dict_get_int(slurm_line_dict, 'ElapsedRaw')
         self.job_id = self.dict_get_int(slurm_line_dict, 'JobIDRaw')
-
+        self.mem = self.dict_get_int(slurm_line_dict, 'MaxVMSize')

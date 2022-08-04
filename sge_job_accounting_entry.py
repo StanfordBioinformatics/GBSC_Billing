@@ -43,3 +43,4 @@ class SGEJobAccountingEntry(job_accounting_entry.JobAccountingEntry):
         self.cpus = self.dict_get_int(sge_line_dict,'slots')
         self.wallclock = self.dict_get_int(sge_line_dict, 'ru_wallclock')
         self.job_id = self.dict_get_int(sge_line_dict, 'job_number')
+        self.mem = self.dict_get_int(sge_line_dict, 'max_vmem')
