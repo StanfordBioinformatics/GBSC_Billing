@@ -7,7 +7,7 @@ class JobAccountingEntry:
     def dict_get_int(dictionary, field):
         value = dictionary.get(field)
 
-        if value is not None:
+        if value is not None and value != '':
             return int(value)
         else:
             return None
@@ -17,7 +17,7 @@ class JobAccountingEntry:
     def dict_get_timestamp(dictionary, field):
         value = dictionary.get(field)
 
-        if value is not None:
+        if value is not None and value != '':
             return calendar.timegm(time.strptime(value,"%Y-%m-%dT%H:%M:%S"))
         else:
             return None
