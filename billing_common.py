@@ -137,6 +137,7 @@ NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'ddnr620-frcf-213',                     # Old DDN storage nodes, repurposed
                                  'dper820-frcf-212',                     # Obsolete Sherlock nodes
                                  'smsh11dsu-srcf-d10',                   # Slurm management nodes
+                                 'dper7525-srcf-d11-21',                 # OnDemand dev node
                                  'None assigned'
                                  ]
 
