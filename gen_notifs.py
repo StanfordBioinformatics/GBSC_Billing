@@ -1037,7 +1037,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 1, "Total Storage:", bot_header_fmt)
     # sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
     top_sizes_a1_cell = xl_rowcol_to_cell(starting_storage_row, 2)
-    bot_sizes_a1_cell = xl_rowcol_to_cell(ending_storage_row, 2)
+    bot_sizes_a1_cell = xl_rowcol_to_cell(ending_storage_row + 1, 2)
     sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell),
                         float_entry_fmt, total_storage_sizes)
     # sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
@@ -1410,7 +1410,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 2, "%s (%s)" % (total_consulting_hours, total_consulting_travel_hours), string_entry_fmt)
     # sheet.write(curr_row, 3, total_consulting_billable_hours, float_entry_fmt)
     top_storage_charges_a1_cell = xl_rowcol_to_cell(starting_consulting_row, 3)
-    bot_billable_hours_a1_cell = xl_rowcol_to_cell(ending_consulting_row + 1, 3)
+    bot_billable_hours_a1_cell = xl_rowcol_to_cell(ending_consulting_row, 3)
     sheet.write_formula(curr_row, 3, '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_billable_hours_a1_cell),
                         float_entry_fmt, total_consulting_billable_hours)
     # sheet.write(curr_row, 4, total_consulting_charges, charge_fmt)
