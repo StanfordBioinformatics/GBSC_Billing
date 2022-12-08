@@ -1149,8 +1149,8 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
                     else:
                         charge = "No rate"
 
-                    # Check if user has accumulated more than $500 in a month.
-                    if charge > 500:
+                    # Check if user has accumulated more than $5000 in a month.
+                    if charge > 5000:
                         print("  *** User %s (%s) for PI %s, Account %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, account, charge))
 
                     total_computing_cpuhrs += cpu_core_hrs
