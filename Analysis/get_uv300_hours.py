@@ -32,7 +32,7 @@ from job_accounting_file import JobAccountingFile
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "..", "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "..", "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "..", "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -62,10 +62,10 @@ parser.add_argument("-s", "--slurm_accounting_file",
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2031),
+parser.add_argument("-y","--year", type=int, choices=list(range(2013,2031)),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be filtered out. [default = last month]")
 
@@ -133,7 +133,7 @@ else:
 # Get absolute path for accounting_file.
 accounting_file = os.path.abspath(accounting_file)
 
-print "  Accounting File: %s" % accounting_file
+print("  Accounting File: %s" % accounting_file)
 
 #
 # Create data structure for all hours within month.
@@ -182,16 +182,16 @@ for slurm_rec in slurm_file:
         sys.stderr.write('.')
         sys.stderr.flush()
 
-print >> sys.stderr
+print(file=sys.stderr)
 
-print "Total hours per month: %d" % (days_in_month * 24)
+print("Total hours per month: %d" % (days_in_month * 24))
 
 total_hours_with_jobs = sum([1 for day in jobs_per_hour for hour in day if hour > 0])
 
-print "Total hours with UV300 job: %d" % total_hours_with_jobs
-print "%%age of hours with UV300 job: %3.1f%%" % (total_hours_with_jobs * 100.0 / total_hours_in_month)
+print("Total hours with UV300 job: %d" % total_hours_with_jobs)
+print("%%age of hours with UV300 job: %3.1f%%" % (total_hours_with_jobs * 100.0 / total_hours_in_month))
 
-print
-print "Total UV300 jobs: %d" % total_jobs
+print()
+print("Total UV300 jobs: %d" % total_jobs)
 
 

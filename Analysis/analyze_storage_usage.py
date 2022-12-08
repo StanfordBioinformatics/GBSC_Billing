@@ -34,7 +34,7 @@ import sys
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "..", "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "..", "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "..", "billing_common.py"), 'exec'))
 
 global from_excel_date_to_date_string
 
@@ -88,7 +88,7 @@ def write_storage_wkbk(out_wkbk, sheet_name, folder_to_date_dict):
         date_col = [date]
         for folder in sorted(folder_set):
 
-            if folder_to_date_dict.has_key((folder,date)):
+            if (folder,date) in folder_to_date_dict:
                 date_col.append(folder_to_date_dict[(folder,date)])
             else:
                 date_col.append('N/A')
@@ -129,14 +129,14 @@ for billing_details_file in args.billing_details_files:
 
     if billing_details_file.endswith('.xlsx'):
         # Open the BillingDetails workbook.
-        print "Reading BillingDetails workbook %s." % billing_details_file
+        print("Reading BillingDetails workbook %s." % billing_details_file)
         billing_details_wkbk = xlrd.open_workbook(billing_details_file, on_demand=True)
 
         read_billingdetails_file(billing_details_wkbk)
 
         billing_details_wkbk.release_resources()
 
-print "Writing out storage workbook %s" % args.output
+print("Writing out storage workbook %s" % args.output)
 storage_wkbk = xlsxwriter.Workbook(args.output)
 
 write_storage_wkbk(storage_wkbk, 'Quotas', folder_to_date_size)

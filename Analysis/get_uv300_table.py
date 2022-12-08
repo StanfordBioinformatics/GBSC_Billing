@@ -39,7 +39,7 @@ from job_accounting_file import JobAccountingFile
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "..", "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "..", "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "..", "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -81,7 +81,7 @@ def build_global_data(wkbk):
     dates_removed = sheet_get_named_column(users_sheet, "Date Removed")
     pctages = sheet_get_named_column(users_sheet, "%age")
 
-    username_rows = zip(usernames, pi_tags, dates_added, dates_removed, pctages)
+    username_rows = list(zip(usernames, pi_tags, dates_added, dates_removed, pctages))
 
     for (username, pi_tag, date_added, date_removed, pctage) in username_rows:
         username_to_pi_tag_dates[username].append([pi_tag, date_added, date_removed, pctage])
@@ -101,7 +101,7 @@ def get_pi_tags_for_username_by_date(username, date_timestamp):
         try:
             date_excel = from_timestamp_to_excel_date(date_timestamp)
         except Exception as e:
-            print date_timestamp
+            print(date_timestamp)
             raise e
 
         for (pi_tag, date_added, date_removed, pctage) in pi_tag_dates:
@@ -148,7 +148,7 @@ billing_config_wkbk = xlrd.open_workbook(args.billing_config_file)
 build_global_data(billing_config_wkbk)
 
 # print header for table
-print "start_date,jobID,user,wallclock,cpus,account,pilist"
+print("start_date,jobID,user,wallclock,cpus,account,pilist")
 
 total_jobs = 0
 total_uv300_jobs = 0
@@ -157,7 +157,7 @@ for accounting_file in args.slurm_accounting_files:
     # Get absolute path for accounting_file.
     accounting_file = os.path.abspath(accounting_file)
 
-    print >> sys.stderr, "  Accounting File: %s" % accounting_file
+    print("  Accounting File: %s" % accounting_file, file=sys.stderr)
 
     total_uv300_jobs_in_file = 0
 
@@ -184,20 +184,20 @@ for accounting_file in args.slurm_accounting_files:
             account = slurm_rec.account
 
             pi_pct_list = get_pi_tags_for_username_by_date(user, start_date)
-            pi_list = list(set(map(lambda x: x[0], pi_pct_list)))
+            pi_list = list(set([x[0] for x in pi_pct_list]))
             pis = "+".join(pi_list)
 
-            print ",".join(map(str,[start_date,jobID,user,wallclock,cpus,account,pis]))
+            print(",".join(map(str,[start_date,jobID,user,wallclock,cpus,account,pis])))
 
             if total_jobs % 1000 == 0:
                 sys.stderr.write('.')
                 sys.stderr.flush()
 
-    print >> sys.stderr
-    print >> sys.stderr, "  Total UV300 jobs for %s: %d" % (accounting_file, total_uv300_jobs_in_file)
+    print(file=sys.stderr)
+    print("  Total UV300 jobs for %s: %d" % (accounting_file, total_uv300_jobs_in_file), file=sys.stderr)
 
     total_uv300_jobs += total_uv300_jobs_in_file
 
-print >> sys.stderr
-print >> sys.stderr, "Total UV300 jobs in all files: %d" % total_uv300_jobs
-print >> sys.stderr, "Total jobs in all files: %d" % total_jobs
+print(file=sys.stderr)
+print("Total UV300 jobs in all files: %d" % total_uv300_jobs, file=sys.stderr)
+print("Total jobs in all files: %d" % total_jobs, file=sys.stderr)

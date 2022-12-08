@@ -34,7 +34,7 @@ import sys
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "..", ""billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "..", "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "..", "billing_common.py"), 'exec'))
 
 global from_excel_date_to_date_string
 
@@ -98,9 +98,9 @@ def read_billingdetails_file(bd_wkbk):
     total_slots = billable_slots + nonbillable_slots + failed_slots
     total_wallclock = billable_wallclock + nonbillable_wallclock + failed_wallclock
 
-    print "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d" % (billable_jobs, nonbillable_jobs, failed_jobs, total_jobs,
+    print("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d" % (billable_jobs, nonbillable_jobs, failed_jobs, total_jobs,
                                                               billable_slots, nonbillable_slots, failed_slots, total_slots,
-                                                              billable_wallclock, nonbillable_wallclock, failed_wallclock, total_wallclock)
+                                                              billable_wallclock, nonbillable_wallclock, failed_wallclock, total_wallclock))
 
 
 
@@ -124,7 +124,7 @@ args = parser.parse_args()
 
 # Initialize data structures.
 
-print "Filename\tBillable Jobs\tNon-billable Jobs\tFailed Jobs\tTotal Jobs\tBillable Slots\tNon-billable Slots\tFailed Slots\tTotal Slots\tBillable Secs\tNon-billable Secs\tFailed Secs\tTotal Secs"
+print("Filename\tBillable Jobs\tNon-billable Jobs\tFailed Jobs\tTotal Jobs\tBillable Slots\tNon-billable Slots\tFailed Slots\tTotal Slots\tBillable Secs\tNon-billable Secs\tFailed Secs\tTotal Secs")
 
 for billing_details_file in sorted(args.billing_details_files):
 
@@ -132,7 +132,7 @@ for billing_details_file in sorted(args.billing_details_files):
         # Open the BillingDetails workbook.
         #print >> sys.stderr, "Reading BillingDetails workbook %s." % billing_aggregate_file
 
-        print billing_details_file + "\t",
+        print(billing_details_file + "\t", end=' ')
 
         billing_details_wkbk = xlrd.open_workbook(billing_details_file, on_demand=True)
 

@@ -117,10 +117,10 @@ parser.add_argument("-a", "--accounting_file",
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=range(2012,2021),
+parser.add_argument("-y","--year", type=int, choices=list(range(2012,2021)),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be filtered out. [default = this month]")
 
@@ -174,12 +174,12 @@ else:
 if args.job_tag is not None:
     table_header_str += " WITH JOB TAG %s" % (args.job_tag)
 
-print >> sys.stderr, "%s:" % table_header_str
+print("%s:" % table_header_str, file=sys.stderr)
 
 if is_billable_month:
-    print >> sys.stderr, "MONTH: %02d/%d\t\tCPU-hrs\t%7s\tCost" % (month, year, 'Jobs')
+    print("MONTH: %02d/%d\t\tCPU-hrs\t%7s\tCost" % (month, year, 'Jobs'), file=sys.stderr)
 else:
-    print >> sys.stderr, "MONTH: %02d/%d\t\tCPU-hrs\t%7s" % (month, year, 'Jobs')
+    print("MONTH: %02d/%d\t\tCPU-hrs\t%7s" % (month, year, 'Jobs'), file=sys.stderr)
 
 #
 # Read all the lines of the current accounting file.
@@ -293,12 +293,12 @@ if is_billable_month:
         #
         # Print rest of output table
         #
-        print >> sys.stderr, " %8s\tBilled\t%7.1f\t%7d\t$%0.02f" % (user, user_billable_cpu_hrs[user], user_billable_job_count, billable_cost)
+        print(" %8s\tBilled\t%7.1f\t%7d\t$%0.02f" % (user, user_billable_cpu_hrs[user], user_billable_job_count, billable_cost), file=sys.stderr)
         if NONBILLABLE_JOBS_EXIST:
-            print >> sys.stderr, " %8s\tNonbill\t%7.1f\t%7d\t%7s" % (user, user_nonbillable_cpu_hrs[user], user_nonbillable_job_count, "--")
+            print(" %8s\tNonbill\t%7.1f\t%7d\t%7s" % (user, user_nonbillable_cpu_hrs[user], user_nonbillable_job_count, "--"), file=sys.stderr)
         # print >> sys.stderr, " %s\tFailed\t\t%7s\t%7d\t%7s" % (user, "N/A", user_failed_job_count[user], "--")
         if NONBILLABLE_JOBS_EXIST:
-            print >> sys.stderr, "%8s\tTOTAL\t\t%7.1f\t%7d\t$%0.02f" % (user, user_total_cpu_hrs[user], user_total_job_count, billable_cost)
+            print("%8s\tTOTAL\t\t%7.1f\t%7d\t$%0.02f" % (user, user_total_cpu_hrs[user], user_total_job_count, billable_cost), file=sys.stderr)
 
 else:
     # Not a billable month: just return stats on job that ran vs jobs which failed.
@@ -323,9 +323,9 @@ else:
         #
         # Print rest of output table
         #
-        print >> sys.stderr, " Completed\t%7.1f\t%6d" % (user_completed_cpu_hrs, user_completed_job_count)
-        print >> sys.stderr, " Failed\t\t%7s\t%6d" % ("N/A", user_failed_job_count)
-        print >> sys.stderr, "TOTAL\t\t%7.1f\t%6d" % (user_total_cpu_hrs, user_total_job_count)
+        print(" Completed\t%7.1f\t%6d" % (user_completed_cpu_hrs, user_completed_job_count), file=sys.stderr)
+        print(" Failed\t\t%7s\t%6d" % ("N/A", user_failed_job_count), file=sys.stderr)
+        print("TOTAL\t\t%7.1f\t%6d" % (user_total_cpu_hrs, user_total_job_count), file=sys.stderr)
 
 #
 # Print user job details to stdout, if requested.
@@ -334,18 +334,18 @@ if is_billable_month:
     if args.print_billable_jobs or args.print_completed_jobs:
         for user in user_list:
             for job_details in this_month_billable_user_jobs[user]:
-                print ':'.join(map(lambda s: str(s), job_details))
+                print(':'.join([str(s) for s in job_details]))
     if NONBILLABLE_JOBS_EXIST:
         if args.print_nonbillable_jobs or args.print_completed_jobs:
             for user in user_list:
                 for job_details in this_month_nonbillable_user_jobs[user]:
-                    print ':'.join(map(lambda s: str(s), job_details))
+                    print(':'.join([str(s) for s in job_details]))
 else:
     if args.print_completed_jobs:
         for user in user_list:
             for job_details in this_month_user_jobs[user]:
-                print ':'.join(map(lambda s: str(s), job_details))
+                print(':'.join([str(s) for s in job_details]))
 if args.print_failed_jobs:
     for user in user_list:
         for job_details in this_month_failed_jobs[user]:
-            print ':'.join(map(lambda s: str(s), job_details))
+            print(':'.join([str(s) for s in job_details]))

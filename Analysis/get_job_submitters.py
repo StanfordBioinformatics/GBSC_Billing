@@ -33,7 +33,7 @@ import sys
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "..", "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "..", "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "..", "billing_common.py"), 'exec'))
 
 global sheet_get_named_column
 
@@ -134,22 +134,22 @@ for billing_details_file in args.billing_details_files:
     billing_details_wkbk.release_resources()
 
 # Print the unique user table.
-print "Billable Users\tNonbillable Users\tFailed Users\tTotal Users"
+print("Billable Users\tNonbillable Users\tFailed Users\tTotal Users")
 for details_file in sorted(files_to_user_tuple_map.keys()):
 
     (billable_users, unbillable_users, failed_users, total_users) = files_to_user_tuple_map[details_file]
-    print "%d\t%d\t%d\t%d\t%s" % (billable_users, unbillable_users, failed_users, total_users, details_file)
+    print("%d\t%d\t%d\t%d\t%s" % (billable_users, unbillable_users, failed_users, total_users, details_file))
 
-print
+print()
 
 # Print the jobs table.
-print "Billable Jobs\tNonbillable Jobs\tFailed Jobs\tTotal Jobs"
+print("Billable Jobs\tNonbillable Jobs\tFailed Jobs\tTotal Jobs")
 for details_file in sorted(files_to_user_tuple_map.keys()):
 
     (billable_jobs, unbillable_jobs, failed_jobs, total_jobs) = files_to_jobs_tuple_map[details_file]
-    print "%d\t%d\t%d\t%d\t%s" % (billable_jobs, unbillable_jobs, failed_jobs, total_jobs, details_file)
+    print("%d\t%d\t%d\t%d\t%s" % (billable_jobs, unbillable_jobs, failed_jobs, total_jobs, details_file))
 
-print
+print()
 
 # Print the total of all job submitting users.
-print >> sys.stderr, len(grand_total_user_set),"\ttotal unique job submitting users"
+print(len(grand_total_user_set),"\ttotal unique job submitting users", file=sys.stderr)

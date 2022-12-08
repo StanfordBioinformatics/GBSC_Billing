@@ -33,7 +33,7 @@ import xlrd
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "..", ""billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "..", "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "..", "billing_common.py"), 'exec'))
 
 global sheet_get_named_column
 
@@ -86,6 +86,6 @@ for (user, date_removed) in zip(users, dates_removed):
 
 # Print out the user list.
 for user in sorted(user_set):
-    print user
+    print(user)
 
-print >> sys.stderr, len(user_set), "\tusers in", args.billing_config_file
+print(len(user_set), "\tusers in", args.billing_config_file, file=sys.stderr)
