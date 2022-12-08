@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -48,7 +48,7 @@ from slurm_job_accounting_entry import SlurmJobAccountingEntry
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -101,7 +101,7 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
     (slurm_this_month_temp_file, slurm_this_month_temp_filename) = tempfile.mkstemp(".txt",
                                                                                     "%s-thisMonth." % temp_filename_prefix)
 
-    print  "Getting Slurm accounting for %d-%02d to %s" % (year, month, slurm_this_month_temp_filename)
+    print("Getting Slurm accounting for %d-%02d to %s" % (year, month, slurm_this_month_temp_filename))
 
     # Create the start and end dates switches to the command.
     slurm_command_starttime_switch = ["--starttime", "%02d/01/%02d" % (month, year - 2000)]
@@ -117,7 +117,7 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
                          slurm_command_starttime_switch + slurm_command_endtime_switch
 
     if args.verbose:
-        print slurm_command_list
+        print(slurm_command_list)
 
     sacct_process = subprocess.Popen(slurm_command_list, stdout=subprocess.PIPE)
 
@@ -137,7 +137,7 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
     (slurm_next_month_temp_file, slurm_next_month_temp_filename) = tempfile.mkstemp(".txt",
                                                                                     "%s-nextMonth." % temp_filename_prefix)
 
-    print "Getting Slurm accounting for %d-%02d to %s" % (next_month_year, next_month, slurm_next_month_temp_filename)
+    print("Getting Slurm accounting for %d-%02d to %s" % (next_month_year, next_month, slurm_next_month_temp_filename))
 
     # Create the start date switch to the command.
     slurm_command_starttime_switch = ["--starttime", "%02d/01/%02d" % (next_month, next_month_year - 2000)]
@@ -148,7 +148,7 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
                          slurm_command_starttime_switch + ["--noheader"]
 
     if args.verbose:
-        print slurm_command_list
+        print(slurm_command_list)
 
     ret_val = subprocess.call(slurm_command_list,
                               stdout=slurm_next_month_temp_file)
@@ -156,7 +156,7 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
     #
     # 3. Subtract the lines from 2. from the lines in 1.
     #
-    print "Subtracting the two files"
+    print("Subtracting the two files")
 
     ret_val = subprocess.call(["awk", "{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } }",
                                "f=1", slurm_next_month_temp_filename, "f=2", slurm_this_month_temp_filename],
@@ -180,10 +180,10 @@ parser.add_argument("-r", "--billing_root",
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2040),
+parser.add_argument("-y","--year", type=int, choices=list(range(2013,2040)),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be filtered out. [default = last month]")
 parser.add_argument("-a", "--all_only", action="store_true",
@@ -267,9 +267,9 @@ if not os.path.exists(year_month_dir):
 #
 # Print summary of arguments.
 #
-print "TAKING SLURM ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % (billing_config_file)
-print "  BillingRoot: %s" % (billing_root)
+print("TAKING SLURM ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year))
+print("  BillingConfigFile: %s" % (billing_config_file))
+print("  BillingRoot: %s" % (billing_root))
 
 # Create output accounting pathnames.
 slurm_accounting_filename_all = "%s.%d-%02d.all.txt" % (SLURMACCOUNTING_PREFIX, year, month)
@@ -278,22 +278,22 @@ slurm_accounting_pathname_all = os.path.join(year_month_dir, slurm_accounting_fi
 slurm_accounting_filename_min = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year, month)
 slurm_accounting_pathname_min = os.path.join(year_month_dir, slurm_accounting_filename_min)
 
-print
-if not args.min_only: print "  SlurmAccountingFile (all): %s" % (slurm_accounting_pathname_all)
-if not args.all_only: print "  SlurmAccountingFile (min): %s" % (slurm_accounting_pathname_min)
-print
+print()
+if not args.min_only: print("  SlurmAccountingFile (all): %s" % (slurm_accounting_pathname_all))
+if not args.all_only: print("  SlurmAccountingFile (min): %s" % (slurm_accounting_pathname_min))
+print()
 
 if not args.min_only:
-    print "GETTING SLURM ACCOUNTING - ALL FIELDS"
+    print("GETTING SLURM ACCOUNTING - ALL FIELDS")
     get_slurm_accounting(slurm_accounting_pathname_all, SLURM_ACCT_FIELDS_ALL_SWITCHES)
 else:
-    print "**SKIPPING** SLURM ACCOUNTING - ALL FIELDS"
-print
+    print("**SKIPPING** SLURM ACCOUNTING - ALL FIELDS")
+print()
 
 if not args.all_only:
-    print "GETTING SLURM ACCOUNTING - MINIMUM FIELDS"
+    print("GETTING SLURM ACCOUNTING - MINIMUM FIELDS")
     get_slurm_accounting(slurm_accounting_pathname_min, SLURM_ACCT_FIELDS_MIN_SWITCHES)
 else:
-    print "**SKIPPING** SLURM ACCOUNTING - MINIMUM FIELDS"
-print
+    print("**SKIPPING** SLURM ACCOUNTING - MINIMUM FIELDS")
+print()
 

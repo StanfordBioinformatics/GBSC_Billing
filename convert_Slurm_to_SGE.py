@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -44,7 +44,7 @@ import job_accounting_file
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -115,7 +115,7 @@ def slurm_time_to_seconds(slurm_time_str):
         elapsed_days = int(elapsed_days_split[0])
         elapsed_hms = elapsed_days_split[1]
     else:
-        print >> sys.stderr, "Time string of", slurm_time_str, "is malformed."
+        print("Time string of", slurm_time_str, "is malformed.", file=sys.stderr)
 
     seconds = (elapsed_days * 86400) + sum(int(x) * 60 ** i for i, x in enumerate(reversed(elapsed_hms.split(":"))))
 
@@ -161,7 +161,7 @@ def convert_slurm_file_to_sge_file(slurm_fp, sge_fp):
         elapsed_raw_seconds = int(slurm_row['ElapsedRaw'])
 
         if elapsed_seconds != elapsed_raw_seconds:
-            print >> sys.stderr, "Elapsed string of %s does not equal ElapsedRaw value of %d." % (slurm_row['Elapsed'], elapsed_raw_seconds)
+            print("Elapsed string of %s does not equal ElapsedRaw value of %d." % (slurm_row['Elapsed'], elapsed_raw_seconds), file=sys.stderr)
 
         sge_row['ru_wallclock'] = elapsed_seconds
 
@@ -194,7 +194,7 @@ def convert_slurm_file_to_sge_file(slurm_fp, sge_fp):
             sys.stderr.write('.')
             sys.stderr.flush()
 
-    print >> sys.stderr
+    print(file=sys.stderr)
 
 #=====
 #
@@ -247,9 +247,9 @@ else:
 #
 # Output the state of arguments.
 #
-print >> sys.stderr, "Slurm --> SGE Conversion arguments:"
-print >> sys.stderr, "  Slurm accounting file: %s" % slurm_accounting_file
-print >> sys.stderr, "  SGE accounting file: %s" % sge_accounting_file
+print("Slurm --> SGE Conversion arguments:", file=sys.stderr)
+print("  Slurm accounting file: %s" % slurm_accounting_file, file=sys.stderr)
+print("  SGE accounting file: %s" % sge_accounting_file, file=sys.stderr)
 
 #
 # Open the two files
@@ -266,4 +266,4 @@ else:
 
 convert_slurm_file_to_sge_file(slurm_accounting_fp, sge_accounting_fp)
 
-print >> sys.stderr, "Conversion complete!"
+print("Conversion complete!", file=sys.stderr)

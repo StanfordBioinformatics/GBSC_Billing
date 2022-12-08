@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # ===============================================================================
 #
@@ -38,7 +38,7 @@ import sys
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 # From billing_common.py
 global sheet_get_named_column
@@ -171,7 +171,7 @@ for billing_aggregate_file in args.billing_aggregate_files:
         regexp = re.match("GBSCBilling\.([0-9]{4})-([0-9]{2})", ba_filename)
 
         if regexp is None:
-            print >> sys.stderr, "Can't find year-month in %s...skipping" % ba_filename
+            print("Can't find year-month in %s...skipping" % ba_filename, file=sys.stderr)
             continue
 
         monthbilled = "%s-%s" % (regexp.group(1), regexp.group(2))
@@ -179,7 +179,7 @@ for billing_aggregate_file in args.billing_aggregate_files:
         months_billed.append(monthbilled)
 
         # Open the BillingAggregate workbook.
-        print "Reading BillingAggregate workbook %s." % billing_aggregate_file
+        print("Reading BillingAggregate workbook %s." % billing_aggregate_file)
         billing_aggregate_wkbk = xlrd.open_workbook(billing_aggregate_file, on_demand=True)
 
         read_billingaggregate_file(billing_aggregate_wkbk, monthbilled)
@@ -189,7 +189,7 @@ for billing_aggregate_file in args.billing_aggregate_files:
 # Sort the resulting months list.
 months_billed = sorted(months_billed)
 
-print "Writing out history workbook %s" % args.output
+print("Writing out history workbook %s" % args.output)
 history_wkbk = xlsxwriter.Workbook(args.output)
 
 # Create formats.

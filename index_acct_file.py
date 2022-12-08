@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -106,16 +106,16 @@ while True:
 # Print out the index table.
 #
 if args.tuple:
-    print '(',
-    for year_month_tuple in sorted(year_month_to_filepos.iterkeys()):
+    print('(', end=' ')
+    for year_month_tuple in sorted(year_month_to_filepos.keys()):
         (year, month) = year_month_tuple
-        print "((%d, %d), %d)," % (year, month, year_month_to_filepos[year_month_tuple])
-    print ')'
+        print("((%d, %d), %d)," % (year, month, year_month_to_filepos[year_month_tuple]))
+    print(')')
 
 else:
-    for year_month_tuple in sorted(year_month_to_filepos.iterkeys()):
+    for year_month_tuple in sorted(year_month_to_filepos.keys()):
         (year, month) = year_month_tuple
-        print year, month, year_month_to_filepos[year_month_tuple]
+        print(year, month, year_month_to_filepos[year_month_tuple])
 
 
 

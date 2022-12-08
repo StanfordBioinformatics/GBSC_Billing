@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -48,7 +48,7 @@ from xlsxwriter.utility import xl_rowcol_to_cell
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -185,7 +185,7 @@ def make_format(wkbk, *prop_dicts):
     # Define the final property dict.
     final_prop_dict = dict()
     # Combine all the input dicts into the final dict.
-    map(lambda d: final_prop_dict.update(d), prop_dicts)
+    list(map(lambda d: final_prop_dict.update(d), prop_dicts))
 
     # Get the list of (prop_dict, Format)s for this workbook.
     prop_dict_format_list = FORMAT_PROPS_PER_WORKBOOK.setdefault(wkbk, [])
@@ -285,7 +285,7 @@ def get_pi_tags_for_username_by_date(username, date_timestamp):
         date_excel = from_timestamp_to_excel_date(date_timestamp)
 
         for (pi_tag, date_added, date_removed, pctage) in pi_tag_dates:
-            if date_added <= date_excel < date_removed:
+            if date_added <= date_excel and (date_removed == '' or date_excel < date_removed):
                 pi_tag_list.append([pi_tag, pctage])
 
     return pi_tag_list
@@ -320,9 +320,9 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     pi_last_names  = sheet_get_named_column(pis_sheet, "PI Last Name")
     pi_emails      = sheet_get_named_column(pis_sheet, "PI Email")
 
-    pi_details_list = zip(pi_first_names, pi_last_names, pi_emails)
+    pi_details_list = list(zip(pi_first_names, pi_last_names, pi_emails))
 
-    pi_tag_to_names_email = dict(zip(pi_tag_list, pi_details_list))
+    pi_tag_to_names_email = dict(list(zip(pi_tag_list, pi_details_list)))
 
     #
     # Organize data from the Cloud sheet, if present.
@@ -348,9 +348,9 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
     cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
-    cloud_rows = filter_by_dates(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
-                                     cloud_accounts, cloud_pctage),
-                                 zip(cloud_dates_added, cloud_dates_remvd),
+    cloud_rows = filter_by_dates(list(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
+                                     cloud_accounts, cloud_pctage)),
+                                 list(zip(cloud_dates_added, cloud_dates_remvd)),
                                  begin_month_exceldate, end_month_exceldate)
 
     for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
@@ -377,7 +377,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
     affiliation_column = sheet_get_named_column(pis_sheet, "Affiliation")
 
-    pi_tag_to_affiliation = dict(zip(pi_tag_list, affiliation_column))
+    pi_tag_to_affiliation = dict(list(zip(pi_tag_list, affiliation_column)))
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -385,7 +385,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     pi_dates_added   = sheet_get_named_column(pis_sheet, "Date Added")
     pi_dates_removed = sheet_get_named_column(pis_sheet, "Date Removed")
 
-    pi_tags_and_dates_added = zip(pi_tag_list, pi_dates_added, pi_dates_removed)
+    pi_tags_and_dates_added = list(zip(pi_tag_list, pi_dates_added, pi_dates_removed))
 
     for (pi_tag, date_added, date_removed) in pi_tags_and_dates_added:
 
@@ -401,12 +401,12 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
         # then remove the pi_tag from the list.
         if date_added_timestamp >= end_month_timestamp:
 
-            print >> sys.stderr, " *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added))
+            print(" *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
         elif date_removed_timestamp < begin_month_timestamp:
 
-            print >> sys.stderr, " *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_removed))
+            print(" *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_removed)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
     #
@@ -418,7 +418,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     emails     = sheet_get_named_column(users_sheet, "Email")
     full_names = sheet_get_named_column(users_sheet, "Full Name")
 
-    username_details_rows = zip(usernames, emails, full_names)
+    username_details_rows = list(zip(usernames, emails, full_names))
 
     for (username, email, full_name) in username_details_rows:
         username_to_user_details[username] = [email, full_name]
@@ -433,7 +433,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     dates_removed = sheet_get_named_column(users_sheet, "Date Removed")
     pctages       = sheet_get_named_column(users_sheet, "%age")
 
-    username_rows = zip(usernames, pi_tags, dates_added, dates_removed, pctages)
+    username_rows = list(zip(usernames, pi_tags, dates_added, dates_removed, pctages))
 
     for (username, pi_tag, date_added, date_removed, pctage) in username_rows:
         username_to_pi_tag_dates[username].append([pi_tag, date_added, date_removed, pctage])
@@ -457,7 +457,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     serv_req_names  = sheet_get_named_column(pis_sheet, "iLab Service Request Name")
     serv_req_owners = sheet_get_named_column(pis_sheet, "iLab Service Request Owner")
 
-    iLab_info_rows = zip(pi_tags, serv_req_ids, serv_req_names, serv_req_owners)
+    iLab_info_rows = list(zip(pi_tags, serv_req_ids, serv_req_names, serv_req_owners))
 
     for (pi_tag, serv_req_id, serv_req_name, serv_req_owner) in iLab_info_rows:
         pi_tag_to_iLab_info[pi_tag] = [serv_req_id, serv_req_name, serv_req_owner]
@@ -474,7 +474,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     dates_added   = sheet_get_named_column(accounts_sheet, "Date Added")
     dates_removed = sheet_get_named_column(accounts_sheet, "Date Removed")
 
-    account_rows = filter_by_dates(zip(accounts, pi_tags, pctages), zip(dates_added, dates_removed),
+    account_rows = filter_by_dates(list(zip(accounts, pi_tags, pctages)), list(zip(dates_added, dates_removed)),
                                    begin_month_exceldate, end_month_exceldate)
 
     for (account, pi_tag, pctage) in account_rows:
@@ -508,7 +508,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     dates_added   += sheet_get_named_column(folders_sheet, "Date Added")
     dates_removed += sheet_get_named_column(folders_sheet, "Date Removed")
 
-    folder_rows = filter_by_dates(zip(folders, pi_tags, pctages), zip(dates_added, dates_removed),
+    folder_rows = filter_by_dates(list(zip(folders, pi_tags, pctages)), list(zip(dates_added, dates_removed)),
                                   begin_month_exceldate, end_month_exceldate)
 
     for (folder, pi_tag, pctage) in folder_rows:
@@ -527,19 +527,19 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     global pi_tag_to_cluster_acct_status
     cluster_statuses = sheet_get_named_column(pis_sheet, "Cluster?")
 
-    pi_tag_to_cluster_acct_status = dict(zip(pi_tags, cluster_statuses))
+    pi_tag_to_cluster_acct_status = dict(list(zip(pi_tags, cluster_statuses)))
 
 
     global pi_tag_to_cloud_acct_status
     cloud_statuses = sheet_get_named_column(pis_sheet, "Google Cloud?")
 
-    pi_tag_to_cloud_acct_status = dict(zip(pi_tags, cloud_statuses))
+    pi_tag_to_cloud_acct_status = dict(list(zip(pi_tags, cloud_statuses)))
 
 
     global pi_tag_to_consulting_acct_status
     consulting_statuses = sheet_get_named_column(pis_sheet, "BaaS?")
 
-    pi_tag_to_consulting_acct_status = dict(zip(pi_tags, consulting_statuses))
+    pi_tag_to_consulting_acct_status = dict(list(zip(pi_tags, consulting_statuses)))
 
 
 # Reads the particular rate requested from the Rates sheet of the BillingConfig workbook.
@@ -651,7 +651,7 @@ def read_computing_sheet(wkbk):
                 job_pi_tag_pctage_list = get_pi_tags_for_username_by_date(job_username, job_timestamp)
 
             if len(job_pi_tag_pctage_list) == 0:
-                print "   *** No PI associated with job ID %d, user %s, account %s" % (jobID, job_username, account)
+                print("   *** No PI associated with job ID %d, user %s, account %s" % (jobID, job_username, account))
                 continue
 
             # Distribute this job's CPU-hrs amongst pi_tags by %ages.
@@ -742,7 +742,7 @@ def read_consulting_sheet(wkbk):
     notes       = sheet_get_named_column(consulting_sheet, 'Notes')
     cumul_hours = sheet_get_named_column(consulting_sheet, 'Cumul Hours')
 
-    consulting_details = zip(dates, pi_tags, hours, travel_hours, consultants, clients, summaries, notes, cumul_hours)
+    consulting_details = list(zip(dates, pi_tags, hours, travel_hours, consultants, clients, summaries, notes, cumul_hours))
 
     for (date, pi_tag, hours, travel_hours, consultant, client, summary, notes, cumul_hours) in consulting_details:
 
@@ -995,7 +995,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # Get the rate from the Rates sheet of the BillingConfig workbook.
     cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
     if cluster_acct_status != "Full" and cluster_acct_status != "Free" and cluster_acct_status != "No":
-        print >> sys.stderr, "  Unexpected cluster status of '%s' for %s" % (cluster_acct_status, pi_tag)
+        print("  Unexpected cluster status of '%s' for %s" % (cluster_acct_status, pi_tag), file=sys.stderr)
 
     storage_access_string = "%s Access" % (cluster_acct_status.capitalize())
 
@@ -1129,7 +1129,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
                     pi_tags_for_username = get_pi_tags_for_username_by_date(username, begin_month_timestamp)
 
-                    if pi_tag in map(lambda pi_pct: pi_pct[0], pi_tags_for_username):
+                    if pi_tag in [pi_pct[0] for pi_pct in pi_tags_for_username]:
                         username_fmt = item_entry_fmt
                         user_rate_cpu_per_hour = rate_cpu_per_hour
                         user_rate_cpu_a1_cell  = rate_cpu_a1_cell
@@ -1151,7 +1151,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
                     # Check if user has accumulated more than $500 in a month.
                     if charge > 500:
-                        print "  *** User %s (%s) for PI %s, Account %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, account, charge)
+                        print("  *** User %s (%s) for PI %s, Account %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, account, charge))
 
                     total_computing_cpuhrs += cpu_core_hrs
 
@@ -1214,8 +1214,8 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     if len(total_computing_charges_row_list) > 0:
 
-        total_cpuhours_cell_list = map(lambda x: xl_rowcol_to_cell(x, 2), total_computing_charges_row_list)
-        total_computing_charges_cell_list = map(lambda x: xl_rowcol_to_cell(x, 4), total_computing_charges_row_list)
+        total_cpuhours_cell_list = [xl_rowcol_to_cell(x, 2) for x in total_computing_charges_row_list]
+        total_computing_charges_cell_list = [xl_rowcol_to_cell(x, 4) for x in total_computing_charges_row_list]
 
         # Create formula from account total CPU-hours cells.
         total_cpuhours_formula = "=" + "+".join(total_cpuhours_cell_list)
@@ -1702,7 +1702,7 @@ def generate_aggregrate_sheet(sheet):
     consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting')
 
     # Sort PI Tags by PI's last name
-    pi_tags_sorted = sorted([[pi_tag, pi_tag_to_names_email[pi_tag][1]] for pi_tag in pi_tag_to_charges.iterkeys()],
+    pi_tags_sorted = sorted([[pi_tag, pi_tag_to_names_email[pi_tag][1]] for pi_tag in pi_tag_to_charges.keys()],
                             key=lambda a: a[1])
 
     curr_row = 1
@@ -1791,10 +1791,10 @@ parser.add_argument("-p", "--pi_sheets", action="store_true",
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2031),
+parser.add_argument("-y","--year", type=int, choices=list(range(2013,2031)),
                     default=None,
                     help="The year to be used. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be used. [default = last month]")
 
@@ -1881,16 +1881,16 @@ billing_details_file = os.path.abspath(billing_details_file)
 #
 # Output the state of arguments.
 #
-print "GENERATING NOTIFICATIONS FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % (billing_config_file)
-print "  BillingRoot: %s" % (billing_root)
-print "  BillingDetailsFile: %s" % (billing_details_file)
-print
+print("GENERATING NOTIFICATIONS FOR %02d/%d:" % (month, year))
+print("  BillingConfigFile: %s" % (billing_config_file))
+print("  BillingRoot: %s" % (billing_root))
+print("  BillingDetailsFile: %s" % (billing_details_file))
+print()
 
 #
 # Build data structures.
 #
-print "Building configuration data structures."
+print("Building configuration data structures.")
 build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp)
 
 ###
@@ -1900,22 +1900,22 @@ build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestam
 ###
 
 # Open the BillingDetails workbook.
-print "Read in BillingDetails workbook."
+print("Read in BillingDetails workbook.")
 billing_details_wkbk = xlrd.open_workbook(billing_details_file)
 
 # Read in its Storage sheet and generate output data.
-print "Reading storage sheet."
+print("Reading storage sheet.")
 read_storage_sheet(billing_details_wkbk)
 
 # Read in its Computing sheet and generate output data.
-print "Reading computing sheet."
+print("Reading computing sheet.")
 read_computing_sheet(billing_details_wkbk)
 
-print "Reading cloud sheet."
+print("Reading cloud sheet.")
 read_cloud_sheet(billing_details_wkbk)
 
 # Read in its Consulting sheet and generate output data.
-print "Reading consulting sheet."
+print("Reading consulting sheet.")
 read_consulting_sheet(billing_details_wkbk)
 
 ###
@@ -1924,10 +1924,10 @@ read_consulting_sheet(billing_details_wkbk)
 #
 ###
 
-print "Writing notification workbooks:"
+print("Writing notification workbooks:")
 for pi_tag in sorted(pi_tag_list):
 
-    print " %s" % pi_tag
+    print(" %s" % pi_tag)
 
     # Initialize the BillingNotification spreadsheet for this PI.
     notifs_wkbk_filename = "%s-%s.%s-%02d.xlsx" % (BILLING_NOTIFS_PREFIX, pi_tag, year, month)
@@ -1963,7 +1963,7 @@ for pi_tag in sorted(pi_tag_list):
 #
 ###
 
-print "Writing billing aggregate workbook."
+print("Writing billing aggregate workbook.")
 
 aggreg_wkbk_filename = "%s.%s-%02d.xlsx" % (BILLING_NOTIFS_PREFIX, year, month)
 aggreg_wkbk_pathname = os.path.join(year_month_dir, aggreg_wkbk_filename)
@@ -1997,4 +1997,4 @@ total_jobs_billed = 0
 for pi_tag in pi_tag_list:
     total_jobs_billed += len(pi_tag_to_job_details[pi_tag])
 
-print "Total Jobs Billed:", total_jobs_billed
+print("Total Jobs Billed:", total_jobs_billed)

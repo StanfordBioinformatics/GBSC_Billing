@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # ===============================================================================
 #
@@ -40,10 +40,11 @@ import os
 import os.path
 import sys
 import xlrd
+from functools import reduce
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 from job_accounting_file import JobAccountingFile
 
@@ -87,7 +88,7 @@ def get_pi_tag_list(billing_config_wkbk):
     pi_dates_added   = sheet_get_named_column(pis_sheet, "Date Added")
     pi_dates_removed = sheet_get_named_column(pis_sheet, "Date Removed")
 
-    pi_tags_and_dates_added = zip(pi_tag_list, pi_dates_added, pi_dates_removed)
+    pi_tags_and_dates_added = list(zip(pi_tag_list, pi_dates_added, pi_dates_removed))
 
     for (pi_tag, date_added, date_removed) in pi_tags_and_dates_added:
 
@@ -103,12 +104,12 @@ def get_pi_tag_list(billing_config_wkbk):
         # then remove the pi_tag from the list.
         if date_added_timestamp >= end_month_timestamp:
 
-            print >> sys.stderr, " *** Ignoring PI %s: added after this month on %s" % (pi_tag, from_excel_date_to_date_string(date_added))
+            print(" *** Ignoring PI %s: added after this month on %s" % (pi_tag, from_excel_date_to_date_string(date_added)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
         elif date_removed_timestamp < begin_month_timestamp:
 
-            print >> sys.stderr, " *** Ignoring PI %s: removed before this month on %s" % (pi_tag, from_excel_date_to_date_string(date_removed))
+            print(" *** Ignoring PI %s: removed before this month on %s" % (pi_tag, from_excel_date_to_date_string(date_removed)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
     return pi_tag_list
@@ -119,7 +120,7 @@ def read_jobIDs(wkbk, sheet_name):
     sheet  = wkbk.sheet_by_name(sheet_name)
     jobIDs = sheet_get_named_column(sheet, "Job ID")
 
-    return map(lambda x: int(x), jobIDs)
+    return [int(x) for x in jobIDs]
 
 
 def print_set(my_set, max_elts=10000):
@@ -128,13 +129,13 @@ def print_set(my_set, max_elts=10000):
     for elt in my_set:
         if elt_count % 10 == 0:
             elt_count += 1
-            print
+            print()
         if elt_count >= max_elts:
             break
 
-        print "%s" % elt,
+        print("%s" % elt, end=' ')
     else:
-        print
+        print()
 
 
 #=====
@@ -156,10 +157,10 @@ parser.add_argument("-d","--billing_details_file",
 parser.add_argument("-r", "--billing_root",
                     default=None,
                     help='The Billing Root directory [default = None]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2031),
+parser.add_argument("-y","--year", type=int, choices=list(range(2013,2031)),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be filtered out. [default = last month]")
 
@@ -318,7 +319,7 @@ details_all_jobID_set = set(reduce(lambda a,b: a+b,[details_billable_jobIDs,deta
 details_billable_jobID_set = set(details_billable_jobIDs)
 
 # Aggregate the BillingNotifs JobIDs and unique them.
-notifs_all_jobID_set  = set(reduce(lambda a,b: a+b, pi_tag_jobIDs_dict.values()))
+notifs_all_jobID_set  = set(reduce(lambda a,b: a+b, list(pi_tag_jobIDs_dict.values())))
 
 # Compare:
 #  The accounting JobIDs
@@ -328,17 +329,17 @@ notifs_all_jobID_set  = set(reduce(lambda a,b: a+b, pi_tag_jobIDs_dict.values())
 # This operation gets set of elements in either accounting or details, but not both.
 accounting_symdiff_details = accounting_all_jobID_set ^ details_all_jobID_set
 
-print "NOT IN BOTH ACCOUNTING AND DETAILS: %d" % (len(accounting_symdiff_details))
-print
+print("NOT IN BOTH ACCOUNTING AND DETAILS: %d" % (len(accounting_symdiff_details)))
+print()
 
 if len(accounting_symdiff_details) > 0:
-    print "In accounting only:"
+    print("In accounting only:")
     print_set(accounting_symdiff_details & accounting_all_jobID_set, 100)
-    print
+    print()
 
-    print "In details only:"
+    print("In details only:")
     print_set(accounting_symdiff_details & details_all_jobID_set, 100)
-    print
+    print()
 
 # Compare:
 #  The BillingDetails Billable JobIDs
@@ -348,25 +349,25 @@ if len(accounting_symdiff_details) > 0:
 # This operation gets set of elements in either billable details or notifs, but not both.
 details_billable_symdiff_notifs = details_billable_jobID_set ^ notifs_all_jobID_set
 
-print "NOT IN BILLABLE DETAILS AND NOTIFS: %d" % (len(details_billable_symdiff_notifs))
-print
+print("NOT IN BILLABLE DETAILS AND NOTIFS: %d" % (len(details_billable_symdiff_notifs)))
+print()
 
 if len(details_billable_symdiff_notifs) > 0:
-    print "In billable details only:"
+    print("In billable details only:")
     print_set(details_billable_symdiff_notifs & details_billable_jobID_set)
-    print
+    print()
 
-    print "In notifs only:"
+    print("In notifs only:")
     print_set(details_billable_symdiff_notifs & notifs_all_jobID_set)
-    print
+    print()
 
 if len(accounting_symdiff_details) > 0 or len(details_billable_symdiff_notifs) > 0:
-    print
-    print "JOBS INCONSISTENT AMONG FILES"
+    print()
+    print("JOBS INCONSISTENT AMONG FILES")
 
     sys.exit(-1)
 else:
-    print
-    print "ALL JOBS ARE IN ALL FILES"
+    print()
+    print("ALL JOBS ARE IN ALL FILES")
 
     sys.exit(0)

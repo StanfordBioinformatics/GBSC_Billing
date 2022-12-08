@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -44,7 +44,7 @@ import xlrd
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -260,9 +260,9 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     pi_emails      = sheet_get_named_column(pis_sheet, "PI Email")
     owner_emails   = sheet_get_named_column(pis_sheet, "iLab Service Request Owner")
 
-    pi_details_list = zip(pi_first_names, pi_last_names, pi_emails, owner_emails)
+    pi_details_list = list(zip(pi_first_names, pi_last_names, pi_emails, owner_emails))
 
-    pi_tag_to_names_email = dict(zip(pi_tag_list, pi_details_list))
+    pi_tag_to_names_email = dict(list(zip(pi_tag_list, pi_details_list)))
 
     #
     # Create mapping from pi_tag to iLab Service Request ID.
@@ -271,7 +271,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
 
     pi_ilab_ids = sheet_get_named_column(pis_sheet, "iLab Service Request ID")
 
-    pi_tag_to_ilab_service_req_id = dict(zip(pi_tag_list, pi_ilab_ids))
+    pi_tag_to_ilab_service_req_id = dict(list(zip(pi_tag_list, pi_ilab_ids)))
 
     # Organize data from the Cloud sheet, if present.
     if read_cloud_data:
@@ -295,9 +295,9 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
         cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
         cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
-        cloud_rows = filter_by_dates(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
-                                         cloud_accounts, cloud_pctage),
-                                     zip(cloud_dates_added, cloud_dates_remvd),
+        cloud_rows = filter_by_dates(list(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
+                                         cloud_accounts, cloud_pctage)),
+                                     list(zip(cloud_dates_added, cloud_dates_remvd)),
                                      begin_month_exceldate, end_month_exceldate)
 
         for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
@@ -327,7 +327,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
 
     levels_column = sheet_get_named_column(pis_sheet,"Cluster?")
 
-    pi_tag_to_service_level = dict(zip(pi_tag_list, levels_column))
+    pi_tag_to_service_level = dict(list(zip(pi_tag_list, levels_column)))
 
     #
     # Create mapping from pi_tags to a string denoting affiliation (Stanford/Affiliate/External).
@@ -336,7 +336,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
 
     affiliation_column = sheet_get_named_column(pis_sheet, "Affiliation")
 
-    pi_tag_to_affiliation = dict(zip(pi_tag_list, affiliation_column))
+    pi_tag_to_affiliation = dict(list(zip(pi_tag_list, affiliation_column)))
 
     #
     # Filter pi_tag_list for PIs active in the current month.
@@ -344,7 +344,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     pi_dates_added   = sheet_get_named_column(pis_sheet, "Date Added")
     pi_dates_removed = sheet_get_named_column(pis_sheet, "Date Removed")
 
-    pi_tags_and_dates_added = zip(pi_tag_list, pi_dates_added, pi_dates_removed)
+    pi_tags_and_dates_added = list(zip(pi_tag_list, pi_dates_added, pi_dates_removed))
 
     for (pi_tag, date_added, date_removed) in pi_tags_and_dates_added:
 
@@ -360,12 +360,12 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
         # then remove the pi_tag from the list.
         if date_added_timestamp >= end_month_timestamp:
 
-            print >> sys.stderr, " *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added))
+            print(" *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
         elif date_removed_timestamp < begin_month_timestamp:
 
-            print >> sys.stderr, " *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_removed))
+            print(" *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_removed)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
     #
@@ -377,7 +377,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     emails     = sheet_get_named_column(users_sheet, "Email")
     full_names = sheet_get_named_column(users_sheet, "Full Name")
 
-    username_details_rows = zip(usernames, emails, full_names)
+    username_details_rows = list(zip(usernames, emails, full_names))
 
     for (username, email, full_name) in username_details_rows:
         username_to_user_details[username] = [email, full_name]
@@ -392,7 +392,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     dates_removed = sheet_get_named_column(users_sheet, "Date Removed")
     pctages       = sheet_get_named_column(users_sheet, "%age")
 
-    username_rows = zip(usernames, pi_tags, dates_added, dates_removed, pctages)
+    username_rows = list(zip(usernames, pi_tags, dates_added, dates_removed, pctages))
 
     for (username, pi_tag, date_added, date_removed, pctage) in username_rows:
         username_to_pi_tag_dates[username].append([pi_tag, date_added, date_removed, pctage])
@@ -421,7 +421,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     dates_added   = sheet_get_named_column(accounts_sheet, "Date Added")
     dates_removed = sheet_get_named_column(accounts_sheet, "Date Removed")
 
-    account_rows = filter_by_dates(zip(accounts, pi_tags, pctages), zip(dates_added, dates_removed),
+    account_rows = filter_by_dates(list(zip(accounts, pi_tags, pctages)), list(zip(dates_added, dates_removed)),
                                    begin_month_exceldate, end_month_exceldate)
 
     for (account, pi_tag, pctage) in account_rows:
@@ -455,7 +455,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     dates_added   += sheet_get_named_column(folders_sheet, "Date Added")
     dates_removed += sheet_get_named_column(folders_sheet, "Date Removed")
 
-    folder_rows = filter_by_dates(zip(folders, pi_tags, pctages), zip(dates_added, dates_removed),
+    folder_rows = filter_by_dates(list(zip(folders, pi_tags, pctages)), list(zip(dates_added, dates_removed)),
                                   begin_month_exceldate, end_month_exceldate)
 
     for (folder, pi_tag, pctage) in folder_rows:
@@ -516,7 +516,7 @@ def read_computing_sheet(wkbk):
                 job_pi_tag_pctage_list = get_pi_tags_for_username_by_date(job_username, job_timestamp)
 
             if len(job_pi_tag_pctage_list) == 0:
-                print "   *** No PI associated with job ID %d, pi_tag %s, account %s" % (jobID, pi_tag, account)
+                print("   *** No PI associated with job ID %d, pi_tag %s, account %s" % (jobID, pi_tag, account))
                 continue
 
             # Distribute this job's CPU-hrs amongst pi_tags by %ages.
@@ -615,7 +615,7 @@ def read_google_invoice(google_invoice_csv_file):
         elif row['key'] == 'Amount due':
             google_invoice_amount_due = locale.atof(row['value'])
 
-    print >> sys.stderr, "  Amount due: $%0.2f" % (google_invoice_amount_due)
+    print("  Amount due: $%0.2f" % (google_invoice_amount_due), file=sys.stderr)
 
     # Accumulate the total amount of charges while processing each line,
     #  to compare with total amount in header.
@@ -657,10 +657,10 @@ def read_google_invoice(google_invoice_csv_file):
 
     # Compare total charges to "Amount Due".
     if abs(google_invoice_total_amount - google_invoice_amount_due) >= 0.01:  # Ignore differences less than a penny.
-        print >> sys.stderr, "  WARNING: Accumulated amounts do not equal amount due: ($%.2f != $%.2f)" % (google_invoice_total_amount,
-                                                                                                           google_invoice_amount_due)
+        print("  WARNING: Accumulated amounts do not equal amount due: ($%.2f != $%.2f)" % (google_invoice_total_amount,
+                                                                                                           google_invoice_amount_due), file=sys.stderr)
     else:
-        print >> sys.stderr, "  VERIFIED: Sum of individual transactions equals Amount due."
+        print("  VERIFIED: Sum of individual transactions equals Amount due.", file=sys.stderr)
 
 
 #
@@ -686,11 +686,11 @@ def read_consulting_sheet(wkbk):
 def process_cluster_data():
 
     # Read in its Storage sheet.
-    print "Reading storage sheet."
+    print("Reading storage sheet.")
     read_storage_sheet(billing_details_wkbk)
 
     # Read in its Computing sheet.
-    print "Reading computing sheet."
+    print("Reading computing sheet.")
     read_computing_sheet(billing_details_wkbk)
 
 
@@ -724,18 +724,18 @@ def process_cloud_data():
         ###
         # Read in Google Cloud Invoice data, ignoring data from BillingDetails.
         ###
-        print "Reading Google Invoice."
+        print("Reading Google Invoice.")
         read_google_invoice(google_invoice_csv)
 
     # Read in the Cloud sheet from the BillingDetails file, if present.
     elif "Cloud" in billing_details_wkbk.sheet_names():
 
-        print "Reading cloud sheet."
+        print("Reading cloud sheet.")
 
         read_cloud_sheet(billing_details_wkbk)
 
     else:
-        print "No Cloud sheet in BillingDetails nor Google Invoice file...skipping"
+        print("No Cloud sheet in BillingDetails nor Google Invoice file...skipping")
         return
 
 
@@ -746,10 +746,10 @@ def process_consulting_data():
 
     # Read in its Consulting sheet.
     if "Consulting" in billing_details_wkbk.sheet_names():
-        print "Reading consulting sheet."
+        print("Reading consulting sheet.")
         read_consulting_sheet(billing_details_wkbk)
     else:
-        print "No consulting sheet in BillingDetails: skipping"
+        print("No consulting sheet in BillingDetails: skipping")
         return
 
 
@@ -823,10 +823,10 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
                             pi_tags_for_username = get_pi_tags_for_username_by_date(username, begin_month_timestamp)
 
                             # If the user is not within the lab membership, then use the full tier service ID.
-                            if pi_tag not in map(lambda pi_pct: pi_pct[0], pi_tags_for_username):
+                            if pi_tag not in [pi_pct[0] for pi_pct in pi_tags_for_username]:
                                 output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, full_computing_service_id, note, quantity)
                             else:
-                                print >> sys.stderr, "  *** In Free Tier Lab %s, lab member %s ran billable jobs (%f)." % (pi_tag, username, quantity)
+                                print("  *** In Free Tier Lab %s, lab member %s ran billable jobs (%f)." % (pi_tag, username, quantity), file=sys.stderr)
 
             else:
                 # No users for this PI.
@@ -959,7 +959,7 @@ def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_i
 
     # If this PI doesn't have a service request ID, skip them.
     if pi_tag_to_ilab_service_req_id[pi_tag] == '':
-        print "  Skipping %s: no iLab service request ID" % (pi_tag)
+        print("  Skipping %s: no iLab service request ID" % (pi_tag))
         return
     # If the PI explicitly is marked as not having a service request, skip them silently.
     if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
@@ -1020,10 +1020,10 @@ parser.add_argument("-b", "--break_out_cloud", action="store_true",
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2031),
+parser.add_argument("-y","--year", type=int, choices=list(range(2013,2031)),
                     default=None,
                     help="The year to be used. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be used. [default = last month]")
 
@@ -1128,17 +1128,17 @@ if not os.path.exists(google_invoice_csv):
 #
 # Output the state of arguments.
 #
-print "GENERATING ILAB EXPORT FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % (billing_config_file)
-print "  BillingRoot: %s" % billing_root
-print "  BillingDetailsFile: %s" % (billing_details_file)
-print "  GoogleInvoiceCSV: %s" % (google_invoice_csv)
-print
+print("GENERATING ILAB EXPORT FOR %02d/%d:" % (month, year))
+print("  BillingConfigFile: %s" % (billing_config_file))
+print("  BillingRoot: %s" % billing_root)
+print("  BillingDetailsFile: %s" % (billing_details_file))
+print("  GoogleInvoiceCSV: %s" % (google_invoice_csv))
+print()
 
 #
 # Build data structures.
 #
-print "Building configuration data structures."
+print("Building configuration data structures.")
 
 # Determine whether we should read in Cloud data from the BillingConfig spreadsheet.
 # We should if the BillingConfig spreadsheet has a Cloud sheet.
@@ -1154,7 +1154,7 @@ if billing_details_file is not None:
     ###
 
     # Open the BillingDetails workbook.
-    print "Opening BillingDetails workbook..."
+    print("Opening BillingDetails workbook...")
     billing_details_wkbk = xlrd.open_workbook(billing_details_file)
 
 ###
@@ -1166,7 +1166,7 @@ if args.ilab_template is not None:
 
     ilab_template_file = open(args.ilab_template)
     csv_reader = csv.reader(ilab_template_file)
-    ilab_csv_headers = csv_reader.next()
+    ilab_csv_headers = next(csv_reader)
     ilab_template_file.close()
 
 else:
@@ -1244,18 +1244,18 @@ else:
 # Write out cluster data to iLab export CSV file.
 for pi_tag in sorted(pi_tag_list):
 
-    print " %s:" % pi_tag,
+    print(" %s:" % pi_tag, end=' ')
 
     # Get the iLab service request ID for this PI.
     ilab_service_req = str(pi_tag_to_ilab_service_req_id[pi_tag])
 
     # If this PI doesn't have a service request ID, announce that loudly and skip them.
     if ilab_service_req == '':
-        print "** NO ILAB SERVICE REQUEST ID **"
+        print("** NO ILAB SERVICE REQUEST ID **")
         continue
     # If the PI explicitly is marked as not having a service request, skip them quietly.
     elif ilab_service_req.lower() == 'n/a':
-        print "iLab service request not needed"
+        print("iLab service request not needed")
         continue
     else:
         pass  # Process this normal PI.
@@ -1272,7 +1272,7 @@ for pi_tag in sorted(pi_tag_list):
     ###
 
     if ilab_cluster_export_csv_dictwriter is not None:
-       print "cluster",
+       print("cluster", end=' ')
 
     # Output Cluster data into iLab Cluster export file, if requested.
     if service_level != "no":
@@ -1286,7 +1286,7 @@ for pi_tag in sorted(pi_tag_list):
     if ilab_cloud_export_csv_dictwriter is not None:
 
        # if not args.break_out_cloud:
-       print "cloud",
+       print("cloud", end=' ')
 
        _ = output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag,
                                           ilab_service_id_cloud_passthrough[affiliation],
@@ -1294,13 +1294,13 @@ for pi_tag in sorted(pi_tag_list):
 
     # Output Consulting data into iLab Cluster export file, if requested.
     if ilab_consulting_export_csv_dictwriter is not None:
-       print "consulting",
+       print("consulting", end=' ')
 
        _ = output_ilab_csv_data_for_consulting(ilab_consulting_export_csv_dictwriter, pi_tag,
                                                ilab_service_id_consulting['free'], ilab_service_id_consulting[affiliation],
                                                begin_month_timestamp, end_month_timestamp)
 
-    print  # End line for PI tag.
+    print()  # End line for PI tag.
 
 
-print "iLab FILE CREATIONS COMPLETE!"
+print("iLab FILE CREATIONS COMPLETE!")

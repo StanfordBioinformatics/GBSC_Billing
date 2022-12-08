@@ -93,7 +93,7 @@ class JobAccountingFile:
             elif self.dialect == "slurm_hash":
                 self.raw_line_fields = header_line.split(SlurmJobAccountingEntry.DELIMITER_HASH)
             else:
-                print >> sys.stderr, "Cannot determine dialect from file %s" % (filename)
+                print("Cannot determine dialect from file %s" % (filename), file=sys.stderr)
                 self.fp.close()
                 raise ValueError
 
@@ -106,8 +106,8 @@ class JobAccountingFile:
             return self
 
 
-    def next(self):
-        line_dict = self.reader.next()
+    def __next__(self):
+        line_dict = next(self.reader)
 
         if self.dialect == "sge":
             return SGEJobAccountingEntry(line_dict, self.dialect)

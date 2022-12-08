@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -52,7 +52,7 @@ import xlrd
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -94,7 +94,7 @@ global read_config_sheet
 def get_device_and_fileset_from_folder(folder):
 
     # We have a list of top-level directories for the GPFS and Isilon systems, respectively.
-    if 0 in map(lambda d: folder.find(d), GPFS_TOPLEVEL_DIRECTORIES):
+    if 0 in [folder.find(d) for d in GPFS_TOPLEVEL_DIRECTORIES]:
 
         # Find the two path elements after "/srv/gsfs0/".
         path_elts = os.path.normpath(folder).split(os.path.sep)
@@ -108,10 +108,10 @@ def get_device_and_fileset_from_folder(folder):
             else:  # Other two patterns above.
                 return (path_elts[2], ".".join(path_elts[3:5]))
         else:
-            print >> sys.stderr, "get_device_and_fileset_from_folder(): Path %s is not long enough" % folder
+            print("get_device_and_fileset_from_folder(): Path %s is not long enough" % folder, file=sys.stderr)
             return None
 
-    elif 0 in map(lambda d: folder.find(d), ISILON_TOPLEVEL_DIRECTORIES):
+    elif 0 in [folder.find(d) for d in ISILON_TOPLEVEL_DIRECTORIES]:
 
         device = "ifs"
         fileset = folder
@@ -120,7 +120,7 @@ def get_device_and_fileset_from_folder(folder):
 
     else:
 
-        print >> sys.stderr, "get_device_and_fileset_from_folder(): Cannot get device and fileset from %s" % folder
+        print("get_device_and_fileset_from_folder(): Cannot get device and fileset from %s" % folder, file=sys.stderr)
         return None
 
 
@@ -137,11 +137,11 @@ def get_folder_quota_from_gpfs(machine, device, fileset):
     quota_cmd += QUOTA_EXECUTABLE_GPFS + [fileset] + STORAGE_BLOCK_SIZE_ARG + [device]
 
     try:
-        quota_output = subprocess.check_output(quota_cmd)
+        quota_output = subprocess.check_output(quota_cmd, text=True, encoding="utf-8")
     except subprocess.CalledProcessError as cpe:
-        print >> sys.stderr, "Couldn't get quota for %s (exit %d)" % (fileset, cpe.returncode)
-        print >> sys.stderr, " Command:", quota_cmd
-        print >> sys.stderr, " Output: %s" % (cpe.output)
+        print("Couldn't get quota for %s (exit %d)" % (fileset, cpe.returncode), file=sys.stderr)
+        print(" Command:", quota_cmd, file=sys.stderr)
+        print(" Output: %s" % (cpe.output), file=sys.stderr)
         return None
 
     # Parse the results.
@@ -172,11 +172,11 @@ def get_folder_quota_from_isilon(machine, device, fileset):
     quota_cmd += QUOTA_EXECUTABLE_ISILON + STORAGE_BLOCK_SIZE_ARG + [fileset]
 
     try:
-        quota_output = subprocess.check_output(quota_cmd)
+        quota_output = subprocess.check_output(quota_cmd, text=True, encoding="utf-8")
     except subprocess.CalledProcessError as cpe:
-        print >> sys.stderr, "Couldn't get quota for %s (exit %d)" % (fileset, cpe.returncode)
-        print >> sys.stderr, " Command:", quota_cmd
-        print >> sys.stderr, " Output: %s" % (cpe.output)
+        print("Couldn't get quota for %s (exit %d)" % (fileset, cpe.returncode), file=sys.stderr)
+        print(" Command:", quota_cmd, file=sys.stderr)
+        print(" Output: %s" % (cpe.output), file=sys.stderr)
         return None
 
     # Parse the results.
@@ -199,12 +199,12 @@ def get_folder_quota_from_isilon(machine, device, fileset):
 # None if there was a problem parsing the quota command output.
 def get_folder_quota(machine, folder, pi_tag):
 
-    if args.verbose: print "  Getting folder quota for %s..." % (pi_tag)
+    if args.verbose: print("  Getting folder quota for %s..." % (pi_tag))
 
     # Find the fileset to get the quota of, from the folder name.
     device_and_fileset = get_device_and_fileset_from_folder(folder)
     if device_and_fileset is None:
-        print >> sys.stderr, "ERROR: No fileset for folder %s; ignoring..." % (folder)
+        print("ERROR: No fileset for folder %s; ignoring..." % (folder), file=sys.stderr)
         return None
 
     (device, fileset) = device_and_fileset
@@ -222,7 +222,7 @@ def get_folder_quota(machine, folder, pi_tag):
 # None if there was a problem parsing the usage command output.
 def get_folder_usage(machine, folder, pi_tag):
 
-    if args.verbose: print "  Getting folder usage of %s..." % (folder)
+    if args.verbose: print("  Getting folder usage of %s..." % (folder))
 
     # Build and execute the quota command.
     usage_cmd = []
@@ -237,11 +237,11 @@ def get_folder_usage(machine, folder, pi_tag):
     usage_cmd += USAGE_EXECUTABLE + STORAGE_BLOCK_SIZE_ARG + [folder]
 
     try:
-        usage_output = subprocess.check_output(usage_cmd)
+        usage_output = subprocess.check_output(usage_cmd, text=True, encoding="utf-8")
     except subprocess.CalledProcessError as cpe:
-        print >> sys.stderr, "Couldn't get usage for %s (exit %d)" % (folder, cpe.returncode)
-        print >> sys.stderr, " Command:", usage_cmd
-        print >> sys.stderr, " Output: %s" % (cpe.output)
+        print("Couldn't get usage for %s (exit %d)" % (folder, cpe.returncode), file=sys.stderr)
+        print(" Command:", usage_cmd, file=sys.stderr)
+        print(" Output: %s" % (cpe.output), file=sys.stderr)
         return None
 
     # Parse the results.
@@ -259,7 +259,7 @@ def get_folder_usage(machine, folder, pi_tag):
 # Returns mapping from folders to [timestamp, total, used]
 def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
-    print "Computing storage charges..."
+    print("Computing storage charges...")
 
     # Lists of folders to measure come from:
     #  "PI Folder" column of "PIs" sheet, and
@@ -276,7 +276,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
     # Potentially add "BaaS" subfolders to PI folder names, if switch given.
     if args.include_baas_folders:
-        pis_sheet_baas_folders = map(lambda x: x + "/" + BAAS_SUBDIR_NAME, pis_sheet_folders)
+        pis_sheet_baas_folders = [x + "/" + BAAS_SUBDIR_NAME for x in pis_sheet_folders]
         pis_sheet_baas_pi_tags = pis_sheet_pi_tags
         pis_sheet_baas_measure_types = ['usage'] * len(pis_sheet_baas_folders)   # All PI BaaS folders are measured by usage.
         pis_sheet_baas_dates_added = pis_sheet_dates_added
@@ -337,23 +337,23 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
                 if measure_type == "quota":
                     # Check folder's quota.
-                    print "Getting quota for %s" % pi_folder
+                    print("Getting quota for %s" % pi_folder)
 
                     used_and_total = get_folder_quota(machine, dir, pi_tag)
                     if used_and_total is None:
-                        print >> sys.stderr, "Could not get %s for %s...SKIPPING measurement" % (measure_type, dir)
+                        print("Could not get %s for %s...SKIPPING measurement" % (measure_type, dir), file=sys.stderr)
 
                 elif measure_type == "usage" and not args.no_usage:
                     # Check folder's usage.
-                    print "Measuring usage for %s" % pi_folder
+                    print("Measuring usage for %s" % pi_folder)
 
                     used_and_total = get_folder_usage(machine, dir, pi_tag)
                     if used_and_total is None:
-                        print >> sys.stderr, "Could not get %s for %s...SKIPPING measurement" % (measure_type, dir)
+                        print("Could not get %s for %s...SKIPPING measurement" % (measure_type, dir), file=sys.stderr)
 
                 else:
                     # Use null values for no usage data.
-                    print "SKIPPING measurement for %s" % pi_folder
+                    print("SKIPPING measurement for %s" % pi_folder)
                     used_and_total = None
 
                 if used_and_total is None:
@@ -374,7 +374,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
                 folders_measured.add(pi_folder)
 
             else:
-                print "  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag)
+                print("  *** Excluding %s for PI %s: folder not active in this month" % (folder, pi_tag))
 
     return folder_size_dicts
 
@@ -383,7 +383,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 # Takes in mapping from folders to [timestamp, total, used].
 def write_storage_usage_data(folder_size_dicts, csv_writer):
 
-    print "  Writing storage usage data"
+    print("  Writing storage usage data")
 
     for row_dict in folder_size_dicts:
         csv_writer.writerow(row_dict)
@@ -411,10 +411,10 @@ parser.add_argument("--include_baas_folders", action="store_true",
 parser.add_argument("-s", "--storage_usage_csv",
                     default=None,
                     help="The storage usage CSV file.")
-parser.add_argument("-y", "--year", type=int, choices=range(2013, 2031),
+parser.add_argument("-y", "--year", type=int, choices=list(range(2013, 2031)),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1, 13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1, 13)),
                     default=None,
                     help="The month to be filtered out. [default = last month]")
 parser.add_argument("-v", "--verbose", action="store_true",
@@ -503,15 +503,15 @@ else:
 #
 # Output the state of arguments.
 #
-print "SNAPSHOTTING STORAGE FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % billing_config_file
-print "  BillingRoot: %s" % billing_root
-print
+print("SNAPSHOTTING STORAGE FOR %02d/%d:" % (month, year))
+print("  BillingConfigFile: %s" % billing_config_file)
+print("  BillingRoot: %s" % billing_root)
+print()
 if args.no_usage:
-    print "  Not recording storage usage figures"
-    print
-print "  Storage usage file to be output: %s" % storage_usage_pathname
-print
+    print("  Not recording storage usage figures")
+    print()
+print("  Storage usage file to be output: %s" % storage_usage_pathname)
+print()
 
 #
 # Generate storage usage data.

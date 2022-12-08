@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -47,7 +47,7 @@ import xlrd
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -118,10 +118,10 @@ parser.add_argument("--all_jobs_billable", action="store_true",
 parser.add_argument("-p", "--pi_sheets", action="store_true",
                     default=False,
                     help='Add PI-specific sheets to BillingAggregate file [default = false]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2021),
+parser.add_argument("-y","--year", type=int, choices=list(range(2013,2021)),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be filtered out. [default = last month]")
 
@@ -231,7 +231,7 @@ else:
 # Create the year/month dir hierarchy in billing_root.
 year_month_root = os.path.join(billing_root, year_month_dir)
 if not os.path.exists(year_month_root):
-    os.makedirs(year_month_root, 0770)
+    os.makedirs(year_month_root, 0o770)
 
 # Copy billing config file into year_month_root, unless they are the same file.
 billing_config_file_copy = os.path.join(billing_root, year_month_dir, "BillingConfig.%s-%02d.xlsx" % (year,month))
@@ -264,18 +264,18 @@ if not args.force:
     check_config_script_path = os.path.join(SCRIPT_DIR, CHECK_CONFIG_SCRIPT)
     check_config_cmd = [check_config_script_path, billing_config_file]
 
-    print 'CHECKING BILLING CONFIG:'
-    print >> billing_log_file, 'CHECKING BILLING CONFIG:'
-    if args.verbose: print >> billing_log_file, check_config_cmd
+    print('CHECKING BILLING CONFIG:')
+    print('CHECKING BILLING CONFIG:', file=billing_log_file)
+    if args.verbose: print(check_config_cmd, file=billing_log_file)
     try:
         subprocess.check_call(check_config_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as cpe:
-        print >> sys.stderr, "Check config on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
-        print >> sys.stderr, " Output: %s" % (cpe.output)
+        print("Check config on %s failed (exit %d)" % (billing_config_file, cpe.returncode), file=sys.stderr)
+        print(" Output: %s" % (cpe.output), file=sys.stderr)
         sys.exit(-1)
 
-    print
-    print >> billing_log_file
+    print()
+    print(file=billing_log_file)
 
 ###
 #
@@ -285,18 +285,18 @@ if not args.force:
 snapshot_script_path = os.path.join(SCRIPT_DIR, SNAPSHOT_ACCT_SCRIPT)
 snapshot_cmd = [snapshot_script_path] + year_month_args + billing_root_args + ['-c', billing_config_file]
 
-print "SNAPSHOTTING ACCOUNTING:"
-print >> billing_log_file, "SNAPSHOTTING ACCOUNTING:"
-if args.verbose: print >> billing_log_file, snapshot_cmd
+print("SNAPSHOTTING ACCOUNTING:")
+print("SNAPSHOTTING ACCOUNTING:", file=billing_log_file)
+if args.verbose: print(snapshot_cmd, file=billing_log_file)
 try:
     subprocess.check_call(snapshot_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
-    print >> sys.stderr, "Snapshot accounting on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
-    print >> sys.stderr, " Output: %s" % (cpe.output)
+    print("Snapshot accounting on %s failed (exit %d)" % (billing_config_file, cpe.returncode), file=sys.stderr)
+    print(" Output: %s" % (cpe.output), file=sys.stderr)
     sys.exit(-1)
 
-print
-print >> billing_log_file
+print()
+print(file=billing_log_file)
 
 ###
 #
@@ -316,18 +316,18 @@ if args.no_computing:      details_cmd += ['--no_computing']
 if args.no_consulting:     details_cmd += ['--no_consulting']
 if args.all_jobs_billable: details_cmd += ['--all_jobs_billable']
 
-print "GENERATING DETAILS:"
-print >> billing_log_file, "GENERATING DETAILS:"
-if args.verbose: print >> billing_log_file, details_cmd
+print("GENERATING DETAILS:")
+print("GENERATING DETAILS:", file=billing_log_file)
+if args.verbose: print(details_cmd, file=billing_log_file)
 try:
     subprocess.check_call(details_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
-    print >> sys.stderr, "Generate Details on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
-    print >> sys.stderr, " Output: %s" % (cpe.output)
+    print("Generate Details on %s failed (exit %d)" % (billing_config_file, cpe.returncode), file=sys.stderr)
+    print(" Output: %s" % (cpe.output), file=sys.stderr)
     sys.exit(-1)
 
-print
-print >> billing_log_file
+print()
+print(file=billing_log_file)
 
 ###
 #
@@ -340,18 +340,18 @@ notifs_cmd = [notifs_script_path] + year_month_args + billing_root_args + [billi
 # Add the --pi_sheets switch, if requested.
 if args.pi_sheets: notifs_cmd += ['--pi_sheets']
 
-print "GENERATING NOTIFICATIONS:"
-print >> billing_log_file, "GENERATING NOTIFICATIONS:"
-if args.verbose: print >> billing_log_file, notifs_cmd
+print("GENERATING NOTIFICATIONS:")
+print("GENERATING NOTIFICATIONS:", file=billing_log_file)
+if args.verbose: print(notifs_cmd, file=billing_log_file)
 try:
     notifs_output = subprocess.check_call(notifs_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
-    print >> sys.stderr, "Generate Notifications on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
-    print >> sys.stderr, " Output: %s" % (cpe.output)
+    print("Generate Notifications on %s failed (exit %d)" % (billing_config_file, cpe.returncode), file=sys.stderr)
+    print(" Output: %s" % (cpe.output), file=sys.stderr)
     sys.exit(-1)
 
-print
-print >> billing_log_file
+print()
+print(file=billing_log_file)
 
 ###
 #
@@ -367,18 +367,18 @@ ilab_export_cmd = [ilab_export_script_path] + year_month_args + billing_root_arg
 ilab_export_cmd += ['--ilab_template', ilab_export_template_path]
 ilab_export_cmd += ['--ilab_available_services', ilab_available_services_path]
 
-print "EXPORTING TO ILAB:"
-print >> billing_log_file, "EXPORTING TO ILAB:"
-if args.verbose: print >> billing_log_file, ilab_export_cmd
+print("EXPORTING TO ILAB:")
+print("EXPORTING TO ILAB:", file=billing_log_file)
+if args.verbose: print(ilab_export_cmd, file=billing_log_file)
 try:
     ilab_export_output = subprocess.check_call(ilab_export_cmd, stdout=billing_log_file, stderr=subprocess.STDOUT)
 except subprocess.CalledProcessError as cpe:
-    print >> sys.stderr, "iLab Export on %s failed (exit %d)" % (billing_config_file, cpe.returncode)
-    print >> sys.stderr, " Output: %s" % (cpe.output)
+    print("iLab Export on %s failed (exit %d)" % (billing_config_file, cpe.returncode), file=sys.stderr)
+    print(" Output: %s" % (cpe.output), file=sys.stderr)
     sys.exit(-1)
 
-print
-print >> billing_log_file
+print()
+print(file=billing_log_file)
 
 ###
 #
@@ -393,5 +393,5 @@ for root, dirs, files in os.walk(year_month_root):
     for d in dirs:  os.chmod(os.path.join(root,d), dir_mode)
     for f in files: os.chmod(os.path.join(root,f), file_mode)
 
-print "BILLING SCRIPTS COMPLETE."
-print >> billing_log_file, "BILLING SCRIPTS COMPLETE."
+print("BILLING SCRIPTS COMPLETE.")
+print("BILLING SCRIPTS COMPLETE.", file=billing_log_file)

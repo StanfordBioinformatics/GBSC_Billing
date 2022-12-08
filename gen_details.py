@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -62,7 +62,7 @@ from job_accounting_file import JobAccountingFile
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -165,7 +165,7 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
     # If no job details, write "No Jobs".
     if len(job_details) == 0:
         sheet.write(1, 0, "No jobs")
-        print
+        print()
         return
 
     num_jobs = len(job_details)
@@ -176,7 +176,7 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
 
     sheet_number = 1
 
-    print num_jobs
+    print(num_jobs)
 
     while True:
 
@@ -201,50 +201,50 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
             # 'Job Timestamp'
             col += 1
             sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
-            if args.verbose: print job_details[row][col],
+            if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Username'
             col += 1
             sheet.write(sheet_row, col, job_details[row][col])
-            if args.verbose: print job_details[row][col],
+            if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Job Name'
             col += 1
-            sheet.write(sheet_row, col, unicode(job_details[row][col],'utf-8'))
-            if args.verbose: print job_details[row][col],
+            sheet.write(sheet_row, col, str(job_details[row][col]))
+            if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Account'
             col += 1
             sheet.write(sheet_row, col, job_details[row][col])
-            if args.verbose: print job_details[row][col],
+            if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Node'
             col += 1
             sheet.write(sheet_row, col, job_details[row][col])
-            if args.verbose: print job_details[row][col],
+            if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Slots'
             col += 1
             sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
-            if args.verbose: print job_details[row][col],
+            if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Wallclock Secs'
             col += 1
             sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
-            if args.verbose: print job_details[row][col],
+            if args.verbose: print(job_details[row][col], end=' ')
 
             # 'JobID'
             col += 1
             sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
-            if args.verbose: print job_details[row][col],
+            if args.verbose: print(job_details[row][col], end=' ')
 
             # Extra column if needed: 'Reason' or 'Failed Code'
             if col < len(job_details[row])-1:
                 col += 1
                 sheet.write(sheet_row, col, job_details[row][col])
-                if args.verbose: print job_details[row][col],
+                if args.verbose: print(job_details[row][col], end=' ')
 
-            if args.verbose: print
+            if args.verbose: print()
 
         job_rows_left -= last_job_row - first_job_row
 
@@ -264,7 +264,7 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
         else:
             break  # Leave while True loop.
 
-    print
+    print()
 
 #
 # Returns True/False if string is a valid account.
@@ -292,7 +292,7 @@ def is_valid_account(acct):
         if prefix in ACCOUNT_PREFIXES and pi_tag_word in pi_tag_list:
             return True
         else:
-            print acct, "is not a valid account (%s %s)." % (prefix, pi_tag_word)
+            print(acct, "is not a valid account (%s %s)." % (prefix, pi_tag_word))
             return False
 
 
@@ -319,7 +319,7 @@ def write_storage_usage_data(folder_size_dict, storage_sheet):
 
     # Write space-used mapping into details workbook.
     row = 0
-    for folder in folder_size_dict.keys():
+    for folder in list(folder_size_dict.keys()):
 
         [timestamp, total, used] = folder_size_dict[folder]
         sheet_row = row + 1
@@ -331,22 +331,22 @@ def write_storage_usage_data(folder_size_dict, storage_sheet):
         # 'Timestamp'
         col += 1
         storage_sheet.write(sheet_row, col, timestamp)
-        if args.verbose: print timestamp,
+        if args.verbose: print(timestamp, end=' ')
 
         # 'Folder'
         col += 1
         storage_sheet.write(sheet_row, col, folder)
-        if args.verbose: print folder,
+        if args.verbose: print(folder, end=' ')
 
         # 'Size'
         col += 1
         storage_sheet.write(sheet_row, col, total, FLOAT_FORMAT)
-        if args.verbose: print total,
+        if args.verbose: print(total, end=' ')
 
         # 'Used'
         col += 1
         storage_sheet.write(sheet_row, col, used, FLOAT_FORMAT)
-        if args.verbose: print used
+        if args.verbose: print(used)
 
         # Next row, please.
         row += 1
@@ -365,7 +365,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     global account_list
     global pi_tag_list
 
-    print "Computing computing charges..."
+    print("Computing computing charges...")
 
     # Read in the Usernames from the Users sheet.
     users_sheet = config_wkbk.sheet_by_name('Users')
@@ -374,7 +374,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     #        Need to make a set out of the result.
     users_list = set(users_list)
 
-    print "  Reading accounting file %s" % (os.path.abspath(accounting_file))
+    print("  Reading accounting file %s" % (os.path.abspath(accounting_file)))
 
     #
     # Open the current accounting file for input.
@@ -541,16 +541,16 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                     node_name = node_name.replace(';',',')
 
                     # Job is billable if it ran on a host starting with one of the BILLABLE_HOSTNAME_PREFIXES.
-                    billable    = any(map(lambda p: node_name.startswith(p), BILLABLE_HOSTNAME_PREFIXES))
+                    billable    = any([node_name.startswith(p) for p in BILLABLE_HOSTNAME_PREFIXES])
                     # Job is not billable if it ran on a host starting with one of the NONBILLABLE_HOSTNAME_PREFIXES.
-                    nonbillable = any(map(lambda p: node_name.startswith(p), NONBILLABLE_HOSTNAME_PREFIXES))
+                    nonbillable = any([node_name.startswith(p) for p in NONBILLABLE_HOSTNAME_PREFIXES])
 
                     # Screen for cases where a node is either billable and nonbillable or neither.
                     if billable and nonbillable:
-                        print >> sys.stderr, "*** Error: Node %s of Job %s is both billable and non-billable" % (node_name, accounting_record.job_id)
+                        print("*** Error: Node %s of Job %s is both billable and non-billable" % (node_name, accounting_record.job_id), file=sys.stderr)
                         jobids_with_billable_and_non_nodes.add(accounting_record.job_id)
                     elif not (billable or nonbillable):
-                        print >> sys.stderr, "*** Error: Node %s of Job %s is neither billable nor non-billable" % (node_name, accounting_record.job_id)
+                        print("*** Error: Node %s of Job %s is neither billable nor non-billable" % (node_name, accounting_record.job_id), file=sys.stderr)
                         jobids_with_unknown_billable_nodes.add(accounting_record.job_id)
 
                     job_nodes_are_billable.append(billable)
@@ -590,7 +590,7 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                     elif job_is_nonbillable:
                         nonbillable_node_job_details.append(job_details + ['Nonbillable Node'])
                     else:
-                        print "  *** Pathological state for job %s billingness. *** " % (accounting_record.job_id)
+                        print("  *** Pathological state for job %s billingness. *** " % (accounting_record.job_id))
             else:
                 # Save the job details in an unknown-user list.
                 unknown_user_job_details.append(job_details + ['Unknown User'])
@@ -600,9 +600,9 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                 dates_tuple = (from_timestamp_to_date_string(job_date),
                                from_timestamp_to_date_string(begin_timestamp),
                                from_timestamp_to_date_string(end_timestamp))
-                print "Job date %s is not between %s and %s" % dates_tuple
+                print("Job date %s is not between %s and %s" % dates_tuple)
             else:
-                print "Job date is zero/None."
+                print("Job date is zero/None.")
             #print ':'.join(accounting_record.values())
 
  #	print "%d " % (accounting_record.job_id)
@@ -613,67 +613,67 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
 
     # Print out list of users who had jobs but were not in any lab list.
     if len(not_in_users_list) > 0:
-        print "  *** Job submitters not in users list:",
+        print("  *** Job submitters not in users list:", end=' ')
         for user in not_in_users_list:
-            print user,
-        print
+            print(user, end=' ')
+        print()
     # Print out list of unknown accounts.
-    if len(not_in_account_list.keys()) > 0:
-        print "  *** Jobs with unknown accounts:"
+    if len(list(not_in_account_list.keys())) > 0:
+        print("  *** Jobs with unknown accounts:")
         for user in sorted(not_in_account_list.keys()):
-            print '   ', user
+            print('   ', user)
             for job_account in sorted(not_in_account_list[user]):
-                print '     ', job_account
+                print('     ', job_account)
     # Print out list of jobs with both project and account accounts.
-    if len(both_proj_and_acct_list.keys()) > 0:
-        print "  *** Jobs with both project and account accounts:"
+    if len(list(both_proj_and_acct_list.keys())) > 0:
+        print("  *** Jobs with both project and account accounts:")
         for user in sorted(both_proj_and_acct_list.keys()):
-            print '   ', user
+            print('   ', user)
             for (proj, acct) in both_proj_and_acct_list[user]:
-                print '     Project:', proj, 'Account:', acct
+                print('     Project:', proj, 'Account:', acct)
     # Print out how many jobs were run on unknown nodes.
     if len(unknown_job_nodes) > 0:
-        print "  *** Unknown Nodes with jobs:"
+        print("  *** Unknown Nodes with jobs:")
         for node in sorted(unknown_job_nodes):
-            print '   ', node
+            print('   ', node)
     # Print out job IDs of jobs which have both billable and nonbillable nodes.
     if len(jobids_with_billable_and_non_nodes) > 0:
-        print "  *** Job IDs with both billable and nonbillable nodes:"
+        print("  *** Job IDs with both billable and nonbillable nodes:")
         for jobid in jobids_with_billable_and_non_nodes:
-            print '   ', jobid
+            print('   ', jobid)
     # Print out job IDs of jobs which have nodes which are neither billable nor nonbillable.
     if len(jobids_with_unknown_billable_nodes) > 0:
-        print "  *** Job IDs with nodes which are neither billable nor nonbillable:"
+        print("  *** Job IDs with nodes which are neither billable nor nonbillable:")
         for jobid in jobids_with_unknown_billable_nodes:
-            print '   ', jobid
+            print('   ', jobid)
 
     # Output the accounting details to the BillingDetails worksheet.
-    print "  Outputting accounting details"
+    print("  Outputting accounting details")
 
     # Output jobs to sheet for billable jobs.
     if len(billable_job_details) > 0:
-        print "    Billable Jobs:    ",
+        print("    Billable Jobs:    ", end=' ')
         write_job_details(billing_details_wkbk, computing_sheet, "Computing", billable_job_details)
 
     # Output nonbillable jobs to sheet for nonbillable jobs.
     if len(nonbillable_node_job_details) > 0:
-        print "    Nonbillable Jobs: ",
+        print("    Nonbillable Jobs: ", end=' ')
         all_nonbillable_job_details = \
             nonbillable_node_job_details + unknown_user_job_details + unknown_node_job_details + both_billable_and_non_node_job_details
         write_job_details(billing_details_wkbk, nonbillable_job_sheet, "Nonbillable Jobs", all_nonbillable_job_details)
 
     # Output jobs to sheet for failed jobs.
     if len(failed_job_details) > 0:
-        print "    Failed Jobs:      ",
+        print("    Failed Jobs:      ", end=' ')
         write_job_details(billing_details_wkbk, failed_job_sheet, "Failed Jobs", failed_job_details)
 
-    print "Computing charges computed."
+    print("Computing charges computed.")
 
 
 # Generates the "Consulting" sheet.
 def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, consulting_timesheet, consulting_sheet):
 
-    print "Computing consulting charges..."
+    print("Computing consulting charges...")
 
     ###
     # Read the config workbook to get a list of active PIs
@@ -684,7 +684,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
     dates_added = sheet_get_named_column(pis_sheet, "Date Added")
     dates_remvd = sheet_get_named_column(pis_sheet, "Date Removed")
 
-    active_pis_list = filter_by_dates(pis_list, zip(dates_added, dates_remvd), begin_timestamp, end_timestamp)
+    active_pis_list = filter_by_dates(pis_list, list(zip(dates_added, dates_remvd)), begin_timestamp, end_timestamp)
 
     ###
     # Read the Consulting Timesheet.
@@ -713,7 +713,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
         sdrc_members = [""] * len(dates)
 
     # Convert empty travel hours to zeros.
-    travel_hours = map(lambda h: 0 if h=='' else h, travel_hours)
+    travel_hours = [0 if h=='' else h for h in travel_hours]
 
     row = 1
     for (date, pi_tag, hours_spent, travel_hrs, participant, client, summary, note, cumul_hours_spent, sdrc_member) in \
@@ -731,7 +731,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
         try:
             date_timestamp = from_excel_date_to_timestamp(date)
         except:
-            print >> sys.stderr, "Date Error:", date, "Summary:", summary, "Hours:", hours_spent, "Cumul:", cumul_hours_spent
+            print("Date Error:", date, "Summary:", summary, "Hours:", hours_spent, "Cumul:", cumul_hours_spent, file=sys.stderr)
             continue
 
         # If date is before beginning of the month or after the end of the month, skip this entry.
@@ -739,7 +739,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
 
         # Confirm that pi_tag is in the list of active PIs for this month.
         if pi_tag not in active_pis_list:
-            print "  PI %s not in active PI list...skipping" % pi_tag
+            print("  PI %s not in active PI list...skipping" % pi_tag)
 
         # Copy the entry into the output consulting sheet.
         col = 0
@@ -946,7 +946,7 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
 # Generates the "Cloud" sheet.
 def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
 
-    print "Computing cloud charges..."
+    print("Computing cloud charges...")
 
     google_invoice_version = "V3"  # Hardcoded to only work with latest version
 
@@ -979,13 +979,13 @@ def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
 
         if google_invoice_version == 'V1':
             row_amount = write_cloud_details_V1(cloud_sheet, row_dict, output_row)
-            if args.verbose: print ".",
+            if args.verbose: print(".", end=' ')
         elif google_invoice_version == 'V2':
             row_amount = write_cloud_details_V2(cloud_sheet, row_dict, output_row)
-            if args.verbose: print ".",
+            if args.verbose: print(".", end=' ')
         elif google_invoice_version == 'V3':
             row_amount = write_cloud_details_V3(cloud_sheet, row_dict, output_row)
-            if args.verbose: print ".",
+            if args.verbose: print(".", end=' ')
 
         # Add up the row charges to compare to total invoice amount.
         google_invoice_total_amount += row_amount
@@ -994,8 +994,8 @@ def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
         output_row += 1
 
     if args.verbose:
-        print
-        print "  Google Cloud Total Amount: %5.2f" % (google_invoice_total_amount)
+        print()
+        print("  Google Cloud Total Amount: %5.2f" % (google_invoice_total_amount))
 
 
 #=====
@@ -1047,10 +1047,10 @@ parser.add_argument("--all_jobs_billable", action="store_true",
 parser.add_argument("-i", "--ignore_job_timestamps", action="store_true",
                     default=False,
                     help="Ignore timestamps in job (and allow jobs not in month selected) [default = false]")
-parser.add_argument("-y","--year", type=int, choices=range(2013,2031),
+parser.add_argument("-y","--year", type=int, choices=list(range(2013,2031)),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be filtered out. [default = last month]")
 
@@ -1187,55 +1187,55 @@ sheet_name_to_sheet_map = init_billing_details_wkbk(billing_details_wkbk)
 #
 # Output the state of arguments.
 #
-print "GETTING DETAILS FOR %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % billing_config_file
-print "  BillingRoot: %s" % billing_root
+print("GETTING DETAILS FOR %02d/%d:" % (month, year))
+print("  BillingConfigFile: %s" % billing_config_file)
+print("  BillingRoot: %s" % billing_root)
 
 if args.no_storage:
-    print "  Skipping storage calculations"
+    print("  Skipping storage calculations")
     skip_storage = True
 elif storage_usage_file is not None:
-    print "  Storage usage file: %s" % storage_usage_file
+    print("  Storage usage file: %s" % storage_usage_file)
     skip_storage = False
 else:
-    print "  No storage usage file given...skipping storage calculations"
+    print("  No storage usage file given...skipping storage calculations")
     skip_storage = True
 
 if args.no_computing:
-    print "  Skipping computing calculations"
+    print("  Skipping computing calculations")
     skip_computing = True
 elif accounting_file is not None:
-    print "  SGEAccountingFile: %s" % accounting_file
+    print("  SGEAccountingFile: %s" % accounting_file)
     skip_computing = False
 else:
-    print "  No accounting file given...skipping computing calculations"
+    print("  No accounting file given...skipping computing calculations")
     skip_computing = True
 if args.all_jobs_billable:
-    print "  All jobs billable."
+    print("  All jobs billable.")
 
 if args.no_consulting:
-    print "  Skipping consulting calculations"
+    print("  Skipping consulting calculations")
     skip_consulting = True
 elif consulting_timesheet is not None:
-    print "  Consulting Timesheet: %s" % consulting_timesheet
+    print("  Consulting Timesheet: %s" % consulting_timesheet)
     skip_consulting = False
 else:
-    print "  No consulting timesheet given...skipping consulting calculations"
+    print("  No consulting timesheet given...skipping consulting calculations")
     skip_consulting = True
 
 if args.no_cloud:
-    print "  Skipping cloud calculations"
+    print("  Skipping cloud calculations")
     skip_cloud = True
 elif google_invoice_csv is not None:
-    print "  Google Invoice File: %s" % google_invoice_csv
+    print("  Google Invoice File: %s" % google_invoice_csv)
     skip_cloud = False
 else:
-    print "  No Google Invoice file given...skipping cloud calculations"
+    print("  No Google Invoice file given...skipping cloud calculations")
     skip_cloud = True
 
-print
-print "  BillingDetailsFile to be output: %s" % details_wkbk_pathname
-print
+print()
+print("  BillingDetailsFile to be output: %s" % details_wkbk_pathname)
+print()
 
 # Read in the PI Tag list from the PIs sheet.
 pis_sheet = billing_config_wkbk.sheet_by_name('PIs')
@@ -1278,5 +1278,5 @@ if not skip_cloud:
 #
 # Close the output workbook and write the .xlsx file.
 #
-print "Closing BillingDetails workbook."
+print("Closing BillingDetails workbook.")
 billing_details_wkbk.close()

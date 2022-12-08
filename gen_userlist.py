@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from optparse import OptionParser
 import pwd
@@ -49,8 +49,8 @@ def read_billing_conf_db(db_workbook):
    pi_last_names = sheet_get_named_column(pi_sheet, "PI Last Name")
    pi_tags       = sheet_get_named_column(pi_sheet, "PI Tag")
 
-   group_name_to_pi     = dict(zip(group_names, pi_last_names))
-   group_name_to_pi_tag = dict(zip(group_names, pi_tags))
+   group_name_to_pi     = dict(list(zip(group_names, pi_last_names)))
+   group_name_to_pi_tag = dict(list(zip(group_names, pi_tags)))
 
    # Remove group names of "None".
    if "None" in group_names:
@@ -88,8 +88,8 @@ db_workbook = xlrd.open_workbook(billing_conf_db)
 # Set of all "lab" group names.
 all_lab_groups = set(group_name_to_pi.keys())
 
-pi_to_group_name     = dict(zip(group_name_to_pi.values(), group_name_to_pi.keys()))
-pi_tag_to_group_name = dict(zip(group_name_to_pi_tag.values(), group_name_to_pi_tag.keys()))
+pi_to_group_name     = dict(list(zip(list(group_name_to_pi.values()), list(group_name_to_pi.keys()))))
+pi_tag_to_group_name = dict(list(zip(list(group_name_to_pi_tag.values()), list(group_name_to_pi_tag.keys()))))
 
 #
 # Scan passwd DB to find primary groups for all users.
@@ -109,7 +109,7 @@ for user in users:
 #
 # Add users from group member lists.
 #
-group_names = group_name_to_pi.keys() + non_lab_group_names
+group_names = list(group_name_to_pi.keys()) + non_lab_group_names
 
 for group_name in group_names:
     gr_db_entry = grp.getgrnam(group_name)
@@ -133,17 +133,17 @@ for group_name in non_lab_group_names:
 not_in_lab_users = all_users - all_group_members
 
 if options.users_no_lab:
-    print
-    print "Users not in any lab:"
+    print()
+    print("Users not in any lab:")
     for user in not_in_lab_users:
-        print user
+        print(user)
 
 #
 # Compute groups for each user.
 #
 groups_per_user = dict()
 
-for group_name in group_members.iterkeys():
+for group_name in group_members.keys():
     for user in group_members[group_name]:
         if groups_per_user.get(user) is None:
             groups_per_user[user] = [group_name]
@@ -151,27 +151,27 @@ for group_name in group_members.iterkeys():
             groups_per_user[user].append(group_name)
 
 if options.multi_lab:
-    print
-    print "Users in more than one lab group:"
-    for user in groups_per_user.iterkeys():
+    print()
+    print("Users in more than one lab group:")
+    for user in groups_per_user.keys():
         lab_groups_for_user = []
         for group_name in groups_per_user[user]:
             if group_name in all_lab_groups:
                 lab_groups_for_user.append(group_name)
         if len(lab_groups_for_user) > 1:  
-            print user,
+            print(user, end=' ')
             for group in lab_groups_for_user:
-                print group,
-            print
+                print(group, end=' ')
+            print()
 
 if options.lab_users:
     #
     # List users per group
     #
-    print
-    print "Users per lab group (%d total users):" % (len(all_lab_members))
-    print
-    print "PI Last Name\tUsername\tEmail\tFull Name\tDate"
+    print()
+    print("Users per lab group (%d total users):" % (len(all_lab_members)))
+    print()
+    print("PI Last Name\tUsername\tEmail\tFull Name\tDate")
     for pi in sorted(pi_to_group_name):
         group_name = pi_to_group_name[pi]
         if len(group_members[group_name]) > 0:
@@ -189,22 +189,22 @@ if options.lab_users:
                 if fullname == '':
                     fullname = "NO NAME"
 
-                print "%s\t%s\t%s@stanford.edu\t%s\t%s" % (pi, member, member, fullname, date.today().strftime("%m/%d/%y"))
+                print("%s\t%s\t%s@stanford.edu\t%s\t%s" % (pi, member, member, fullname, date.today().strftime("%m/%d/%y")))
 
 if options.non_lab_users:
     #
     # List users per group
     #
-    print
-    print "Users per non-lab group (%d total users):" % (len(all_non_lab_members))
-    print
+    print()
+    print("Users per non-lab group (%d total users):" % (len(all_non_lab_members)))
+    print()
     for group_name in sorted(non_lab_group_names):
         if len(group_members[group_name]) > 0:
             if group_name in group_name_to_pi:
                 pi = group_name_to_pi[group_name]
             else:
                 pi = group_name
-            print "%s (%s) [%d members]:" % (pi, group_name, len(group_members[group_name]))
+            print("%s (%s) [%d members]:" % (pi, group_name, len(group_members[group_name])))
             for member in sorted(group_members[group_name]):
                 try:
                     fullname = pwd.getpwnam(member).pw_gecos
@@ -214,5 +214,5 @@ if options.non_lab_users:
                 if fullname == '':
                     fullname = "NO NAME"
 
-                print "%s\t%s\t%s@stanford.edu\t%s" % (pi, member, member, fullname)
-            print
+                print("%s\t%s\t%s@stanford.edu\t%s" % (pi, member, member, fullname))
+            print()

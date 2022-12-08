@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -205,7 +205,7 @@ def config_sheet_get_dict(wkbk):
     config_keys   = sheet_get_named_column(config_sheet, "Key")
     config_values = sheet_get_named_column(config_sheet, "Value")
 
-    return dict(zip(config_keys, config_values))
+    return dict(list(zip(config_keys, config_values)))
 
 
 # Read the Config sheet of the BillingConfig workbook to

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #===============================================================================
 #
@@ -49,7 +49,7 @@ import xlrd
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-execfile(os.path.join(SCRIPT_DIR, "billing_common.py"))
+exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), os.path.join(SCRIPT_DIR, "billing_common.py"), 'exec'))
 
 #=====
 #
@@ -89,10 +89,10 @@ parser.add_argument("-r", "--billing_root",
 parser.add_argument("-v", "--verbose", action="store_true",
                     default=False,
                     help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=range(2013,2021),
+parser.add_argument("-y","--year", type=int, choices=list(range(2013,2021)),
                     default=None,
                     help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=range(1,13),
+parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
                     default=None,
                     help="The month to be filtered out. [default = last month]")
 
@@ -189,17 +189,17 @@ if accounting_file is None:
 #
 # Print summary of arguments.
 #
-print "TAKING ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year)
-print "  BillingConfigFile: %s" % (billing_config_file)
-print "  BillingRoot: %s" % (billing_root)
-print "  SGEAccountingFile: %s" % (accounting_file)
+print("TAKING ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year))
+print("  BillingConfigFile: %s" % (billing_config_file))
+print("  BillingRoot: %s" % (billing_root))
+print("  SGEAccountingFile: %s" % (accounting_file))
 
 # Create output accounting pathname.
 new_accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
 new_accounting_pathname = os.path.join(year_month_dir, new_accounting_filename)
 
-print
-print "  OutputAccountingFile: %s" % (new_accounting_pathname)
+print()
+print("  OutputAccountingFile: %s" % (new_accounting_pathname))
 
 #
 # Open the current accounting file for input.
@@ -251,10 +251,10 @@ for line in accounting_input_fp:
         sys.stdout.flush()
     job_count += 1
 
-print
+print()
 
 accounting_output_fp.close()
 accounting_input_fp.close()
 
-print "Jobs found for %02d/%d:\t\t%d" % (month, year, this_months_job_count)
-print "Total jobs in accounting:\t%d" % (job_count)
+print("Jobs found for %02d/%d:\t\t%d" % (month, year, this_months_job_count))
+print("Total jobs in accounting:\t%d" % (job_count))
