@@ -1041,9 +1041,9 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell),
                         float_entry_fmt, total_storage_sizes)
     # sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
-    top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_storage_row, 4)
-    bot_hours_a1_cell = xl_rowcol_to_cell(ending_storage_row, 4)
-    sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_billable_hours_a1_cell, bot_hours_a1_cell),
+    top_storage_charges_a1_cell = xl_rowcol_to_cell(starting_storage_row, 4)
+    bot_storage_charges_a1_cell = xl_rowcol_to_cell(ending_storage_row + 1, 4)
+    sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell),
                         charge_fmt, total_storage_charges)
 
     # Save reference to this cell for use in Summary subtable.
@@ -1193,7 +1193,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
             # Write the formula for the charges subtotal for the account.
             top_charge_a1_cell = xl_rowcol_to_cell(starting_computing_row, 4)
-            bot_charge_a1_cell = xl_rowcol_to_cell(ending_computing_row, 4)
+            bot_charge_a1_cell = xl_rowcol_to_cell(ending_computing_row + 1, 4)
             sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_charge_a1_cell, bot_charge_a1_cell),
                                 charge_fmt, charge)
 
@@ -1321,9 +1321,9 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Write the "Total Cloud Services" line.
     sheet.write(curr_row, 1, "Total Cloud Services:", bot_header_fmt)
-    top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_cloud_row, 4)
-    bot_hours_a1_cell = xl_rowcol_to_cell(ending_cloud_row, 4)
-    sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_billable_hours_a1_cell, bot_hours_a1_cell),
+    top_storage_charges_a1_cell = xl_rowcol_to_cell(starting_cloud_row, 4)
+    bot_storage_charges_a1_cell = xl_rowcol_to_cell(ending_cloud_row + 1, 4)
+    sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell),
                         charge_fmt, total_cloud_charges)
 
     # Save reference to this cell for use in Summary subtable.
@@ -1407,16 +1407,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     curr_row += 1
     # Write the Total Consulting line.
     sheet.write(curr_row, 1, "Total Consulting:", bot_header_fmt)
-    # sheet.write(curr_row, 2, total_consulting_hours, float_entry_fmt
-    # top_hours_a1_cell = xl_rowcol_to_cell(starting_consulting_row, 2)
-    # bot_hours_a1_cell = xl_rowcol_to_cell(ending_consulting_row, 2)
-    # sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_hours_a1_cell, bot_hours_a1_cell),
-    #                     float_entry_fmt, total_consulting_hours)
     sheet.write(curr_row, 2, "%s (%s)" % (total_consulting_hours, total_consulting_travel_hours), string_entry_fmt)
     # sheet.write(curr_row, 3, total_consulting_billable_hours, float_entry_fmt)
-    top_billable_hours_a1_cell = xl_rowcol_to_cell(starting_consulting_row, 3)
-    bot_billable_hours_a1_cell = xl_rowcol_to_cell(ending_consulting_row, 3)
-    sheet.write_formula(curr_row, 3, '=SUM(%s:%s)' % (top_billable_hours_a1_cell, bot_billable_hours_a1_cell),
+    top_storage_charges_a1_cell = xl_rowcol_to_cell(starting_consulting_row, 3)
+    bot_billable_hours_a1_cell = xl_rowcol_to_cell(ending_consulting_row + 1, 3)
+    sheet.write_formula(curr_row, 3, '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_billable_hours_a1_cell),
                         float_entry_fmt, total_consulting_billable_hours)
     # sheet.write(curr_row, 4, total_consulting_charges, charge_fmt)
     top_charges_a1_cell = xl_rowcol_to_cell(starting_consulting_row, 4)
