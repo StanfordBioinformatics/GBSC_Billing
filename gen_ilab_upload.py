@@ -160,23 +160,7 @@ global from_date_string_to_timestamp
 global sheet_get_named_column
 global read_config_sheet
 global config_sheet_get_dict
-
-# Filters a list of lists using a parallel list of [date_added, date_removed]'s.
-# Returns the elements in the first list which are valid with the month date range given.
-def filter_by_dates(obj_list, date_list, begin_month_exceldate, end_month_exceldate):
-
-    output_list = []
-
-    for (obj, (date_added, date_removed)) in zip(obj_list, date_list):
-
-        # If the date added is BEFORE the end of this month, and
-        #    the date removed is AFTER the beginning of this month,
-        # then save the account information in the mappings.
-        if date_added < end_month_exceldate and date_removed >= begin_month_exceldate:
-            output_list.append(obj)
-
-    return output_list
-
+global filter_by_dates
 
 # This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
 # for the PIs that the given user was working for on the given date.
