@@ -176,7 +176,7 @@ def get_pi_tags_for_username_by_date(username, date_timestamp):
         date_excel = from_timestamp_to_excel_date(date_timestamp)
 
         for (pi_tag, date_added, date_removed, pctage) in pi_tag_dates:
-            if date_added <= date_excel < date_removed:
+            if date_added <= date_excel and (date_removed == '' or date_removed >= date_excel):
                 pi_tag_list.append([pi_tag, pctage])
 
     return pi_tag_list
