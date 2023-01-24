@@ -738,13 +738,12 @@ def process_consulting_data():
 
 
 #
-# Generates the iLab Cluster CSV entries for a particular pi_tag.
+# Generates the iLab Cluster Storage CSV entries for a particular pi_tag.
 #
-# It uses dicts pi_tag_to_folder_sizes, pi_tag_to_username_cpus, and pi_tag_to_account_cpus.
+# It uses dict pi_tag_to_folder_sizes.
 #
-def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
-                                     storage_service_id, lab_computing_service_id, full_computing_service_id,
-                                     begin_month_timestamp, end_month_timestamp):
+def output_ilab_csv_data_for_cluster_storage(csv_dictwriter, pi_tag, storage_service_id,
+    begin_month_timestamp, end_month_timestamp):
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1)  # Last date of billing period.
 
@@ -770,6 +769,19 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
                 output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, storage_service_id, note, quantity)
 
                 total_storage_sizes += size
+
+    return True
+
+
+#
+# Generates the iLab Cluster Computing CSV entries for a particular pi_tag.
+#
+# It uses dicts pi_tag_to_username_cpus, and pi_tag_to_account_cpus.
+#
+def output_ilab_csv_data_for_cluster_compute(csv_dictwriter, pi_tag, lab_computing_service_id, full_computing_service_id,
+    begin_month_timestamp, end_month_timestamp):
+
+    purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1)  # Last date of billing period.
 
     ###
     #
@@ -817,7 +829,6 @@ def output_ilab_csv_data_for_cluster(csv_dictwriter, pi_tag,
                 pass
 
     return True
-
 
 #
 # Generates the iLab Cloud CSV entries for a particular pi_tag.
@@ -897,9 +908,8 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
     return True
 
 
-def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag,
-                                        consulting_free_service_id, consulting_paid_service_id,
-                                        begin_month_timestamp, end_month_timestamp):
+def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag, consulting_free_service_id, consulting_paid_service_id,
+    begin_month_timestamp, end_month_timestamp):
 
     for (date, summary, client, hours, travel_hours, cumul_hours) in consulting_details[pi_tag]:
 
@@ -991,7 +1001,13 @@ parser.add_argument("-t", "--ilab_template",
                     help='The iLab export file template [default = None]')
 parser.add_argument("-c", "--skip_cluster", action="store_true",
                     default=False,
-                    help="Don't output cluster iLab file. [default = False]")
+                    help="Don't output cluster iLab files. [default = False]")
+parser.add_argument("-S", "--skip_cluster_storage", action="store_true",
+                    default=False,
+                    help="Don't output cluster storage iLab file. [default = False]")
+parser.add_argument("-C", "--skip_cluster_compute", action="store_true",
+                    default=False,
+                    help="Don't output cluster compute iLab file. [default = False]")
 parser.add_argument("-l", "--skip_cloud", action="store_true",
                     default=False,
                     help="Don't output cloud iLab file. [default = False]")
@@ -1194,11 +1210,22 @@ ilab_service_id_consulting['external']   = get_ilab_service_id(billing_config_wk
 # Output Cluster data into iLab Cluster export file, if requested.
 #
 ####
-if billing_details_file is not None and not args.skip_cluster:
+if billing_details_file is not None and not args.skip_cluster and \
+        not (args.skip_cluster_storage and args.skip_cluster_compute):
     process_cluster_data()
-    ilab_cluster_export_csv_dictwriter = open_ilab_output_dictwriter("Cluster")
+
+    if not args.skip_cluster_storage:
+        ilab_cluster_storage_export_csv_dictwriter = open_ilab_output_dictwriter("Cluster_Storage")
+    else:
+        ilab_cluster_storage_export_csv_dictwriter = None
+
+    if not args.skip_cluster_compute:
+        ilab_cluster_compute_export_csv_dictwriter = open_ilab_output_dictwriter("Cluster_Compute")
+    else:
+        ilab_cluster_compute_export_csv_dictwriter = None
 else:
-    ilab_cluster_export_csv_dictwriter = None
+    ilab_cluster_storage_export_csv_dictwriter = None
+    ilab_cluster_compute_export_csv_dictwriter = None
 
 ###
 #
@@ -1255,36 +1282,47 @@ for pi_tag in sorted(pi_tag_list):
     #
     ###
 
-    if ilab_cluster_export_csv_dictwriter is not None:
-       print("cluster", end=' ')
+    #
+    # Cluster Storage
+    #
+    if ilab_cluster_storage_export_csv_dictwriter is not None:
 
     # Output Cluster data into iLab Cluster export file, if requested.
-    if service_level != "no":
-          _ = output_ilab_csv_data_for_cluster(ilab_cluster_export_csv_dictwriter, pi_tag,
-                                               ilab_service_id_local_storage[service_level, affiliation],
-                                               ilab_service_id_local_computing[service_level, affiliation],
-                                               ilab_service_id_local_computing["full", affiliation],
-                                               begin_month_timestamp, end_month_timestamp)
+       if service_level != "no":
+           # Storage
+           _ = output_ilab_csv_data_for_cluster_storage(ilab_cluster_storage_export_csv_dictwriter, pi_tag,
+                                                        ilab_service_id_local_storage[service_level, affiliation],
+                                                        begin_month_timestamp, end_month_timestamp)
+           print("cluster-storage", end=' ')
+
+    #
+    # Cluster Compute
+    #
+    if ilab_cluster_compute_export_csv_dictwriter is not None:
+
+           # Compute
+           _ = output_ilab_csv_data_for_cluster_compute(ilab_cluster_compute_export_csv_dictwriter, pi_tag,
+                                                        ilab_service_id_local_computing[service_level, affiliation],
+                                                        ilab_service_id_local_computing["full", affiliation],
+                                                        begin_month_timestamp, end_month_timestamp)
+           print("cluster-compute", end=' ')
 
     # Output Cloud data into iLab Cloud export file, if requested.
     if ilab_cloud_export_csv_dictwriter is not None:
 
-       # if not args.break_out_cloud:
-       print("cloud", end=' ')
-
        _ = output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag,
                                           ilab_service_id_cloud_passthrough[affiliation],
                                           begin_month_timestamp, end_month_timestamp)
+       print("cloud", end=' ')
 
     # Output Consulting data into iLab Cluster export file, if requested.
     if ilab_consulting_export_csv_dictwriter is not None:
-       print("consulting", end=' ')
 
        _ = output_ilab_csv_data_for_consulting(ilab_consulting_export_csv_dictwriter, pi_tag,
                                                ilab_service_id_consulting['free'], ilab_service_id_consulting[affiliation],
                                                begin_month_timestamp, end_month_timestamp)
+       print("consulting", end=' ')
 
     print()  # End line for PI tag.
-
 
 print("iLab FILE CREATIONS COMPLETE!")
