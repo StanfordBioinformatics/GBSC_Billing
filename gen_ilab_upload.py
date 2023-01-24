@@ -846,6 +846,8 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
     # Get list of (account, %ages) tuples for given PI.
     for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
 
+        if pctage == 0.0: continue
+
         for project_id in cloud_account_to_cloud_projects[account]:
 
             # Get list of cloud items to charge PI for.
@@ -866,6 +868,7 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                     total_amount_for_project += amount
 
                 pi_amount = total_amount_for_project * pctage
+                if pi_amount == 0.0: continue
 
                 # Create a note for the rolled-up transactions.
                 if project_name != '':
@@ -901,6 +904,7 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
 
                     # Calculate the amount to charge the PI based on their percentage.
                     pi_amount = amount * pctage
+                    if pi_amount == 0.0: continue
 
                     # Write out the iLab export line.
                     output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note, pi_amount)
@@ -1235,7 +1239,7 @@ else:
 ###
 if billing_details_file is not None and not args.skip_cloud:
     process_cloud_data()
-    ilab_cloud_export_csv_dictwriter = open_ilab_output_dictwriter("Cloud")
+    ilab_cloud_export_csv_dictwriter = open_ilab_output_dictwriter("Cloud_Google")
 else:
     ilab_cloud_export_csv_dictwriter = None
 
