@@ -1300,6 +1300,7 @@ for pi_tag in sorted(pi_tag_list):
     #
     if ilab_cluster_compute_export_csv_dictwriter is not None:
 
+        if service_level != "no":
            # Compute
            _ = output_ilab_csv_data_for_cluster_compute(ilab_cluster_compute_export_csv_dictwriter, pi_tag,
                                                         ilab_service_id_local_computing[service_level, affiliation],

@@ -1066,7 +1066,6 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
     computing_access_string = "%s Access" % (cluster_acct_status.capitalize())
-    computing_rate_string = "Local Computing - %s" % (computing_access_string)
 
     # Get both rates for CPU, in case someone outside the lab runs a job for a Free Tier lab (usually Consulting).
     (free_rate_cpu_per_hour, free_rate_cpu_a1_cell) = get_rate_amount_and_a1_cell_from_prefix("Local Computing", "Free", affiliation)
@@ -1431,9 +1430,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.write(curr_row, 4, None, lower_right_border_fmt)
     curr_row += 1
 
+    #####
     #
     # Summary of Charges table (B6:E11)
     #
+    #####
 
     # Start the Summary of Charges table on the sixth row.
     curr_row = 5
@@ -1484,6 +1485,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_cloud_charges,
                                  total_consulting_charges,
                                  total_charges)
+
+    # CHECK: If "Free Tier" and total_storage_charges >= 7 TB: flag an error
+    if cluster_acct_status == "Free" and total_storage_charges >= 7:
+        print("   *** Free Tier PI tag", pi_tag, "has", total_storage_charges, "TB", file=sys.stderr)
 
 
 # Copies the Rates sheet from the Rates sheet in the BillingConfig workbook to
