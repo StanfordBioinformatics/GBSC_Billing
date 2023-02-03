@@ -152,8 +152,6 @@ def read_storage_data_file(storage_data_filename):
             # Store folder storage data
             folder_storage_data_dict[folder_prefix + folder] = (timestamp_for_data,used_tb,quota_tb,inodes_used,inodes_quota)
 
-            print(folder_prefix + folder, folder_storage_data_dict[folder_prefix + folder])
-
     return True
 
 # Gets the quota for the given PI tag.
