@@ -313,8 +313,11 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
     # Set of folders that have been measured
     folders_measured = set()
 
+    folder_aggregate_rows = list(zip(folders, pi_tags, measure_types, dates_added, dates_remvd))
+    sorted_folder_aggregate_rows = sorted(folder_aggregate_rows, key = lambda x: x[0])
+
     # Create mapping from folders to space used.
-    for (folder, pi_tag, measure_type, date_added, date_removed) in zip(folders, pi_tags, measure_types, dates_added, dates_remvd):
+    for (folder, pi_tag, measure_type, date_added, date_removed) in sorted_folder_aggregate_rows:
 
         # Skip measuring this folder entry if the folder is "None".
         if folder.startswith('None'): continue
