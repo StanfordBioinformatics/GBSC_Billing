@@ -72,7 +72,7 @@ BILLING_CONFIG_SHEET_COLUMNS = {
 
 # Mapping from sheet name to the column headers within that sheet.
 BILLING_DETAILS_SHEET_COLUMNS = OrderedDict( (
-    ('Storage'   , ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used')),
+    ('Storage'   , ('Date Measured', 'Timestamp', 'Folder', 'Size', 'Used', 'Inodes Quota', 'Inodes Used')),
     ('Computing' , ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID')),
     ('Nonbillable Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Reason')),
     ('Failed Jobs', ('Job Date', 'Job Timestamp', 'Username', 'Job Name', 'Account', 'Node', 'Cores', 'Wallclock Secs', 'Job ID', 'Failed Code')),
@@ -156,11 +156,14 @@ EXCEL_MAX_ROWS = 1048576
 # Top-level directories for various file systems.
 GPFS_TOPLEVEL_DIRECTORIES = ['/srv/gsfs0']
 ISILON_TOPLEVEL_DIRECTORIES = ['/ifs', '/BaaS', '/labs', '/projects', '/reference', '/scg']
+TOPLEVEL_DIRECTORIES = ['/BaaS', '/labs', '/projects', '/reference', '/scg']
 
 # Commands for determining folder quotas and usages.
 QUOTA_EXECUTABLE_GPFS = ['ssh', 'root@scg-gs0', '/usr/lpp/mmfs/bin/mmlsquota', '-j']
 QUOTA_EXECUTABLE_ISILON = ['df']
+QUOTA_EXECUTABLE = ['df']
 USAGE_EXECUTABLE = ['du', '-s']
+INODES_EXECUTABLE = ['df', '-i']
 STORAGE_BLOCK_SIZE_ARG = ['--block-size=1G']  # Works in all above commands.
 
 # Pathname to root of PI project directories.

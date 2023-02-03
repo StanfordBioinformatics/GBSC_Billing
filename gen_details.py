@@ -308,7 +308,9 @@ def read_storage_usage_file(storage_usage_file):
     usage_csvdict = csv.DictReader(usage_fileobj)
 
     for row in usage_csvdict:
-        folder_size_dict[row['Folder']] = (float(row['Timestamp']), float(row['Size']), float(row['Used']))
+        folder_size_dict[row['Folder']] = \
+            (float(row['Timestamp']), float(row['Size']), float(row['Used']),
+             int(row['Inodes Quota']), int(row['Inodes Used']))
 
     return folder_size_dict
 
@@ -319,9 +321,9 @@ def write_storage_usage_data(folder_size_dict, storage_sheet):
 
     # Write space-used mapping into details workbook.
     row = 0
-    for folder in list(folder_size_dict.keys()):
+    for folder in sorted(list(folder_size_dict.keys())):
 
-        [timestamp, total, used] = folder_size_dict[folder]
+        [timestamp, total, used, inodes_quota, inodes_used] = folder_size_dict[folder]
         sheet_row = row + 1
 
         # 'Date Measured'
@@ -346,7 +348,17 @@ def write_storage_usage_data(folder_size_dict, storage_sheet):
         # 'Used'
         col += 1
         storage_sheet.write(sheet_row, col, used, FLOAT_FORMAT)
-        if args.verbose: print(used)
+        if args.verbose: print(used, end=' ')
+
+        # 'Inodes Quota'
+        col += 1
+        storage_sheet.write(sheet_row, col, inodes_quota, INT_FORMAT)
+        if args.verbose: print(inodes_quota, end=' ')
+
+        # 'Inodes Used'
+        col += 1
+        storage_sheet.write(sheet_row, col, inodes_used, INT_FORMAT)
+        if args.verbose: print(inodes_used)
 
         # Next row, please.
         row += 1
