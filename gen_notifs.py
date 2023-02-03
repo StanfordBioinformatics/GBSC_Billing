@@ -612,7 +612,7 @@ def read_storage_sheet(wkbk):
 
     for row in range(1,storage_sheet.nrows):
 
-        (date, timestamp, folder, size, used) = storage_sheet.row_values(row)
+        (date, timestamp, folder, size, used, inodes_quota, inodes_used) = storage_sheet.row_values(row)
 
         # List of [pi_tag, %age] pairs.
         pi_tag_pctages = folder_to_pi_tag_pctages[folder]
