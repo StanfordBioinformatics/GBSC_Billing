@@ -262,7 +262,8 @@ def get_folder_inodes(machine, folder):
 # Returns mapping from folders to [timestamp, total, used]
 def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
-    print("Computing storage charges...")
+    print()
+    print("COMPUTING STORAGE CHARGES...")
 
     # Lists of folders to measure come from:
     #  "PI Folder" column of "PIs" sheet, and
@@ -348,7 +349,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
                 # If not, then mention we have no data for folder.
                 #
                 if this_folder in folder_storage_data_dict:
-                    print("Found", this_folder, "in database")
+                    print(this_folder, ": Found in database")
 
                 elif measure_type == "quota":
                     # Check folder's quota.
@@ -416,8 +417,7 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 # Takes in mapping from folders to [timestamp, total, used].
 def write_storage_usage_data(folder_size_dicts, csv_writer):
 
-    print("  Writing storage usage data")
-
+    print("WRITING STORAGE USAGE DATA...")
     for row_dict in folder_size_dicts:
         csv_writer.writerow(row_dict)
 
@@ -552,9 +552,11 @@ print()
 #
 # Read in any storage data files.
 #
-folder_storage_data_dict = dict()
+folder_storage_data_dict = dict()   # Storage data file data will be stored here
+
+print()
 for storage_file in args.storage_data_files:
-    print("  Reading storage data file", storage_file)
+    print("READING STORAGE DATA FILE", storage_file)
     read_storage_data_file(storage_file)
 
 #
@@ -570,3 +572,6 @@ csv_writer = csv.DictWriter(output_storage_usage_csv_file, BILLING_DETAILS_SHEET
 
 csv_writer.writeheader()
 write_storage_usage_data(folder_size_dicts,csv_writer)
+
+print()
+print("STORAGE DATA GATHERING COMPLETE.")
