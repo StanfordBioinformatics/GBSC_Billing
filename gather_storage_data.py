@@ -354,6 +354,11 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
                 if this_folder in folder_storage_data_dict:
                     print(this_folder, ": Found in database")
 
+                elif this_folder.lower() in folder_storage_data_dict:
+                    print(this_folder, ": Found in database")
+
+                    folder_storage_data_dict[this_folder] = folder_storage_data_dict[this_folder.lower()]
+
                 elif measure_type == "quota":
                     # Check folder's quota.
                     print(this_folder, ": Getting quota", end=' ')
