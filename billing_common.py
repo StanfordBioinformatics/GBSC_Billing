@@ -120,7 +120,7 @@ BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4',
                               'dper930-srcf-d15-05',                     # WAS scg4-h16-05
                               'dper7425-srcf-d15',                       # Nodes installed 9/2018.
                               'cfx22885s-srcf-d11',                      # Nodes installed 3/2021.
-                              'cfx4860s-srcf-d11'                        # Nodes installed 4/2023.
+                              'cfx4860s-srcf-d11','cfx1265s-srcf-d11-27' # Nodes installed 4/2023.
                               ]
 
 NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
