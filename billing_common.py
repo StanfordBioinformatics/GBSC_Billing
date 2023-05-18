@@ -119,8 +119,10 @@ BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4',
                               'dper730xd-srcf-d16',                      # WAS scg4-h17
                               'dper930-srcf-d15-05',                     # WAS scg4-h16-05
                               'dper7425-srcf-d15',                       # Nodes installed 9/2018.
-                              'cfx22885s-srcf-d11'                       # Nodes installed 3/2021.
+                              'cfx22885s-srcf-d11',                      # Nodes installed 3/2021.
+                              'cfx4860s-srcf-d11'                        # Nodes installed 4/2023.
                               ]
+
 NONBILLABLE_HOSTNAME_PREFIXES = ['scg3-0',
                                  'dper910-rcf-412-20', 'greenie',        # Synonyms for greenie
                                  'hppsl230s-rcf-412',                    # WAS scg3-0
