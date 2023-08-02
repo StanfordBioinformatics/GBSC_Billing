@@ -183,7 +183,7 @@ def get_folder_quota(machine, folder):
         fields = line.split()
         if fields[2] != "Used":
             used  = int(fields[2])
-            quota = int(fields[3])
+            quota = int(fields[1])
 
             return (used/1024.0, quota/1024.0)  # Return values in fractions of Tb.
     else:
