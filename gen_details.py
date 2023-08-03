@@ -967,7 +967,7 @@ def compute_cloud_charges(config_wkbk, google_invoice_csv, cloud_sheet):
     ###
 
     # Google Invoice CSV files are Unicode with BOM.
-    google_invoice_csv_file_obj = codecs.open(google_invoice_csv, 'rU', encoding='utf-8-sig')
+    google_invoice_csv_file_obj = codecs.open(google_invoice_csv, encoding='utf-8-sig')
 
     # Consume summary table at top of file
     if google_invoice_version == "V3":
