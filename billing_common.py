@@ -191,21 +191,28 @@ CONSULTING_TRAVEL_RATE_DISCOUNT = 0.5
 # and returns all the values from that column headed by that name.
 def sheet_get_named_column(sheet, col_name):
 
-    header_row = sheet.row_values(0)
+    # header_row = sheet.row_values(0)
+    header_row = sheet[1]
 
     for idx in range(len(header_row)):
-        if header_row[idx] == col_name:
-           col_name_idx = idx
-           break
+        # if header_row[idx] == col_name:
+        if header_row[idx].value == col_name:
+            col_name_idx = idx
+            break
     else:
         return None
 
-    return sheet.col_values(col_name_idx,start_rowx=1)
+    col_letter = chr(ord('A')+col_name_idx)
+    last_row_number = len(sheet[col_letter])
+
+    # return sheet.col_values(col_name_idx,start_rowx=1)
+    return list(sheet.iter_cols(min_col=col_name_idx+1,max_col=col_name_idx+1,min_row=2,values_only=True))[0]
 
 # This function returns the dict of values in a BillingConfig's Config sheet.
 def config_sheet_get_dict(wkbk):
 
-    config_sheet = wkbk.sheet_by_name("Config")
+    #config_sheet = wkbk.sheet_by_name("Config")
+    config_sheet = wkbk["Config"]
 
     config_keys   = sheet_get_named_column(config_sheet, "Key")
     config_values = sheet_get_named_column(config_sheet, "Value")
@@ -243,6 +250,18 @@ def from_ymd_date_to_timestamp(year, month, day):
 def from_date_string_to_timestamp(date_str):
     return int(calendar.timegm(datetime.datetime.strptime(date_str, "%m/%d/%y").timetuple()))
 
+# Now adding conversion functions to/from datetime for openpyxl
+def from_timestamp_to_datetime(timestamp):
+    return datetime.datetime.utcfromtimestamp(timestamp)
+def from_datetime_to_timestamp(dt):
+    return dt.timestamp()
+def from_excel_date_to_datetime(excel_date):
+    return from_timestamp_to_datetime(from_excel_date_to_timestamp(excel_date))
+def from_datetime_to_excel_date(dt):
+    return from_timestamp_to_excel_date(from_datetime_to_timestamp(dt))
+def from_ymd_date_to_datetime(year, month, day):
+    return from_timestamp_to_datetime(from_ymd_date_to_timestamp(year, month, day))
+
 #
 # This function removes the Unicode characters from a string.
 #
@@ -258,10 +277,13 @@ def filter_by_dates(obj_list, date_list, begin_month_exceldate, end_month_exceld
 
     for (obj, (date_added, date_removed)) in zip(obj_list, date_list):
 
+        if (date_added is None): continue
+
         # If the date added is BEFORE the end of this month, and
         #    the date removed is AFTER the beginning of this month,
         # then save the account information in the mappings.
-        if date_added < end_month_exceldate and (date_removed == '' or date_removed >= begin_month_exceldate):
+        if (date_added < end_month_exceldate and
+                (date_removed is None or date_removed == '' or date_removed >= begin_month_exceldate)):
             output_list.append(obj)
 
     return output_list

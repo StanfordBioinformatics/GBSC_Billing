@@ -54,8 +54,8 @@ import os.path
 import re
 import sys
 
-import xlrd
-import xlsxwriter
+import openpyxl
+import openpyxl.styles
 
 from job_accounting_file import JobAccountingFile
 
@@ -113,6 +113,11 @@ global from_excel_date_to_timestamp
 global from_timestamp_to_date_string
 global from_excel_date_to_date_string
 global from_ymd_date_to_timestamp
+global from_timestamp_to_datetime
+global from_datetime_to_timestamp
+global from_excel_date_to_datetime
+global from_datetime_to_excel_date
+global from_ymd_date_to_datetime
 global remove_unicode_chars
 global filter_by_dates
 
@@ -134,25 +139,50 @@ def init_billing_details_wkbk(workbook):
     global BILLING_DETAILS_SHEET_COLUMNS  # In billing_common.py
 
     # Create formats for use within the workbook.
-    BOLD_FORMAT = workbook.add_format({'bold' : True})
-    DATE_FORMAT = workbook.add_format({'num_format' : 'mm/dd/yy'})
-    INT_FORMAT  = workbook.add_format({'num_format' : '0'})
-    FLOAT_FORMAT = workbook.add_format({'num_format' : '0.0'})
-    MONEY_FORMAT = workbook.add_format({'num_format' : '$0.00'})
-    PERCENT_FORMAT = workbook.add_format({'num_format' : '0%'})
+    #BOLD_FORMAT = workbook.add_format({'bold' : True})
+    BOLD_FORMAT = openpyxl.styles.NamedStyle(name="bold")
+    BOLD_FORMAT.font = openpyxl.styles.Font(bold=True)
+    workbook.add_named_style(BOLD_FORMAT)
+
+    #DATE_FORMAT = workbook.add_format({'num_format' : 'mm/dd/yy'})
+    DATE_FORMAT = openpyxl.styles.NamedStyle(name="date")
+    DATE_FORMAT.number_format = 'mm/dd/yy'
+    workbook.add_named_style(DATE_FORMAT)
+
+    #INT_FORMAT  = workbook.add_format({'num_format' : '0'})
+    INT_FORMAT = openpyxl.styles.NamedStyle(name="int")
+    INT_FORMAT.number_format = '0'
+    workbook.add_named_style(INT_FORMAT)
+
+    #FLOAT_FORMAT = workbook.add_format({'num_format' : '0.0'})
+    FLOAT_FORMAT = openpyxl.styles.NamedStyle(name="float")
+    FLOAT_FORMAT.number_format = '0.0'
+    workbook.add_named_style(FLOAT_FORMAT)
+
+    #MONEY_FORMAT = workbook.add_format({'num_format' : '$0.00'})
+    MONEY_FORMAT = openpyxl.styles.NamedStyle(name="money")
+    MONEY_FORMAT.number_format = '$0.00'
+    workbook.add_named_style(MONEY_FORMAT)
+
+    #PERCENT_FORMAT = workbook.add_format({'num_format' : '0%'})
+    PERCENT_FORMAT = openpyxl.styles.NamedStyle(name="percent")
+    PERCENT_FORMAT.number_format = '0%'
+    workbook.add_named_style(PERCENT_FORMAT)
 
     sheet_name_to_sheet_map = dict()
 
     for sheet_name in BILLING_DETAILS_SHEET_COLUMNS:
 
-        sheet = workbook.add_worksheet(sheet_name)
+        #sheet = workbook.add_worksheet(sheet_name)
+        sheet = workbook.create_sheet(sheet_name)
         for col in range(0, len(BILLING_DETAILS_SHEET_COLUMNS[sheet_name])):
-            sheet.write(0, col, BILLING_DETAILS_SHEET_COLUMNS[sheet_name][col], BOLD_FORMAT)
+            #sheet.write(0, col, BILLING_DETAILS_SHEET_COLUMNS[sheet_name][col], BOLD_FORMAT)
+            sheet.cell(1, col+1, BILLING_DETAILS_SHEET_COLUMNS[sheet_name][col]).style = BOLD_FORMAT
 
         sheet_name_to_sheet_map[sheet_name] = sheet
 
     # Make the Storage sheet the active one.
-    sheet_name_to_sheet_map['Storage'].activate()
+    #sheet_name_to_sheet_map['Storage'].activate()
 
     return sheet_name_to_sheet_map
 
@@ -196,52 +226,63 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
 
             # 'Job Date'
             col = 0
-            sheet.write(sheet_row, col, from_timestamp_to_excel_date(job_details[row][col]), DATE_FORMAT)
+            #sheet.write(sheet_row, col, from_timestamp_to_excel_date(job_details[row][col]), DATE_FORMAT)
+            sheet.cell(sheet_row+1, col+1, from_timestamp_to_excel_date(job_details[row][col])).style = DATE_FORMAT
+
 
             # 'Job Timestamp'
             col += 1
-            sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            #sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            sheet.cell(sheet_row+1, col+1, job_details[row][col]).style = INT_FORMAT
             if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Username'
             col += 1
-            sheet.write(sheet_row, col, job_details[row][col])
+            #sheet.write(sheet_row, col, job_details[row][col])
+            sheet.cell(sheet_row+1, col+1, job_details[row][col])
             if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Job Name'
             col += 1
-            sheet.write(sheet_row, col, str(job_details[row][col]))
+            #sheet.write(sheet_row, col, str(job_details[row][col]))
+            sheet.cell(sheet_row+1, col+1, str(job_details[row][col]))
             if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Account'
             col += 1
-            sheet.write(sheet_row, col, job_details[row][col])
+            #sheet.write(sheet_row, col, job_details[row][col])
+            sheet.cell(sheet_row+1, col+1, job_details[row][col])
             if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Node'
             col += 1
-            sheet.write(sheet_row, col, job_details[row][col])
+            #sheet.write(sheet_row, col, job_details[row][col])
+            sheet.cell(sheet_row+1, col+1, job_details[row][col])
             if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Slots'
             col += 1
-            sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            #sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            sheet.cell(sheet_row+1, col+1, job_details[row][col]).style = INT_FORMAT
             if args.verbose: print(job_details[row][col], end=' ')
 
             # 'Wallclock Secs'
             col += 1
-            sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            #sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            sheet.cell(sheet_row+1, col+1, job_details[row][col]).style = INT_FORMAT
             if args.verbose: print(job_details[row][col], end=' ')
 
             # 'JobID'
             col += 1
-            sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            #sheet.write(sheet_row, col, job_details[row][col], INT_FORMAT)
+            sheet.cell(sheet_row+1, col+1, job_details[row][col]).style = INT_FORMAT
             if args.verbose: print(job_details[row][col], end=' ')
 
             # Extra column if needed: 'Reason' or 'Failed Code'
             if col < len(job_details[row])-1:
                 col += 1
-                sheet.write(sheet_row, col, job_details[row][col])
+                #sheet.write(sheet_row, col, job_details[row][col])
+                sheet.cell(sheet_row+1, col+1, job_details[row][col])
                 if args.verbose: print(job_details[row][col], end=' ')
 
             if args.verbose: print()
@@ -254,11 +295,13 @@ def write_job_details(workbook, sheet, sheet_name, job_details):
         if job_rows_left > 0:
             # Generate new sheet of the form "<sheet name> <sheet number>" (starting with 2).
             sheet_number += 1
-            sheet = workbook.add_worksheet("%s %d" % (sheet_name, sheet_number))
+            #sheet = workbook.add_worksheet("%s %d" % (sheet_name, sheet_number))
+            sheet = workbook.create_sheet("%s %d" % (sheet_name, sheet_number))
 
             # Create same headers on new numbered sheets as on the original sheet name.
             for col in range(0, len(BILLING_DETAILS_SHEET_COLUMNS[sheet_name])):
-                sheet.write(0, col, BILLING_DETAILS_SHEET_COLUMNS[sheet_name][col], BOLD_FORMAT)
+                #sheet.write(0, col, BILLING_DETAILS_SHEET_COLUMNS[sheet_name][col], BOLD_FORMAT)
+                sheet.cell(1, col+1, BILLING_DETAILS_SHEET_COLUMNS[sheet_name][col]).style = BOLD_FORMAT
             sys.stdout.write('|')
             sys.stdout.flush()
         else:
@@ -328,36 +371,43 @@ def write_storage_usage_data(folder_size_dict, storage_sheet):
 
         # 'Date Measured'
         col = 0
-        storage_sheet.write(sheet_row, col, from_timestamp_to_excel_date(timestamp), DATE_FORMAT)
+        #storage_sheet.write(sheet_row, col, from_timestamp_to_excel_date(timestamp), DATE_FORMAT)
+        storage_sheet.cell(sheet_row+1, col+1, from_timestamp_to_excel_date(timestamp)).style = DATE_FORMAT
 
         # 'Timestamp'
         col += 1
-        storage_sheet.write(sheet_row, col, timestamp)
+        #storage_sheet.write(sheet_row, col, timestamp)
+        storage_sheet.cell(sheet_row+1, col+1, timestamp)
         if args.verbose: print(timestamp, end=' ')
 
         # 'Folder'
         col += 1
-        storage_sheet.write(sheet_row, col, folder)
+        #storage_sheet.write(sheet_row, col, folder)
+        storage_sheet.cell(sheet_row+1, col+1, folder)
         if args.verbose: print(folder, end=' ')
 
         # 'Size'
         col += 1
-        storage_sheet.write(sheet_row, col, total, FLOAT_FORMAT)
+        #storage_sheet.write(sheet_row, col, total, FLOAT_FORMAT)
+        storage_sheet.cell(sheet_row+1, col+1, total).style = FLOAT_FORMAT
         if args.verbose: print(total, end=' ')
 
         # 'Used'
         col += 1
-        storage_sheet.write(sheet_row, col, used, FLOAT_FORMAT)
+        #storage_sheet.write(sheet_row, col, used, FLOAT_FORMAT)
+        storage_sheet.cell(sheet_row+1, col+1, used).style = FLOAT_FORMAT
         if args.verbose: print(used, end=' ')
 
         # 'Inodes Quota'
         col += 1
-        storage_sheet.write(sheet_row, col, inodes_quota, INT_FORMAT)
+        #storage_sheet.write(sheet_row, col, inodes_quota, INT_FORMAT)
+        storage_sheet.cell(sheet_row+1, col+1, inodes_quota).style = INT_FORMAT
         if args.verbose: print(inodes_quota, end=' ')
 
         # 'Inodes Used'
         col += 1
-        storage_sheet.write(sheet_row, col, inodes_used, INT_FORMAT)
+        #storage_sheet.write(sheet_row, col, inodes_used, INT_FORMAT)
+        storage_sheet.cell(sheet_row+1, col+1, inodes_used).style = INT_FORMAT
         if args.verbose: print(inodes_used)
 
         # Next row, please.
@@ -380,7 +430,8 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
     print("Computing computing charges...")
 
     # Read in the Usernames from the Users sheet.
-    users_sheet = config_wkbk.sheet_by_name('Users')
+    #users_sheet = config_wkbk.sheet_by_name('Users')
+    users_sheet = config_wkbk['Users']
     users_list = sheet_get_named_column(users_sheet, "Username")
     #  NOTE: This column may have some duplicates in it.
     #        Need to make a set out of the result.
@@ -615,9 +666,6 @@ def compute_computing_charges(config_wkbk, begin_timestamp, end_timestamp, accou
                 print("Job date %s is not between %s and %s" % dates_tuple)
             else:
                 print("Job date is zero/None.")
-            #print ':'.join(accounting_record.values())
-
- #	print "%d " % (accounting_record.job_id)
 
     #
     # ERROR FLAGGING:
@@ -687,24 +735,31 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
 
     print("Computing consulting charges...")
 
+    begin_datetime = datetime.datetime.utcfromtimestamp(begin_timestamp)
+    end_datetime   = datetime.datetime.utcfromtimestamp(end_timestamp)
+
     ###
     # Read the config workbook to get a list of active PIs
     ###
-    pis_sheet = config_wkbk.sheet_by_name("PIs")
+    #pis_sheet = config_wkbk.sheet_by_name("PIs")
+    pis_sheet = config_wkbk["PIs"]
 
     pis_list    = sheet_get_named_column(pis_sheet, "PI Tag")
     dates_added = sheet_get_named_column(pis_sheet, "Date Added")
     dates_remvd = sheet_get_named_column(pis_sheet, "Date Removed")
 
-    active_pis_list = filter_by_dates(pis_list, list(zip(dates_added, dates_remvd)), begin_timestamp, end_timestamp)
+    # Note: Previous versions had a bug here, passing begin_timestamp and end_timestamp directly to filter_by_dates()
+    active_pis_list = filter_by_dates(pis_list, list(zip(dates_added, dates_remvd)), begin_datetime, end_datetime)
 
     ###
     # Read the Consulting Timesheet.
     ###
 
-    consulting_workbook = xlrd.open_workbook(consulting_timesheet)
+    #consulting_workbook = xlrd.open_workbook(consulting_timesheet)
+    consulting_workbook = openpyxl.load_workbook(consulting_timesheet, data_only=True) # read_only=True)
 
-    hours_sheet = consulting_workbook.sheet_by_name("Hours")
+    #hours_sheet = consulting_workbook.sheet_by_name("Hours")
+    hours_sheet = consulting_workbook["Hours"]
 
     dates   = sheet_get_named_column(hours_sheet, "Date")
     pi_tags = sheet_get_named_column(hours_sheet, "PI Tag")
@@ -732,7 +787,7 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
             zip(dates, pi_tags, hours, travel_hours, participants, clients, summaries, notes, cumul_hours, sdrc_members):
 
         # If date and pi_tag are blank, we are done.
-        if date == "" and pi_tag == "":
+        if (date == "" and pi_tag == "") or (date is None and pi_tag is None):
             break
 
         # Ignore this entry if there is an X in the "SDRC ?" column.
@@ -741,7 +796,8 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
 
         # Confirm date is within this month.
         try:
-            date_timestamp = from_excel_date_to_timestamp(date)
+            # date_timestamp = from_excel_date_to_timestamp(date)
+            date_timestamp = from_datetime_to_timestamp(date)
         except:
             print("Date Error:", date, "Summary:", summary, "Hours:", hours_spent, "Cumul:", cumul_hours_spent, file=sys.stderr)
             continue
@@ -755,23 +811,33 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
 
         # Copy the entry into the output consulting sheet.
         col = 0
-        consulting_sheet.write(row, col, date, DATE_FORMAT)
+        #consulting_sheet.write(row, col, date, DATE_FORMAT)
+        consulting_sheet.cell(row+1, col+1, date).style = DATE_FORMAT
         col += 1
-        consulting_sheet.write(row, col, pi_tag)
+        #consulting_sheet.write(row, col, pi_tag)
+        consulting_sheet.cell(row+1, col+1, pi_tag)
         col += 1
-        consulting_sheet.write(row, col, float(hours_spent), FLOAT_FORMAT)
+        #consulting_sheet.write(row, col, float(hours_spent), FLOAT_FORMAT)
+        consulting_sheet.cell(row+1, col+1, float(hours_spent)).style = FLOAT_FORMAT
         col += 1
-        consulting_sheet.write(row, col, float(travel_hrs), FLOAT_FORMAT)
+        #consulting_sheet.write(row, col, float(travel_hrs), FLOAT_FORMAT)
+        if travel_hrs is not None:
+            consulting_sheet.cell(row+1, col+1, float(travel_hrs)).style = FLOAT_FORMAT
         col += 1
-        consulting_sheet.write(row, col, participant)
+        #consulting_sheet.write(row, col, participant)
+        consulting_sheet.cell(row+1, col+1, participant)
         col += 1
-        consulting_sheet.write(row, col, client)
+        #consulting_sheet.write(row, col, client)
+        consulting_sheet.cell(row+1, col+1, client)
         col += 1
-        consulting_sheet.write(row, col, summary)
+        #consulting_sheet.write(row, col, summary)
+        consulting_sheet.cell(row+1, col+1, summary)
         col += 1
-        consulting_sheet.write(row, col, note)
+        #consulting_sheet.write(row, col, note)
+        consulting_sheet.cell(row+1, col+1, note)
         col += 1
-        consulting_sheet.write(row, col, float(cumul_hours_spent), FLOAT_FORMAT)
+        #consulting_sheet.write(row, col, float(cumul_hours_spent), FLOAT_FORMAT)
+        consulting_sheet.cell(row+1, col+1, float(cumul_hours_spent)).style = FLOAT_FORMAT
         col += 1
 
         row += 1
@@ -779,29 +845,34 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
 
 def write_cloud_details_V1(cloud_sheet, row_dict, output_row):
 
-    output_col = 0
+    output_col = 1 # 0
     total_amount = 0.0
 
     # Write Google data into Cloud sheet.
 
     # Output 'Platform' field.
-    cloud_sheet.write(output_row, output_col, row_dict['Product'])
+    #cloud_sheet.write(output_row, output_col, row_dict['Product'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Product'])
     output_col += 1
 
     # Output 'Account' Field.
-    cloud_sheet.write(output_row, output_col, row_dict['Order'])
+    #cloud_sheet.write(output_row, output_col, row_dict['Order'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Order'])
     output_col += 1
 
     # Output 'Project' field.
-    cloud_sheet.write(output_row, output_col, row_dict['Source'])
+    #cloud_sheet.write(output_row, output_col, row_dict['Source'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Source'])
     output_col += 1
 
     # Output 'Description' field.
-    cloud_sheet.write(output_row, output_col, row_dict['Description'])
+    #cloud_sheet.write(output_row, output_col, row_dict['Description'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Description'])
     output_col += 1
 
     # Output 'Dates' field.
-    cloud_sheet.write(output_row, output_col, row_dict['Interval'])
+    #cloud_sheet.write(output_row, output_col, row_dict['Interval'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Interval'])
     output_col += 1
 
     # Parse quantity.
@@ -811,11 +882,13 @@ def write_cloud_details_V1(cloud_sheet, row_dict, output_row):
         quantity = ''
 
     # Output 'Quantity' field.
-    cloud_sheet.write(output_row, output_col, quantity, FLOAT_FORMAT)
+    #cloud_sheet.write(output_row, output_col, quantity, FLOAT_FORMAT)
+    cloud_sheet.cell(output_row+1, output_col+1, quantity).style = FLOAT_FORMAT
     output_col += 1
 
     # Output 'Unit of Measure' field.
-    cloud_sheet.write(output_row, output_col, row_dict['UOM'])
+    #cloud_sheet.write(output_row, output_col, row_dict['UOM'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['UOM'])
     output_col += 1
 
     # Parse charge.
@@ -824,7 +897,8 @@ def write_cloud_details_V1(cloud_sheet, row_dict, output_row):
     total_amount += amount
 
     # Output 'Charge' field.
-    cloud_sheet.write(output_row, output_col, amount, MONEY_FORMAT)
+    #cloud_sheet.write(output_row, output_col, amount, MONEY_FORMAT)
+    cloud_sheet.cell(output_row+1, output_col+1, amount, MONEY_FORMAT)
     output_col += 1
 
     return total_amount
@@ -838,25 +912,30 @@ def write_cloud_details_V2(cloud_sheet, row_dict, output_row):
     # Write Google data into Cloud sheet.
 
     # Output 'Platform' field.
-    cloud_sheet.write(output_row, output_col, "Google Cloud Platform")
+    #cloud_sheet.write(output_row, output_col, "Google Cloud Platform")
+    cloud_sheet.cell(output_row+1, output_col+1, "Google Cloud Platform")
     output_col += 1
 
-    # Output 'Account' field. (subacccount)
-    cloud_sheet.write(output_row, output_col, row_dict['Account ID'])
+    # Output 'Account' field. (subaccount)
+    #cloud_sheet.write(output_row, output_col, row_dict['Account ID'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Account ID'])
     output_col += 1
 
     # Output 'Project' field.  (Project Name + Project ID)
-    cloud_sheet.write(output_row, output_col, row_dict['Source'])
+    #cloud_sheet.write(output_row, output_col, row_dict['Source'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Source'])
     output_col += 1
 
     # Output 'Description' field. (SKU description of the charge)
     sku_description = "%s %s" % (row_dict['Product'], row_dict['Resource Type'])
-    cloud_sheet.write(output_row, output_col, sku_description)
+    #cloud_sheet.write(output_row, output_col, sku_description)
+    cloud_sheet.cell(output_row+1, output_col+1, sku_description)
     output_col += 1
 
     # Output 'Dates' field.
     date_range = "%s-%s" % (row_dict['Start Date'], row_dict['End Date'])
-    cloud_sheet.write(output_row, output_col, date_range)
+    #cloud_sheet.write(output_row, output_col, date_range)
+    cloud_sheet.cell(output_row+1, output_col+1, date_range)
     output_col += 1
 
     # Parse quantity.
@@ -867,11 +946,13 @@ def write_cloud_details_V2(cloud_sheet, row_dict, output_row):
         quantity = ''
 
     # Output 'Quantity' field.
-    cloud_sheet.write(output_row, output_col, quantity, FLOAT_FORMAT)
+    #cloud_sheet.write(output_row, output_col, quantity, FLOAT_FORMAT)
+    cloud_sheet.cell(output_row+1, output_col+1, quantity).style = FLOAT_FORMAT
     output_col += 1
 
     # Output 'Unit of Measure' field.
-    cloud_sheet.write(output_row, output_col, row_dict['Unit'])
+    #cloud_sheet.write(output_row, output_col, row_dict['Unit'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Unit'])
     output_col += 1
 
     # Parse charge.
@@ -880,7 +961,8 @@ def write_cloud_details_V2(cloud_sheet, row_dict, output_row):
     total_amount += amount
 
     # Output 'Charge' field.
-    cloud_sheet.write(output_row, output_col, amount, MONEY_FORMAT)
+    #cloud_sheet.write(output_row, output_col, amount, MONEY_FORMAT)
+    cloud_sheet.cell(output_row+1, output_col+1, amount).style = MONEY_FORMAT
     output_col += 1
 
     return total_amount
@@ -898,7 +980,8 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
     # Write Google data into Cloud sheet.
 
     # Output 'Platform' field.
-    cloud_sheet.write(output_row, output_col, "Google Cloud Platform")
+    #cloud_sheet.write(output_row, output_col, "Google Cloud Platform")
+    cloud_sheet.cell(output_row+1, output_col+1, "Google Cloud Platform")
     output_col += 1
 
     service = row_dict['Service description']
@@ -911,21 +994,25 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
         account    = row_dict['Billing account ID']
 
     # Output 'Account' field. (subacccount)
-    cloud_sheet.write(output_row, output_col, account)
+    #cloud_sheet.write(output_row, output_col, account)
+    cloud_sheet.cell(output_row+1, output_col+1, account)
     output_col += 1
 
     # Output 'Project' field.  (Project Name + Project ID)
-    cloud_sheet.write(output_row, output_col, project_id)
+    #cloud_sheet.write(output_row, output_col, project_id)
+    cloud_sheet.cell(output_row+1, output_col+1, project_id)
     output_col += 1
 
     # Output 'Description' field. (SKU description of the charge)
     sku_description = "%s %s" % (service, row_dict['SKU description'])
-    cloud_sheet.write(output_row, output_col, sku_description)
+    #cloud_sheet.write(output_row, output_col, sku_description)
+    cloud_sheet.cell(output_row+1, output_col+1, sku_description)
     output_col += 1
 
     # Output 'Dates' field.
     date_range = "%s-%s" % (row_dict['Usage start date'], row_dict['Usage end date'])
-    cloud_sheet.write(output_row, output_col, date_range)
+    #cloud_sheet.write(output_row, output_col, date_range)
+    cloud_sheet.cell(output_row+1, output_col+1, date_range)
     output_col += 1
 
     # Parse quantity.
@@ -936,11 +1023,13 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
         quantity = ''
 
     # Output 'Quantity' field.
-    cloud_sheet.write(output_row, output_col, quantity, FLOAT_FORMAT)
+    #cloud_sheet.write(output_row, output_col, quantity, FLOAT_FORMAT)
+    cloud_sheet.cell(output_row+1, output_col, quantity).style = FLOAT_FORMAT
     output_col += 1
 
     # Output 'Unit of Measure' field.
-    cloud_sheet.write(output_row, output_col, row_dict['Usage unit'])
+    #cloud_sheet.write(output_row, output_col, row_dict['Usage unit'])
+    cloud_sheet.cell(output_row+1, output_col+1, row_dict['Usage unit'])
     output_col += 1
 
     # Parse charge.
@@ -949,7 +1038,8 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
     total_amount += amount
 
     # Output 'Charge' field.
-    cloud_sheet.write(output_row, output_col, amount, MONEY_FORMAT)
+    #cloud_sheet.write(output_row, output_col, amount, MONEY_FORMAT)
+    cloud_sheet.cell(output_row+1, output_col+1, amount).style = MONEY_FORMAT
     output_col += 1
 
     return total_amount
@@ -1112,7 +1202,8 @@ billing_config_file = os.path.abspath(args.billing_config_file)
 #
 # Open the Billing Config workbook.
 #
-billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+#billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+billing_config_wkbk = openpyxl.load_workbook(billing_config_file) #, read_only=True)
 
 #
 # Get the location of the BillingRoot directory from the Config sheet.
@@ -1192,7 +1283,10 @@ if not os.path.exists(consulting_timesheet):
 details_wkbk_filename = "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month)
 details_wkbk_pathname = os.path.join(year_month_dir, details_wkbk_filename)
 
-billing_details_wkbk = xlsxwriter.Workbook(details_wkbk_pathname)
+#billing_details_wkbk = xlsxwriter.Workbook(details_wkbk_pathname)
+billing_details_wkbk = openpyxl.Workbook()
+billing_details_wkbk.remove(billing_details_wkbk['Sheet'])
+
 # Create all the sheets in the output spreadsheet.
 sheet_name_to_sheet_map = init_billing_details_wkbk(billing_details_wkbk)
 
@@ -1250,11 +1344,13 @@ print("  BillingDetailsFile to be output: %s" % details_wkbk_pathname)
 print()
 
 # Read in the PI Tag list from the PIs sheet.
-pis_sheet = billing_config_wkbk.sheet_by_name('PIs')
+#pis_sheet = billing_config_wkbk.sheet_by_name('PIs')
+pis_sheet = billing_config_wkbk['PIs']
 pi_tag_list = sheet_get_named_column(pis_sheet, 'PI Tag')
 
 # Read in the accounts from the accounts sheet.
-accounts_sheet = billing_config_wkbk.sheet_by_name('Accounts')
+#accounts_sheet = billing_config_wkbk.sheet_by_name('Accounts')
+accounts_sheet = billing_config_wkbk['Accounts']
 account_list = sheet_get_named_column(accounts_sheet, 'Account')
 
 #
@@ -1290,5 +1386,6 @@ if not skip_cloud:
 #
 # Close the output workbook and write the .xlsx file.
 #
-print("Closing BillingDetails workbook.")
-billing_details_wkbk.close()
+print("Closing BillingDetails workbook....")
+billing_details_wkbk.save(details_wkbk_pathname)
+print("BILLING DETAILS WORKBOOK COMPLETE")
