@@ -40,7 +40,8 @@ import os
 import re
 import sys
 
-import xlrd
+#import xlrd
+import openpyxl
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -157,6 +158,9 @@ global from_timestamp_to_date_string
 global from_excel_date_to_date_string
 global from_ymd_date_to_timestamp
 global from_date_string_to_timestamp
+global from_timestamp_to_datetime
+global from_datetime_to_timestamp
+global from_datetime_to_date_string
 global sheet_get_named_column
 global read_config_sheet
 global config_sheet_get_dict
@@ -202,7 +206,8 @@ def get_google_invoice_csv_subtable_lines(csvfile_obj):
 #
 def get_ilab_service_id(wkbk, type_name):
 
-    rates_sheet = wkbk.sheet_by_name("Rates")
+    #rates_sheet = wkbk.sheet_by_name("Rates")
+    rates_sheet = wkbk["Rates"]
 
     type_column = sheet_get_named_column(rates_sheet,"Type")
     iLab_column = sheet_get_named_column(rates_sheet,"iLab Service ID")
@@ -217,22 +222,29 @@ def get_ilab_service_id(wkbk, type_name):
 # Creates all the data structures used to write the BillingNotification workbook.
 # The overall goal is to mimic the tables of the notification sheets so that
 # to build the table, all that is needed is to print out one of these data structures.
-def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data):
+def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data):
 
-    pis_sheet      = wkbk.sheet_by_name("PIs")
-    folders_sheet  = wkbk.sheet_by_name("Folders")
-    users_sheet    = wkbk.sheet_by_name("Users")
-    accounts_sheet = wkbk.sheet_by_name("Accounts")
+    # pis_sheet      = wkbk.sheet_by_name("PIs")
+    # folders_sheet  = wkbk.sheet_by_name("Folders")
+    # users_sheet    = wkbk.sheet_by_name("Users")
+    # accounts_sheet = wkbk.sheet_by_name("Accounts")
+    pis_sheet      = billing_config_wkbk["PIs"]
+    folders_sheet  = billing_config_wkbk["Folders"]
+    users_sheet    = billing_config_wkbk["Users"]
+    accounts_sheet = billing_config_wkbk["Accounts"]
 
     begin_month_exceldate = from_timestamp_to_excel_date(begin_month_timestamp)
     end_month_exceldate   = from_timestamp_to_excel_date(end_month_timestamp)
+
+    begin_month_datetime = from_timestamp_to_datetime(begin_month_timestamp)
+    end_month_datetime   = from_timestamp_to_datetime(end_month_timestamp)
 
     #
     # Create list of pi_tags.
     #
     global pi_tag_list
 
-    pi_tag_list = sheet_get_named_column(pis_sheet, "PI Tag")
+    pi_tag_list = list(sheet_get_named_column(pis_sheet, "PI Tag"))
 
     #
     # Create mapping from pi_tag to a list of PI name and email.
@@ -259,7 +271,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
 
     # Organize data from the Cloud sheet, if present.
     if read_cloud_data:
-        cloud_sheet = wkbk.sheet_by_name("Cloud")
+        cloud_sheet = billing_config_wkbk["Cloud"]
 
         #
         # Create mapping from pi_tag to cloud project from the BillingConfig PIs sheet.
@@ -282,7 +294,8 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
         cloud_rows = filter_by_dates(list(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
                                          cloud_accounts, cloud_pctage)),
                                      list(zip(cloud_dates_added, cloud_dates_remvd)),
-                                     begin_month_exceldate, end_month_exceldate)
+                                     #begin_month_exceldate, end_month_exceldate)
+                                     begin_month_datetime, end_month_datetime)
 
         for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
 
@@ -333,9 +346,12 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     for (pi_tag, date_added, date_removed) in pi_tags_and_dates_added:
 
         # Convert the Excel dates to timestamps.
-        date_added_timestamp = from_excel_date_to_timestamp(date_added)
-        if date_removed != '':
-            date_removed_timestamp = from_excel_date_to_timestamp(date_removed)
+        if date_added is None: continue
+        #date_added_timestamp = from_excel_date_to_timestamp(date_added)
+        date_added_timestamp = from_datetime_to_timestamp(date_added)
+        if date_removed != '' and date_removed is not None:
+            #date_removed_timestamp = from_excel_date_to_timestamp(date_removed)
+            date_removed_timestamp = from_datetime_to_timestamp(date_removed)
         else:
             date_removed_timestamp = end_month_timestamp + 1  # Not in this month.
 
@@ -344,12 +360,14 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
         # then remove the pi_tag from the list.
         if date_added_timestamp >= end_month_timestamp:
 
-            print(" *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added)), file=sys.stderr)
+            #print(" *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added)), file=sys.stderr)
+            print(" *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_datetime_to_date_string(date_added)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
         elif date_removed_timestamp < begin_month_timestamp:
 
-            print(" *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_removed)), file=sys.stderr)
+            #print(" *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_removed)), file=sys.stderr)
+            print(" *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_datetime_to_date_string(date_removed)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
     #
@@ -406,7 +424,8 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     dates_removed = sheet_get_named_column(accounts_sheet, "Date Removed")
 
     account_rows = filter_by_dates(list(zip(accounts, pi_tags, pctages)), list(zip(dates_added, dates_removed)),
-                                   begin_month_exceldate, end_month_exceldate)
+                                   #begin_month_exceldate, end_month_exceldate)
+                                    begin_month_datetime, end_month_datetime)
 
     for (account, pi_tag, pctage) in account_rows:
         account_to_pi_tag_pctages[account].append([pi_tag, pctage])
@@ -440,7 +459,8 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp, read_clo
     dates_removed += sheet_get_named_column(folders_sheet, "Date Removed")
 
     folder_rows = filter_by_dates(list(zip(folders, pi_tags, pctages)), list(zip(dates_added, dates_removed)),
-                                  begin_month_exceldate, end_month_exceldate)
+                                  #begin_month_exceldate, end_month_exceldate)
+                                    begin_month_datetime, end_month_datetime)
 
     for (folder, pi_tag, pctage) in folder_rows:
 
@@ -457,11 +477,13 @@ def read_storage_sheet(wkbk):
 
     global pi_tag_to_folder_sizes
 
-    storage_sheet = wkbk.sheet_by_name("Storage")
+    #storage_sheet = wkbk.sheet_by_name("Storage")
+    storage_sheet = wkbk["Storage"]
 
-    for row in range(1,storage_sheet.nrows):
+    #for row in range(1,storage_sheet.nrows):
+        #(date, timestamp, folder, size, used, inodes_quota, inodes_used) = storage_sheet.row_values(row)
 
-        (date, timestamp, folder, size, used, inodes_quota, inodes_used) = storage_sheet.row_values(row)
+    for (date, timestamp, folder, size, used, inodes_quota, inodes_used) in storage_sheet.iter_rows(min_row=2, values_only=True):
 
         # List of [pi_tag, %age] pairs.
         pi_tag_pctages = folder_to_pi_tag_pctages[folder]
@@ -476,16 +498,19 @@ def read_computing_sheet(wkbk):
 
     global pi_tag_to_job_details
 
-    computing_sheet = wkbk.sheet_by_name("Computing")
+    #computing_sheet = wkbk.sheet_by_name("Computing")
+    computing_sheet = wkbk["Computing"]
 
     sheet_number = 1
 
     while True:
 
-        for row in range(1, computing_sheet.nrows):
+        #for row in range(1, computing_sheet.nrows):
+            #(job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
+            #    computing_sheet.row_values(row)
 
-            (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
-                computing_sheet.row_values(row)
+        for (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) in \
+            computing_sheet.iter_rows(min_row=2, values_only=True):
 
             # Calculate CPU-core-hrs for job.
             cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
@@ -548,19 +573,24 @@ def read_computing_sheet(wkbk):
         sheet_number += 1
 
         try:
-            computing_sheet = wkbk.sheet_by_name("Computing %d" % sheet_number)
-        except xlrd.biffh.XLRDError:
+            #computing_sheet = wkbk.sheet_by_name("Computing %d" % sheet_number)
+            computing_sheet = wkbk["Computing %d" % sheet_number]
+        #except xlrd.biffh.XLRDError:
+        except:
             break  # No more computing sheets: exit the while True loop.
 
 
 # Read the Cloud sheet from the BillingDetails workbook.
 def read_cloud_sheet(wkbk):
 
-    cloud_sheet = wkbk.sheet_by_name("Cloud")
+    #cloud_sheet = wkbk.sheet_by_name("Cloud")
+    cloud_sheet = wkbk["Cloud"]
 
-    for row in range(1,cloud_sheet.nrows):
+    #for row in range(1,cloud_sheet.nrows):
+        #(platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
 
-        (platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
+    for (platform, account, project, description, dates, quantity, uom, charge) in \
+        cloud_sheet.iter_rows(min_row=2, values_only=True):
 
         # If project is of the form "<project name>(<project-id>)" or "<project name>[<project-id>]", get the "<project-id>".
         project_re = re.search("[(\[]([a-z0-9-:.]+)[\])]", project)
@@ -654,11 +684,16 @@ def read_google_invoice(google_invoice_csv_file):
 #
 def read_consulting_sheet(wkbk):
 
-    consulting_sheet = wkbk.sheet_by_name("Consulting")
+    #consulting_sheet = wkbk.sheet_by_name("Consulting")
+    consulting_sheet = wkbk["Consulting"]
 
-    for row in range(1, consulting_sheet.nrows):
+    #for row in range(1, consulting_sheet.nrows):
+        #(date, pi_tag, hours, travel_hours, participants, clients, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
 
-        (date, pi_tag, hours, travel_hours, participants, clients, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
+    for (date, pi_tag, hours, travel_hours, participants, clients, summary, notes, cumul_hours) in \
+        consulting_sheet.iter_rows(min_row=2, values_only=True):
+
+        if travel_hours is None: travel_hours = 0
 
         # Save the consulting item in a list of charges for that PI.
         consulting_details[pi_tag].append((date, summary, clients, float(hours), float(travel_hours), float(cumul_hours)))
@@ -712,7 +747,8 @@ def process_cloud_data():
         read_google_invoice(google_invoice_csv)
 
     # Read in the Cloud sheet from the BillingDetails file, if present.
-    elif "Cloud" in billing_details_wkbk.sheet_names():
+    #elif "Cloud" in billing_details_wkbk.sheet_names():
+    elif "Cloud" in billing_details_wkbk.sheetnames:
 
         print("Reading cloud sheet.")
 
@@ -729,7 +765,8 @@ def process_cloud_data():
 def process_consulting_data():
 
     # Read in its Consulting sheet.
-    if "Consulting" in billing_details_wkbk.sheet_names():
+    #if "Consulting" in billing_details_wkbk.sheet_names():
+    if "Consulting" in billing_details_wkbk.sheetnames:
         print("Reading consulting sheet.")
         read_consulting_sheet(billing_details_wkbk)
     else:
@@ -917,8 +954,10 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag, consulting_free_
 
     for (date, summary, client, hours, travel_hours, cumul_hours) in consulting_details[pi_tag]:
 
-        date_timestamp = from_excel_date_to_timestamp(date)
-        purchased_on_date = from_excel_date_to_date_string(date)
+        #date_timestamp    = from_excel_date_to_timestamp(date)
+        #purchased_on_date = from_excel_date_to_date_string(date)
+        date_timestamp    = from_datetime_to_timestamp(date)
+        purchased_on_date = from_datetime_to_date_string(date)
 
         # If this transaction occurred within this month:
         if begin_month_timestamp <= date_timestamp < end_month_timestamp:
@@ -966,7 +1005,7 @@ def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_i
     # Create a dictionary to be written out as CSV.
     csv_dict = dict()
     # If there is an 'iLab Owner Email' available, use that, o/w, use the PI email.
-    if pi_tag_to_names_email[pi_tag][3] != '':
+    if pi_tag_to_names_email[pi_tag][3] != '' and pi_tag_to_names_email[pi_tag][3] is not None:
         csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][3]
     else:
         csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][2]
@@ -1080,7 +1119,8 @@ billing_config_file = os.path.abspath(args.billing_config_file)
 #
 ###
 
-billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+#billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
 
 #
 # Get the location of the BillingRoot directory from the Config sheet.
@@ -1146,7 +1186,8 @@ print("Building configuration data structures.")
 
 # Determine whether we should read in Cloud data from the BillingConfig spreadsheet.
 # We should if the BillingConfig spreadsheet has a Cloud sheet.
-read_cloud_data = ("Cloud" in billing_config_wkbk.sheet_names())
+#read_cloud_data = ("Cloud" in billing_config_wkbk.sheet_names())
+read_cloud_data = ("Cloud" in billing_config_wkbk.sheetnames)
 
 build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data)
 
@@ -1159,7 +1200,8 @@ if billing_details_file is not None:
 
     # Open the BillingDetails workbook.
     print("Opening BillingDetails workbook...")
-    billing_details_wkbk = xlrd.open_workbook(billing_details_file)
+    #billing_details_wkbk = xlrd.open_workbook(billing_details_file)
+    billing_details_wkbk = openpyxl.load_workbook(billing_details_file)
 
 ###
 #

@@ -202,8 +202,7 @@ def sheet_get_named_column(sheet, col_name):
     else:
         return None
 
-    col_letter = chr(ord('A')+col_name_idx)
-    last_row_number = len(sheet[col_letter])
+    max_row = sheet.max_row
 
     # return sheet.col_values(col_name_idx,start_rowx=1)
     return list(sheet.iter_cols(min_col=col_name_idx+1,max_col=col_name_idx+1,min_row=2,values_only=True))[0]
@@ -261,6 +260,8 @@ def from_datetime_to_excel_date(dt):
     return from_timestamp_to_excel_date(from_datetime_to_timestamp(dt))
 def from_ymd_date_to_datetime(year, month, day):
     return from_timestamp_to_datetime(from_ymd_date_to_timestamp(year, month, day))
+def from_datetime_to_date_string(dt):
+    return dt.strftime("%m/%d/%Y")
 
 #
 # This function removes the Unicode characters from a string.
@@ -277,7 +278,7 @@ def filter_by_dates(obj_list, date_list, begin_month_exceldate, end_month_exceld
 
     for (obj, (date_added, date_removed)) in zip(obj_list, date_list):
 
-        if (date_added is None): continue
+        if date_added is None: continue
 
         # If the date added is BEFORE the end of this month, and
         #    the date removed is AFTER the beginning of this month,
