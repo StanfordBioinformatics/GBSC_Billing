@@ -388,6 +388,10 @@ def init_billing_notifs_wkbk(wkbk):
     # PERCENT_FORMAT.number_format = '0%'
     # wkbk.add_named_style(PERCENT_FORMAT)
 
+    # Control the size of the Workbook when it opens
+    view = [openpyxl.workbook.views.BookView(xWindow=0, yWindow=0, windowWidth=18140, windowHeight=15540)]
+    wkbk.views = view
+
     sheet_name_to_sheet = dict()
 
     for sheet_name in BILLING_NOTIFS_SHEET_COLUMNS:
@@ -411,6 +415,10 @@ def init_billing_notifs_wkbk(wkbk):
 # creates the necessary sheets, and writes the column headers in the sheets.
 # It also makes the Totals sheet the active sheet when it is opened in Excel.
 def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
+
+    # Control the size of the Workbook when it opens
+    view = [openpyxl.workbook.views.BookView(xWindow=0, yWindow=0, windowWidth=18140, windowHeight=15540)]
+    wkbk.views = view
 
     bold_format = make_format(wkbk, {'bold' : True})
 
@@ -752,28 +760,47 @@ def get_rate_a1_cell(wkbk, rate_type):
     rates_sheet = wkbk["Rates"]
 
     #header_row = rates_sheet.row_values(0)
-    header_row = rates_sheet[1]
+    header_row = rates_sheet.iter_cols(min_row=1, max_row=1, values_only=True)
 
     # Find the column numbers for 'Type' and 'Amount'.
     type_col = -1
     amt_col = -1
-    for idx in range(len(header_row)):
-        if header_row[idx] == 'Type':
+    # for idx in range(len(header_row)):
+    #     if header_row[idx] == 'Type':
+    #         type_col = idx
+    #     elif header_row[idx] == 'Amount':
+    #         amt_col = idx
+    idx = 1
+    for col_name in header_row:
+        if col_name[0] == 'Type':
             type_col = idx
-        elif header_row[idx] == 'Amount':
+            if amt_col != -1: break  # Leave loop if we have both
+        elif col_name[0] == 'Amount':
             amt_col = idx
+            if type_col != -1: break  # Leave loop if we have both
+        idx += 1
 
     if type_col == -1 or amt_col == -1:
+        print("get_rate_a1_cell: Can't find Type/Amount headers (%d, %d)" % (type_col, amt_col), file=sys.stderr)
         return None
 
     # Get column of 'Types'.
-    types = rates_sheet.col_values(type_col, start_rowx=1)
+    #types = rates_sheet.col_values(type_col, start_rowx=1)
+    types = rates_sheet.iter_rows(min_row=2, min_col=type_col, max_col=type_col, values_only=True)
 
     # When you find the row with rate_type, return the Amount col and this row.
-    for idx in range(len(types)):
-        if types[idx] == rate_type:
-            # +1 is for "GBSC Rates:" above header line, +1 is for header line, and +1 is for 1-based openpyxl.
-            return 'Rates!%s' % rowcol_to_a1_cell(idx + 1 + 1 + 1, amt_col + 1, True, True)
+    # for idx in range(len(types[row])):
+    #     if types[idx] == rate_type:
+    #         # +1 is for "GBSC Rates:" above header line, +1 is for header line.
+    #         return 'Rates!%s' % rowcol_to_a1_cell(idx + 1 + 1 + 1, amt_col + 1, True, True)
+    # else:
+    #     return 0.0
+    idx = 2
+    for row in types:
+        for col in row:
+            if col == rate_type:
+                return 'Rates!%s' % rowcol_to_a1_cell(idx + 1, amt_col, True, True)
+        idx += 1
     else:
         return 0.0
 
@@ -787,7 +814,7 @@ def get_rate_amount_and_a1_cell_from_prefix(service_str, tier_str, affiliation_s
     if tier_str != "Free":
         rate_string += " - " + affiliation_str.capitalize()
 
-    rate_amount = get_rates(billing_config_wkbk, rate_string)
+    rate_amount  = get_rates(billing_config_wkbk, rate_string)
     rate_a1_cell = get_rate_a1_cell(billing_config_wkbk, rate_string)
 
     return (rate_amount, rate_a1_cell)
@@ -986,25 +1013,30 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # Set the column and row widths to contain all our data.
     #
 
+    col_dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(sheet)
     # Give the first column 1 unit of space.
     #sheet.set_column('A:A', 1)
-    ColumnDimension(sheet, index="A", width=1)
+    col_dim_holder["A"] = ColumnDimension(sheet, index="A", width=1)
     # Give the second column 40 units of space.
     #sheet.set_column('B:B', 40)
-    ColumnDimension(sheet, index="B", width=40)
+    col_dim_holder["B"] = ColumnDimension(sheet, index="B", width=40)
     # Give the third, fourth, and fifth columns 11 units of space each.
     #sheet.set_column('C:C', 11)
-    ColumnDimension(sheet, index="C", width=11)
+    col_dim_holder["C"] = ColumnDimension(sheet, index="C", width=11)
     #sheet.set_column('D:D', 11)
-    ColumnDimension(sheet, index="D", width=11)
+    col_dim_holder["D"] = ColumnDimension(sheet, index="D", width=11)
     #sheet.set_column('E:E', 11)
-    ColumnDimension(sheet, index="E", width=11)
+    col_dim_holder["E"] = ColumnDimension(sheet, index="E", width=11)
+    sheet.column_dimensions = col_dim_holder
+
+    row_dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(sheet)
     # Give the first row 50 units of space.  ("Bill for Services Rendered")
     #sheet.set_row(0, 50)
-    RowDimension(sheet, index=1, ht=50)
+    row_dim_holder[1] = RowDimension(sheet, index=1, ht=50)
     # Give the second row 30 units of space. ("PI: <PI NAME>")
     #sheet.set_row(1, 30)
-    RowDimension(sheet, index=2, ht=30)
+    row_dim_holder[2] = RowDimension(sheet, index=2, ht=30)
+    sheet.row_dimensions = row_dim_holder
 
     #
     # Write out the Document Header first ("Bill for Services Rendered")
@@ -1717,8 +1749,8 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             hours_travel_hours_str = "%s (%s)" % (hours, travel_hours)
             # sheet.write(curr_row, 2, hours_travel_hours_str, string_entry_valign_top_fmt)
             # sheet.write(curr_row, 3, billable_hours, float_entry_valign_top_fmt)
-            sheet.cell(curr_row, 2, hours_travel_hours_str).style = string_entry_valign_top_fmt
-            sheet.cell(curr_row, 3, billable_hours).style = float_entry_valign_top_fmt
+            sheet.cell(curr_row, 3, hours_travel_hours_str).style = string_entry_valign_top_fmt
+            sheet.cell(curr_row, 4, billable_hours).style = float_entry_valign_top_fmt
 
             charge = rate_consulting_per_hour * billable_hours
             total_consulting_charges += charge
@@ -1738,7 +1770,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
         # sheet.write(curr_row, 1, "No consulting", item_entry_fmt)
         # sheet.write(curr_row, 4, 0.0, charge_fmt)
         sheet.cell(curr_row, 2, "No consulting").style = item_entry_fmt
-        sheet.cell(curr_row, 4, 0.0).style = charge_fmt
+        sheet.cell(curr_row, 5, 0.0).style = charge_fmt
         curr_row += 1
 
     ending_consulting_row = curr_row
@@ -1843,7 +1875,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     # sheet.write_formula(curr_row, 4, '=%s' % total_consulting_charges_a1_cell, big_charge_fmt, total_consulting_charges)
     sheet.cell(curr_row, 2, "Bioinformatics Consulting").style = header_no_ul_fmt
     sheet.cell(curr_row, 3, total_consulting_billable_hours).style = float_entry_fmt
-    sheet.cell(curr_row, 4, total_consulting_charges).style = big_charge_fmt
+    #sheet.cell(curr_row, 5, total_consulting_charges).style = big_charge_fmt
     sheet.cell(curr_row, 5, '=%s' % total_consulting_charges_a1_cell).style = big_charge_fmt
     curr_row += 1
     # Skip a line.
@@ -1915,7 +1947,7 @@ def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
     #             rates_output_sheet.write(curr_row, curr_col, val)
     #         curr_col += 1
     #     curr_row += 1
-    curr_row = 2
+    curr_row = 3
     for row in rates_input_sheet.iter_rows(min_row=2, values_only=True):
 
         # Write each value from row into output row of output Rates sheet.
@@ -2141,15 +2173,18 @@ def generate_aggregrate_sheet(sheet):
     # sheet.set_column("G:G", 12)
     # sheet.set_column("H:H", 12)
     # sheet.set_column("I:I", 12)
-    ColumnDimension(sheet, index="A", width=12)
-    ColumnDimension(sheet, index="B", width=12)
-    ColumnDimension(sheet, index="C", width=12)
-    ColumnDimension(sheet, index="D", width=20) # iLab service request name
-    ColumnDimension(sheet, index="E", width=12)
-    ColumnDimension(sheet, index="F", width=12)
-    ColumnDimension(sheet, index="G", width=12)
-    ColumnDimension(sheet, index="H", width=12)
-    ColumnDimension(sheet, index="I", width=12)
+    dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(sheet)
+    dim_holder["A"] = ColumnDimension(sheet, index="A", width=12)
+    dim_holder["B"] = ColumnDimension(sheet, index="B", width=12)
+    dim_holder["C"] = ColumnDimension(sheet, index="C", width=12)
+    dim_holder["D"] = ColumnDimension(sheet, index="D", width=20) # iLab service request name
+    dim_holder["E"] = ColumnDimension(sheet, index="E", width=12)
+    dim_holder["F"] = ColumnDimension(sheet, index="F", width=12)
+    dim_holder["G"] = ColumnDimension(sheet, index="G", width=12)
+    dim_holder["H"] = ColumnDimension(sheet, index="H", width=12)
+    dim_holder["I"] = ColumnDimension(sheet, index="I", width=12)
+
+    sheet.column_dimensions = dim_holder
 
     total_fmt = make_format(billing_aggreg_wkbk,
                             {'font_size': 14, 'bold': True})
@@ -2170,16 +2205,21 @@ def generate_aggregrate_sheet(sheet):
     grand_total_charges = 0.0
 
     # Compute column numbers for various columns.
-    storage_column_num     = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Storage')
-    computing_column_num   = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Computing')
-    cloud_column_num       = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Cloud')
-    consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting')
+    # storage_column_num     = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Storage')
+    # computing_column_num   = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Computing')
+    # cloud_column_num       = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Cloud')
+    # consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting')
+    storage_column_num     = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Storage') + 1
+    computing_column_num   = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Computing') + 1
+    cloud_column_num       = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Cloud') + 1
+    consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting') + 1
 
     # Sort PI Tags by PI's last name
     pi_tags_sorted = sorted([[pi_tag, pi_tag_to_names_email[pi_tag][1]] for pi_tag in pi_tag_to_charges.keys()],
                             key=lambda a: a[1])
 
-    curr_row = 1
+    #curr_row = 1
+    curr_row = 2  # Below header
     for pi_tag in [pi_tag_list[0] for pi_tag_list in pi_tags_sorted]:
 
         (storage, computing, cloud, consulting, total_charges) = pi_tag_to_charges[pi_tag]
@@ -2261,7 +2301,7 @@ def generate_aggregrate_sheet(sheet):
     # sheet.cell(curr_row, storage_column_num, sub_total_storage).style = sub_total_charge_fmt
     top_storage_a1_cell = rowcol_to_a1_cell(2, storage_column_num)
     bot_storage_a1_cell = rowcol_to_a1_cell(curr_row - 1, storage_column_num)
-    sheet.cell(curr_row, storage_column_num, '=SUM(%s:%s)' % (top_storage_a1_cell, bot_storage_a1_cell)).style = sub_total_charge_fmt
+    sheet.cell(curr_row, storage_column_num , '=SUM(%s:%s)' % (top_storage_a1_cell, bot_storage_a1_cell)).style = sub_total_charge_fmt
     # sheet.cell(curr_row, computing_column_num, sub_total_computing).style = sub_total_charge_fmt
     top_computing_a1_cell = rowcol_to_a1_cell(2, computing_column_num)
     bot_computing_a1_cell = rowcol_to_a1_cell(curr_row - 1, computing_column_num)
@@ -2271,12 +2311,12 @@ def generate_aggregrate_sheet(sheet):
     bot_cloud_a1_cell = rowcol_to_a1_cell(curr_row - 1, cloud_column_num)
     sheet.cell(curr_row, cloud_column_num, '=SUM(%s:%s)' % (top_cloud_a1_cell, bot_cloud_a1_cell)).style = sub_total_charge_fmt
 
-    # sheet.cell(curr_row, consulting_column_num, sub_total_consulting, sub_total_charge_fmt)
+    # sheet.cell(curr_row, consulting_column_num + 1, sub_total_consulting, sub_total_charge_fmt)
     top_consulting_a1_cell = rowcol_to_a1_cell(2, consulting_column_num)
     bot_consulting_a1_cell = rowcol_to_a1_cell(curr_row - 1, consulting_column_num)
     sheet.cell(curr_row, consulting_column_num, '=SUM(%s:%s)' % (top_consulting_a1_cell, bot_consulting_a1_cell)).style = sub_total_charge_fmt
 
-    sheet.cell(curr_row, consulting_column_num+1, '=%s+%s+%s+%s' % (storage_a1_cell, computing_a1_cell, cloud_a1_cell, consulting_a1_cell)).style = grand_charge_fmt
+    sheet.cell(curr_row, consulting_column_num + 1, '=%s+%s+%s+%s' % (storage_a1_cell, computing_a1_cell, cloud_a1_cell, consulting_a1_cell)).style = grand_charge_fmt
 
 #=====
 #
