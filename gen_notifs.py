@@ -389,7 +389,7 @@ def init_billing_notifs_wkbk(wkbk):
     # wkbk.add_named_style(PERCENT_FORMAT)
 
     # Control the size of the Workbook when it opens
-    view = [openpyxl.workbook.views.BookView(xWindow=0, yWindow=0, windowWidth=18140, windowHeight=15540)]
+    view = [openpyxl.workbook.views.BookView(windowWidth=18140, windowHeight=30000)]
     wkbk.views = view
 
     sheet_name_to_sheet = dict()
@@ -417,7 +417,7 @@ def init_billing_notifs_wkbk(wkbk):
 def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
 
     # Control the size of the Workbook when it opens
-    view = [openpyxl.workbook.views.BookView(xWindow=0, yWindow=0, windowWidth=18140, windowHeight=15540)]
+    view = [openpyxl.workbook.views.BookView(windowWidth=18140, windowHeight=30000)]
     wkbk.views = view
 
     bold_format = make_format(wkbk, {'bold' : True})
