@@ -348,6 +348,7 @@ def init_billing_notifs_wkbk(wkbk):
     global FLOAT_FORMAT
     global INT_FORMAT
     global MONEY_FORMAT
+    global BOLD_MONEY_FORMAT
     global PERCENT_FORMAT
 
     # Create formats for use within the workbook.
@@ -356,6 +357,7 @@ def init_billing_notifs_wkbk(wkbk):
     INT_FORMAT     = make_format(wkbk, {'num_format' : '0'})
     FLOAT_FORMAT   = make_format(wkbk, {'num_format' : '0.0'})
     MONEY_FORMAT   = make_format(wkbk, {'num_format' : '$#,##0.00'})
+    BOLD_MONEY_FORMAT = make_format(wkbk, {'num_format' : '$#,##0.00', 'bold' : True})
     PERCENT_FORMAT = make_format(wkbk, {'num_format' : '0%'})
 
     # # Create formats for use within the workbook.
@@ -403,6 +405,9 @@ def init_billing_notifs_wkbk(wkbk):
             sheet.cell(1, col+1, BILLING_NOTIFS_SHEET_COLUMNS[sheet_name][col]).style = BOLD_FORMAT
 
         sheet_name_to_sheet[sheet_name] = sheet
+
+    # Remove "Sheet"
+    wkbk.remove(wkbk["Sheet"])
 
     # Make the Billing sheet the active one.
     #sheet_name_to_sheet['Billing'].activate()
@@ -811,8 +816,8 @@ def get_rate_amount_and_a1_cell_from_prefix(service_str, tier_str, affiliation_s
     tier_string = "%s Access" % (tier_str.capitalize())
     rate_string = "%s - %s" % (service_str, tier_string)
 
-    if tier_str != "Free":
-        rate_string += " - " + affiliation_str.capitalize()
+    #if tier_str != "Free":
+    rate_string += " - " + affiliation_str.capitalize()
 
     rate_amount  = get_rates(billing_config_wkbk, rate_string)
     rate_a1_cell = get_rate_a1_cell(billing_config_wkbk, rate_string)
@@ -1912,22 +1917,40 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
 # Copies the Rates sheet from the Rates sheet in the BillingConfig workbook to
 # a BillingNotification workbook.
-def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
+def generate_rates_sheet(rates_input_sheet, pi_tag, rates_output_sheet):
 
     # Freeze the first row.
     #rates_output_sheet.freeze_panes(1, 0)
-    rates_output_sheet.freeze_panes = 'A3'
+    rates_output_sheet.freeze_panes = 'A2'
+
+    # Set the column widths
+    col_dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(rates_output_sheet)
+    # "Type"
+    col_dim_holder["A"] = ColumnDimension(rates_output_sheet, index="A", width=45)
+    # "Amount"
+    col_dim_holder["B"] = ColumnDimension(rates_output_sheet, index="B", width=8)
+    # "Unit"
+    col_dim_holder["C"] = ColumnDimension(rates_output_sheet, index="C", width=8)
+    # "Time"
+    col_dim_holder["D"] = ColumnDimension(rates_output_sheet, index="D", width=6)
+    # "iLab Service ID"
+    col_dim_holder["E"] = ColumnDimension(rates_output_sheet, index="E", width=12)
+    rates_output_sheet.column_dimensions = col_dim_holder
 
     # curr_row = 0
     # rates_output_sheet.write(curr_row, 0, "GBSC Rates:", BOLD_FORMAT)
     # rates_output_sheet.write(curr_row, 1, "", BOLD_FORMAT)
     # rates_output_sheet.write(curr_row, 2, "", BOLD_FORMAT)
     # rates_output_sheet.write(curr_row, 3, "", BOLD_FORMAT)
-    curr_row = 1
-    rates_output_sheet.cell(curr_row, 1, "GBSC Rates:").style = BOLD_FORMAT
-    rates_output_sheet.cell(curr_row, 2, "").style = BOLD_FORMAT
-    rates_output_sheet.cell(curr_row, 3, "").style = BOLD_FORMAT
-    rates_output_sheet.cell(curr_row, 4, "").style = BOLD_FORMAT
+    # curr_row = 1
+    # rates_output_sheet.cell(curr_row, 1, "GBSC Rates:").style = BOLD_FORMAT
+    # rates_output_sheet.cell(curr_row, 2, "").style = BOLD_FORMAT
+    # rates_output_sheet.cell(curr_row, 3, "").style = BOLD_FORMAT
+    # rates_output_sheet.cell(curr_row, 4, "").style = BOLD_FORMAT
+
+    # Get the affliation and cluster status for the PI to empha
+    affiliation = pi_tag_to_affiliation[pi_tag]
+    cluster_acct_status = pi_tag_to_cluster_acct_status[pi_tag]
 
     # Just copy the Rates sheet from the BillingConfig to the BillingNotification.
     # curr_row = 1
@@ -1947,16 +1970,25 @@ def generate_rates_sheet(rates_input_sheet, rates_output_sheet):
     #             rates_output_sheet.write(curr_row, curr_col, val)
     #         curr_col += 1
     #     curr_row += 1
-    curr_row = 3
+    curr_row = 2
     for row in rates_input_sheet.iter_rows(min_row=2, values_only=True):
+
+        # If this row pertains to the PI's affiliation or cluster status, make the row bold.
+        highlight_row = row[0] is not None and (affiliation in row[0] and ("Local" not in row[0] or cluster_acct_status in row[0]))
 
         # Write each value from row into output row of output Rates sheet.
         curr_col = 1
         for val in row:
+
             if curr_row == 1:
                 rates_output_sheet.cell(curr_row, curr_col, val).style = BOLD_FORMAT
-            elif curr_col == 1:
-                rates_output_sheet.cell(curr_row, curr_col, val).style = MONEY_FORMAT
+            elif curr_col == 2:
+                if highlight_row:
+                    rates_output_sheet.cell(curr_row, curr_col, val).style = BOLD_MONEY_FORMAT
+                else:
+                    rates_output_sheet.cell(curr_row, curr_col, val).style = MONEY_FORMAT
+            elif highlight_row:
+                rates_output_sheet.cell(curr_row, curr_col, val).style = BOLD_FORMAT
             else:
                 rates_output_sheet.cell(curr_row, curr_col, val)
             curr_col += 1
@@ -1970,6 +2002,26 @@ def generate_computing_details_sheet(sheet, pi_tag):
     # Freeze the first row.
     #sheet.freeze_panes(1, 0)
     sheet.freeze_panes = 'A2'
+
+    # Set the column widths
+    col_dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(sheet)
+    # "Job Date"
+    col_dim_holder["A"] = ColumnDimension(sheet, index="A", width=10)
+    # "Username"
+    col_dim_holder["B"] = ColumnDimension(sheet, index="B", width=8)
+    # "Job Name"
+    col_dim_holder["C"] = ColumnDimension(sheet, index="C", width=40)
+    # "Job Tag"
+    col_dim_holder["D"] = ColumnDimension(sheet, index="D", width=14)
+    # "Node"
+    col_dim_holder["E"] = ColumnDimension(sheet, index="E", width=22)
+    # "CPU-core Hours"
+    col_dim_holder["F"] = ColumnDimension(sheet, index="F", width=8)
+    # "Job ID"
+    col_dim_holder["G"] = ColumnDimension(sheet, index="G", width=10)
+    # "%age"
+    col_dim_holder["H"] = ColumnDimension(sheet, index="H", width=6)
+    sheet.column_dimensions = col_dim_holder
 
     # Write the job details, sorted by username.
     # curr_row = 1
@@ -2014,6 +2066,28 @@ def generate_cloud_details_sheet(sheet, pi_tag):
     # Freeze the first row.
     #sheet.freeze_panes(1, 0)
     sheet.freeze_panes = 'A2'
+
+    # Set the column widths
+    col_dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(sheet)
+    # "Platform"
+    col_dim_holder["A"] = ColumnDimension(sheet, index="A", width=20)
+    # "Project"
+    col_dim_holder["B"] = ColumnDimension(sheet, index="B", width=25)
+    # "Description"
+    col_dim_holder["C"] = ColumnDimension(sheet, index="C", width=60)
+    # "Dates"
+    col_dim_holder["D"] = ColumnDimension(sheet, index="D", width=20)
+    # "Quantity"
+    col_dim_holder["E"] = ColumnDimension(sheet, index="E", width=12)
+    # "Unit of Measure"
+    col_dim_holder["F"] = ColumnDimension(sheet, index="F", width=25)
+    # "Charge"
+    col_dim_holder["G"] = ColumnDimension(sheet, index="G", width=10)
+    # "%age"
+    col_dim_holder["H"] = ColumnDimension(sheet, index="H", width=6)
+    # "Cost"
+    col_dim_holder["I"] = ColumnDimension(sheet, index="I", width=10)
+    sheet.column_dimensions = col_dim_holder
 
     #curr_row = 1
     curr_row = 2
@@ -2067,6 +2141,26 @@ def generate_consulting_details_sheet(sheet, pi_tag):
     #sheet.freeze_panes(1, 0)
     sheet.freeze_panes = 'A2'
 
+    # Set the column widths
+    col_dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(sheet)
+    # "Date"
+    col_dim_holder["A"] = ColumnDimension(sheet, index="A", width=9)
+    # "Summary"
+    col_dim_holder["B"] = ColumnDimension(sheet, index="B", width=16)
+    # "Notes"
+    col_dim_holder["C"] = ColumnDimension(sheet, index="C", width=40)
+    # "Participants"
+    col_dim_holder["D"] = ColumnDimension(sheet, index="D", width=10)
+    # "Clients"
+    col_dim_holder["E"] = ColumnDimension(sheet, index="E", width=16)
+    # "Hours"
+    col_dim_holder["F"] = ColumnDimension(sheet, index="F", width=5)
+    # "Travel Hours"
+    col_dim_holder["G"] = ColumnDimension(sheet, index="G", width=5)
+    # "Cumul Hours"
+    col_dim_holder["H"] = ColumnDimension(sheet, index="H", width=10)
+    sheet.column_dimensions = col_dim_holder
+
     #curr_row = 1  # The header is already in this sheet
     curr_row = 2
 
@@ -2102,6 +2196,20 @@ def generate_lab_users_sheet(sheet, pi_tag):
     # Freeze the first row.
     #sheet.freeze_panes(1, 0)
     sheet.freeze_panes = 'A2'
+
+    # Set the column widths
+    col_dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(sheet)
+    # "Username"
+    col_dim_holder["A"] = ColumnDimension(sheet, index="A", width=10)
+    # "Full Name"
+    col_dim_holder["B"] = ColumnDimension(sheet, index="B", width=20)
+    # "Email"
+    col_dim_holder["C"] = ColumnDimension(sheet, index="C", width=20)
+    # "Date Added"
+    col_dim_holder["D"] = ColumnDimension(sheet, index="D", width=10)
+    # "Date Removed"
+    col_dim_holder["E"] = ColumnDimension(sheet, index="E", width=12)
+    sheet.column_dimensions = col_dim_holder
 
     # Write the user details for active users and moving the inactive users to a separate list.
     past_user_details = []
@@ -2494,7 +2602,7 @@ for pi_tag in sorted(pi_tag_list):
 
     # Generate the Rates sheet.
     #generate_rates_sheet(billing_config_wkbk.sheet_by_name('Rates'), sheet_name_to_sheet_map['Rates'])
-    generate_rates_sheet(billing_config_wkbk['Rates'], sheet_name_to_sheet_map['Rates'])
+    generate_rates_sheet(billing_config_wkbk['Rates'], pi_tag, sheet_name_to_sheet_map['Rates'])
 
     # Generate the Computing Details sheet.
     generate_computing_details_sheet(sheet_name_to_sheet_map['Computing Details'], pi_tag)
