@@ -47,9 +47,9 @@ import os.path
 import re
 import sys
 import subprocess
-import time
 
-import xlrd
+#import xlrd
+import openpyxl
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -86,6 +86,7 @@ global sheet_get_named_column
 global from_timestamp_to_excel_date
 global from_excel_date_to_timestamp
 global from_ymd_date_to_timestamp
+global from_datetime_to_timestamp
 global read_config_sheet
 
 # Look for a date in the filename for a storage data file.
@@ -270,7 +271,8 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
     #  "Folder" column of "Folders" sheet.
 
     # Get lists of folders, quota booleans from PIs sheet.
-    pis_sheet = config_wkbk.sheet_by_name('PIs')
+    #pis_sheet = config_wkbk.sheet_by_name('PIs')
+    pis_sheet = config_wkbk['PIs']
 
     pis_sheet_folders     = sheet_get_named_column(pis_sheet, 'PI Folder')
     pis_sheet_pi_tags     = sheet_get_named_column(pis_sheet, 'PI Tag')
@@ -293,7 +295,8 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
         pis_sheet_baas_dates_remvd = []
 
     # Get lists of folders, quota booleans from Folders sheet.
-    folder_sheet = config_wkbk.sheet_by_name('Folders')
+    # folder_sheet = config_wkbk.sheet_by_name('Folders')
+    folder_sheet = config_wkbk['Folders']
 
     folders_sheet_folders     = sheet_get_named_column(folder_sheet, 'Folder')
     folders_sheet_pi_tags     = sheet_get_named_column(folder_sheet, 'PI Tag')
@@ -314,13 +317,13 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
     folders_measured = set()
 
     folder_aggregate_rows = list(zip(folders, pi_tags, measure_types, dates_added, dates_remvd))
-    sorted_folder_aggregate_rows = sorted(folder_aggregate_rows, key = lambda x: x[0])
+    sorted_folder_aggregate_rows = sorted(folder_aggregate_rows, key = lambda x: x[0] if x[0] is not None else '')
 
     # Create mapping from folders to space used.
     for (folder, pi_tag, measure_type, date_added, date_removed) in sorted_folder_aggregate_rows:
 
         # Skip measuring this folder entry if the folder is "None".
-        if folder.startswith('None'): continue
+        if folder is None or folder.startswith('None'): continue
 
         # Account for multiple folders separated by commas.
         folder_list = folder.split(',')
@@ -333,8 +336,8 @@ def compute_storage_charges(config_wkbk, begin_timestamp, end_timestamp):
 
             # If this folder has been added prior to or within this month
             # and has not been removed before the beginning of this month, analyze it.
-            if (end_timestamp > from_excel_date_to_timestamp(date_added) and
-                (date_removed == '' or begin_timestamp < from_excel_date_to_timestamp(date_removed)) ):
+            if (end_timestamp > from_datetime_to_timestamp(date_added) and
+                (date_removed == '' or date_removed is None or begin_timestamp < from_datetime_to_timestamp(date_removed)) ):
 
                 # Split folder into machine:dir components.
                 if ':' in this_folder:
@@ -514,7 +517,8 @@ billing_config_file = os.path.abspath(args.billing_config_file)
 #
 # Open the Billing Config workbook.
 #
-billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+# billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
 
 #
 # Get the location of the BillingRoot directory from the Config sheet.

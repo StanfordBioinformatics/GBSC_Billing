@@ -39,13 +39,12 @@
 #=====
 
 import datetime
-import time
 import argparse
-import os
 import os.path
 import sys
 
-import xlrd
+#import xlrd
+import openpyxl
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -151,7 +150,8 @@ if args.billing_config_file is not None:
     # Get absolute path for billing_config_file.
     billing_config_file = os.path.abspath(args.billing_config_file)
 
-    billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+    #billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+    billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
     config_dict = config_sheet_get_dict(billing_config_wkbk)
 
     accounting_file = config_dict.get("SGEAccountingFile")
@@ -190,16 +190,16 @@ if accounting_file is None:
 # Print summary of arguments.
 #
 print("TAKING ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year))
-print("  BillingConfigFile: %s" % (billing_config_file))
-print("  BillingRoot: %s" % (billing_root))
-print("  SGEAccountingFile: %s" % (accounting_file))
+print("  BillingConfigFile: %s" % billing_config_file)
+print("  BillingRoot: %s" % billing_root)
+print("  SGEAccountingFile: %s" % accounting_file)
 
 # Create output accounting pathname.
 new_accounting_filename = "%s.%d-%02d.txt" % (SGEACCOUNTING_PREFIX, year, month)
 new_accounting_pathname = os.path.join(year_month_dir, new_accounting_filename)
 
 print()
-print("  OutputAccountingFile: %s" % (new_accounting_pathname))
+print("  OutputAccountingFile: %s" % new_accounting_pathname)
 
 #
 # Open the current accounting file for input.
@@ -257,4 +257,4 @@ accounting_output_fp.close()
 accounting_input_fp.close()
 
 print("Jobs found for %02d/%d:\t\t%d" % (month, year, this_months_job_count))
-print("Total jobs in accounting:\t%d" % (job_count))
+print("Total jobs in accounting:\t%d" % job_count)

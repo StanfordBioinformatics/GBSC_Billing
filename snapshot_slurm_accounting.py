@@ -38,10 +38,10 @@ import datetime
 import argparse
 import os.path
 import subprocess
-import sys
 import tempfile
 
-import xlrd
+#import xlrd
+import openpyxl
 
 # for SLURMACCOUNTING_DELIMITER
 from slurm_job_accounting_entry import SlurmJobAccountingEntry
@@ -233,14 +233,15 @@ else:
 
 #
 # Use value for billing_root from switches, if available.
-#   Open the BillingConfig file as a xlrd Workbook to find BillingRoot, if not.
+#   Open the BillingConfig file as a openpyxl Workbook to find BillingRoot, if not.
 #
 if args.billing_config_file is not None:
 
     # Get absolute path for billing_config_file.
     billing_config_file = os.path.abspath(args.billing_config_file)
 
-    billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+    #billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+    billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
     config_dict = config_sheet_get_dict(billing_config_wkbk)
 
     billing_root    = config_dict.get("BillingRoot")
@@ -268,8 +269,8 @@ if not os.path.exists(year_month_dir):
 # Print summary of arguments.
 #
 print("TAKING SLURM ACCOUNTING FILE SNAPSHOT OF %02d/%d:" % (month, year))
-print("  BillingConfigFile: %s" % (billing_config_file))
-print("  BillingRoot: %s" % (billing_root))
+print("  BillingConfigFile: %s" % billing_config_file)
+print("  BillingRoot: %s" % billing_root)
 
 # Create output accounting pathnames.
 slurm_accounting_filename_all = "%s.%d-%02d.all.txt" % (SLURMACCOUNTING_PREFIX, year, month)
@@ -279,8 +280,8 @@ slurm_accounting_filename_min = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year
 slurm_accounting_pathname_min = os.path.join(year_month_dir, slurm_accounting_filename_min)
 
 print()
-if not args.min_only: print("  SlurmAccountingFile (all): %s" % (slurm_accounting_pathname_all))
-if not args.all_only: print("  SlurmAccountingFile (min): %s" % (slurm_accounting_pathname_min))
+if not args.min_only: print("  SlurmAccountingFile (all): %s" % slurm_accounting_pathname_all)
+if not args.all_only: print("  SlurmAccountingFile (min): %s" % slurm_accounting_pathname_min)
 print()
 
 if not args.min_only:
