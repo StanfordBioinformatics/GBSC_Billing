@@ -48,7 +48,8 @@ import sys
 import subprocess
 import time
 
-import xlrd
+#import xlrd
+import openpyxl
 
 # Simulate an "include billing_common.py".
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -470,7 +471,8 @@ billing_config_file = os.path.abspath(args.billing_config_file)
 #
 # Open the Billing Config workbook.
 #
-billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+#billing_config_wkbk = xlrd.open_workbook(billing_config_file)
+billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
 
 #
 # Get the location of the BillingRoot directory from the Config sheet.
