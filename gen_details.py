@@ -171,6 +171,10 @@ def init_billing_details_wkbk(workbook):
 
     sheet_name_to_sheet_map = dict()
 
+    # Control the size of the Workbook when it opens
+    view = [openpyxl.workbook.views.BookView(windowWidth=18140, windowHeight=30000)]
+    workbook.views = view
+
     for sheet_name in BILLING_DETAILS_SHEET_COLUMNS:
 
         #sheet = workbook.add_worksheet(sheet_name)
@@ -836,8 +840,14 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
         #consulting_sheet.write(row, col, note)
         consulting_sheet.cell(row+1, col+1, note)
         col += 1
-        #consulting_sheet.write(row, col, float(cumul_hours_spent), FLOAT_FORMAT)
-        consulting_sheet.cell(row+1, col+1, float(cumul_hours_spent)).style = FLOAT_FORMAT
+        try:
+            #consulting_sheet.write(row, col, float(cumul_hours_spent), FLOAT_FORMAT)
+            consulting_sheet.cell(row+1, col+1, float(cumul_hours_spent)).style = FLOAT_FORMAT
+        except ValueError:
+            if cumul_hours_spent == '#NAME?':
+                print("Entry dated {0} for '{1}' for PI {2} has uncalculated cumul_hours".format(from_timestamp_to_date_string(from_datetime_to_timestamp(date)), summary, pi_tag))
+                sys.exit(-1)
+
         col += 1
 
         row += 1
