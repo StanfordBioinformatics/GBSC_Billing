@@ -67,6 +67,9 @@ global ACCOUNTING_FAILED_CODES
 # From billing_common.py
 global config_sheet_get_dict
 global from_ymd_date_to_timestamp
+global argparse_get_parent_parser
+global argparse_get_year_month
+global argparse_get_billingroot_billingconfig
 
 #=====
 #
@@ -74,26 +77,11 @@ global from_ymd_date_to_timestamp
 #
 #=====
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(parents=[argparse_get_parent_parser()])
 
-parser.add_argument("billing_config_file",
-                    default=None,
-                    help='The BillingConfig file [default = None]')
 parser.add_argument("-a", "--accounting_file",
                     default=None,
                     help='The SGE accounting file to snapshot [default = None]')
-parser.add_argument("-r", "--billing_root",
-                    default=None,
-                    help='The Billing Root directory [default = None]')
-parser.add_argument("-v", "--verbose", action="store_true",
-                    default=False,
-                    help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=list(range(2013,2021)),
-                    default=None,
-                    help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
-                    default=None,
-                    help="The month to be filtered out. [default = last month]")
 
 args = parser.parse_args()
 
@@ -101,51 +89,18 @@ args = parser.parse_args()
 # Sanity-check arguments.
 #
 
-# If there is no billing_config_file and no accounting_file,
-# flag an error.
-if args.billing_config_file is None and args.accounting_file is None:
-    parser.print_usage()
-    parser.exit(-1, "Need either billing_config_file or --accounting_file.\n")
+# Get year/month-related arguments
+(year, month, begin_month_timestamp, end_month_timestamp) = argparse_get_year_month(args)
 
-# Do year next, because month might modify it.
-if args.year is None:
-    year = datetime.date.today().year
-else:
-    year = args.year
-
-# Do month now, and decrement year if want last month and this month is Dec.
-if args.month is None:
-    # No month given: use last month.
-    this_month = datetime.date.today().month
-
-    # If this month is Jan, last month was Dec. of previous year.
-    if this_month == 1:
-        month = 12
-        year -= 1
-    else:
-        month = this_month - 1
-else:
-    month = args.month
-
-# Calculate next month for range of this month.
-if month != 12:
-    next_month = month + 1
-    next_month_year = year
-else:
-    next_month = 1
-    next_month_year = year + 1
-
-# The begin_ and end_month_timestamps are to be used as follows:
-#   date is within the month if begin_month_timestamp <= date < end_month_timestamp
-# Both values should be UTC.
-begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
-end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
+# Get BillingRoot and BillingConfig arguments
+(billing_root, billing_config_file) = argparse_get_billingroot_billingconfig(args)
 
 #
 # Use values for accounting_file and billing_root from options, if available.
 #   Open the BillingConfig file as a xlrd Workbook, if not.
 #
-if args.billing_config_file is not None:
+accounting_file = args.accounting_file
+if args.billing_config_file is not None and accounting_file is None:
 
     # Get absolute path for billing_config_file.
     billing_config_file = os.path.abspath(args.billing_config_file)
@@ -155,36 +110,17 @@ if args.billing_config_file is not None:
     config_dict = config_sheet_get_dict(billing_config_wkbk)
 
     accounting_file = config_dict.get("SGEAccountingFile")
-    billing_root    = config_dict.get("BillingRoot")
-else:
-    billing_config_file = None
-    accounting_file = None
-    billing_root    = None
 
-# Override billing_root with switch args, if present.
-if args.billing_root is not None:
-    billing_root = args.billing_root
-# If we still don't have a billing root dir, use the current directory.
-if billing_root is None:
-    billing_root = os.getcwd()
+if accounting_file is None:
+    parser.exit(-1, "Need accounting file from BillingConfig file or command line switch.")
 
-# Get absolute path for billing_root
-billing_root = os.path.abspath(billing_root)
+# Get absolute path for accounting_file
+accounting_file = os.path.abspath(accounting_file)
 
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
 if not os.path.exists(year_month_dir):
     os.makedirs(year_month_dir)
-
-# Use switch arg for accounting_file if present.
-if args.accounting_file is not None:
-    accounting_file = args.accounting_file
-
-# Get absolute path for accounting_file
-accounting_file = os.path.abspath(accounting_file)
-
-if accounting_file is None:
-    parser.exit(-1, "Need accounting file from BillingConfig file or command line switch.")
 
 #
 # Print summary of arguments.

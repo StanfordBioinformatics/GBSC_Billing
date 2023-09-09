@@ -22,7 +22,9 @@
 # IMPORTS
 #
 #=====
+import argparse
 import calendar
+import sys
 from collections import OrderedDict
 import datetime
 import os
@@ -36,6 +38,8 @@ import os
 #
 # Prefixes for all files created.
 #
+# Prefix for BillingConfig file name.
+BILLINGCONFIG_PREFIX = "BillingConfig"
 # Prefix of SGE accounting snapshot file name.
 SGEACCOUNTING_PREFIX = "SGEAccounting"
 # Prefix of Slurm accounting snapshot file name.
@@ -205,7 +209,7 @@ def sheet_get_named_column(sheet, col_name):
     max_row = sheet.max_row
 
     # return sheet.col_values(col_name_idx,start_rowx=1)
-    return list(sheet.iter_cols(min_col=col_name_idx+1,max_col=col_name_idx+1,min_row=2,values_only=True))[0]
+    return list(list(sheet.iter_cols(min_col=col_name_idx+1,max_col=col_name_idx+1,min_row=2,values_only=True))[0])
 
 # This function returns the dict of values in a BillingConfig's Config sheet.
 def config_sheet_get_dict(wkbk):
@@ -288,3 +292,128 @@ def filter_by_dates(obj_list, date_list, begin_month_exceldate, end_month_exceld
             output_list.append(obj)
 
     return output_list
+
+
+# A parent parser for arguments which are common across many scripts
+def argparse_get_parent_parser():
+    parser = argparse.ArgumentParser(add_help=False)
+
+    parser.add_argument("-b", "--billing_config_file",
+                        help='The BillingConfig file')
+    parser.add_argument("-r", "--billing_root",
+                        default=None,
+                        help='The Billing Root directory [default = None]')
+    parser.add_argument("-y", "--year", type=int, choices=list(range(2013, 2031)),
+                        default=None,
+                        help="The year to be filtered out. [default = this year]")
+    parser.add_argument("-m", "--month", type=int, choices=list(range(1, 13)),
+                        default=None,
+                        help="The month to be filtered out. [default = last month]")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        default=False,
+                        help='Get real chatty [default = false]')
+    parser.add_argument("-d", "--debug", action="store_true",
+                        default=False,
+                        help='Get REAL chatty [default = false]')
+
+    return parser
+
+# Assumption: "args" has "year" and "month" fields
+def argparse_get_year_month(args):
+
+    # Do year first, because month might modify it.
+    if args.year is None:
+        year = datetime.date.today().year
+    else:
+        year = args.year
+
+    # Do month now, and decrement year if want last month and this month is Dec.
+    if args.month is None:
+        # No month given: use last month.
+        this_month = datetime.date.today().month
+
+        # If this month is Jan, last month was Dec. of previous year.
+        if this_month == 1:
+            month = 12
+            year -= 1
+        else:
+            month = this_month - 1
+    else:
+        month = args.month
+
+    # Calculate next month for range of this month.
+    if month != 12:
+        next_month = month + 1
+        next_month_year = year
+    else:
+        next_month = 1
+        next_month_year = year + 1
+
+    # The begin_ and end_month_timestamps are to be used as follows:
+    #   date is within the month if begin_month_timestamp <= date < end_month_timestamp
+    # Both values should be UTC.
+    begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
+    end_month_timestamp = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
+
+    return year, month, begin_month_timestamp, end_month_timestamp
+
+# Assumption: "args" has "billing_root" and "billing_config_file" fields.
+def argparse_get_billingroot_billingconfig(args, year, month):
+
+    # Try to get values from parser.
+    billing_config_file = args.billing_config_file
+    billing_root        = args.billing_root
+
+    if billing_config_file is None:
+        if billing_root is None:
+            billing_root = os.getcwd()
+
+        # Find BillingConfig within BillingRoot
+        year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
+        if not os.path.exists(year_month_dir):
+            pass  # Send error message
+
+        billing_config_file = os.path.join(year_month_dir, "{0}.{1:d}-{2:02d}.xlsx".format(BILLINGCONFIG_PREFIX,year, month))
+        # Does this file exist?
+        if not os.path.exists(billing_config_file):
+            print("ArgParse: BillingConfig file {} does not exist".format(billing_config_file),file=sys.stderr)
+            sys.exit(-1)
+
+    elif billing_root is None:
+
+        if not os.path.exists(billing_config_file):
+            print("ArgParse: BillingConfig file {} does not exist".format(billing_config_file), file=sys.stderr)
+            sys.exit(-1)
+
+        # Get the location of the BillingRoot directory from the Config sheet of the BillingConfig workbook.
+        billing_config_wkbk = openpyxl.load_workbook(billing_config_file)  # , read_only=True)
+
+        #  Ignore the accounting file from this sheet.
+        (billing_root, _) = read_config_sheet(billing_config_wkbk)
+        if billing_root is None:
+            billing_root = os.getcwd()
+        else:
+            # Does BillingRoot exist?
+            if not os.path.exists(billing_root):
+                print("ArgParse: BillingRoot dir {} does not exist".format(billing_root), file=sys.stderr)
+                sys.exit(-1)
+
+        billing_config_wkbk.close()
+
+    else:
+        # We have both BillingRoot and BillingConfig: do they exist?
+        if not os.path.exists(billing_root):
+            print("ArgParse: BillingRoot dir {} does not exist".format(billing_root), file=sys.stderr)
+            sys.exit(-1)
+        if not os.path.exists(billing_config_file):
+            print("ArgParse: BillingConfig file {} does not exist".format(billing_config_file), file=sys.stderr)
+            sys.exit(-1)
+
+    # Get absolute path for billing_root directory.
+    billing_root        = os.path.abspath(billing_root)
+    # Get absolute path for billing_config_file.
+    billing_config_file = os.path.abspath(billing_config_file)
+
+    return billing_root, billing_config_file
+
+

@@ -88,6 +88,9 @@ global from_excel_date_to_timestamp
 global from_ymd_date_to_timestamp
 global from_datetime_to_timestamp
 global read_config_sheet
+global argparse_get_parent_parser
+global argparse_get_year_month
+global argparse_get_billingroot_billingconfig
 
 # Look for a date in the filename for a storage data file.
 # Expected substrings in filename:
@@ -439,16 +442,11 @@ def write_storage_usage_data(folder_size_dicts, csv_writer):
 #
 #=====
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(parents=[argparse_get_parent_parser()])
 
-parser.add_argument("billing_config_file",
-                    help='The BillingConfig file')
 parser.add_argument("storage_data_files", nargs="*",
                     default=[],
                     help="Storage data files [optional]")
-parser.add_argument("-r", "--billing_root",
-                    default=None,
-                    help='The Billing Root directory [default = None]')
 parser.add_argument("--no_usage", action="store_true",
                     default=False,
                     help="Don't run storage usage calculations [default = false]")
@@ -458,18 +456,6 @@ parser.add_argument("--include_baas_folders", action="store_true",
 parser.add_argument("-s", "--storage_usage_csv",
                     default=None,
                     help="The storage usage CSV file.")
-parser.add_argument("-y", "--year", type=int, choices=list(range(2013, 2031)),
-                    default=None,
-                    help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=list(range(1, 13)),
-                    default=None,
-                    help="The month to be filtered out. [default = last month]")
-parser.add_argument("-v", "--verbose", action="store_true",
-                    default=False,
-                    help='Get chatty [default = false]')
-parser.add_argument("-d", "--debug", action="store_true",
-                    default=False,
-                    help='Get REAL chatty [default = false]')
 
 args = parser.parse_args()
 
@@ -477,42 +463,11 @@ args = parser.parse_args()
 # Process arguments.
 #
 
-# Do year first, because month might modify it.
-if args.year is None:
-    year = datetime.date.today().year
-else:
-    year = args.year
+# Get year/month-related arguments
+(year, month, begin_month_timestamp, end_month_timestamp) = argparse_get_year_month(args)
 
-# Do month now, and decrement year if want last month and this month is Dec.
-if args.month is None:
-    # No month given: use last month.
-    this_month = datetime.date.today().month
-
-    # If this month is Jan, last month was Dec. of previous year.
-    if this_month == 1:
-        month = 12
-        year -= 1
-    else:
-        month = this_month - 1
-else:
-    month = args.month
-
-# Calculate next month for range of this month.
-if month != 12:
-    next_month = month + 1
-    next_month_year = year
-else:
-    next_month = 1
-    next_month_year = year + 1
-
-# The begin_ and end_month_timestamps are to be used as follows:
-#   date is within the month if begin_month_timestamp <= date < end_month_timestamp
-# Both values should be UTC.
-begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
-end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
-
-# Get absolute path for billing_config_file.
-billing_config_file = os.path.abspath(args.billing_config_file)
+# Get BillingRoot and BillingConfig arguments
+(billing_root, billing_config_file) = argparse_get_billingroot_billingconfig(args, year, month)
 
 #
 # Open the Billing Config workbook.
@@ -520,26 +475,11 @@ billing_config_file = os.path.abspath(args.billing_config_file)
 # billing_config_wkbk = xlrd.open_workbook(billing_config_file)
 billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
 
-#
-# Get the location of the BillingRoot directory from the Config sheet.
-#  (Ignore the accounting file from this sheet).
-#
-(billing_root, _) = read_config_sheet(billing_config_wkbk)
-
-# Override billing_root with switch args, if present.
-if args.billing_root is not None:
-    billing_root = args.billing_root
-# If we still don't have a billing root dir, use the current directory.
-if billing_root is None:
-    billing_root = os.getcwd()
-
-# Get absolute paths for billing_root.
-billing_root = os.path.abspath(billing_root)
-
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
 if not os.path.exists(year_month_dir):
     os.makedirs(year_month_dir)
+
 
 # Generate storage usage pathname.
 if args.storage_usage_csv is not None:

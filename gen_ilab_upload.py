@@ -162,9 +162,10 @@ global from_timestamp_to_datetime
 global from_datetime_to_timestamp
 global from_datetime_to_date_string
 global sheet_get_named_column
-global read_config_sheet
-global config_sheet_get_dict
 global filter_by_dates
+global argparse_get_parent_parser
+global argparse_get_year_month
+global argparse_get_billingroot_billingconfig
 
 # This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
 # for the PIs that the given user was working for on the given date.
@@ -177,10 +178,10 @@ def get_pi_tags_for_username_by_date(username, date_timestamp):
     pi_tag_dates = username_to_pi_tag_dates.get(username)
     if pi_tag_dates is not None:
 
-        date_excel = from_timestamp_to_excel_date(date_timestamp)
+        date_excel = from_timestamp_to_datetime(date_timestamp)
 
         for (pi_tag, date_added, date_removed, pctage) in pi_tag_dates:
-            if date_added <= date_excel and (date_removed == '' or date_removed >= date_excel):
+            if date_added <= date_excel and (date_removed == '' or date_removed is None or date_removed >= date_excel):
                 pi_tag_list.append([pi_tag, pctage])
 
     return pi_tag_list
@@ -1026,19 +1027,14 @@ def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_i
 #
 #=====
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(parents=[argparse_get_parent_parser()])
 
-parser.add_argument("billing_config_file",
-                    help='The BillingConfig file')
-parser.add_argument("-d","--billing_details_file",
+parser.add_argument("-D","--billing_details_file",
                     default=None,
                     help='The BillingDetails file')
 parser.add_argument("-g", "--google_invoice_csv",
                     default=None,
                     help="The Google Invoice CSV file")
-parser.add_argument("-r", "--billing_root",
-                    default=None,
-                    help='The Billing Root directory [default = None]')
 parser.add_argument("-t", "--ilab_template",
                     default=None,
                     help='The iLab export file template [default = None]')
@@ -1057,18 +1053,9 @@ parser.add_argument("-l", "--skip_cloud", action="store_true",
 parser.add_argument("-n", "--skip_consulting", action="store_true",
                     default=False,
                     help="Don't output consulting iLab file. [default = False]")
-parser.add_argument("-b", "--break_out_cloud", action="store_true",
+parser.add_argument( "--break_out_cloud", action="store_true",
                     default=False,
                     help="Break out individual cloud transactions. [default = False]")
-parser.add_argument("-v", "--verbose", action="store_true",
-                    default=False,
-                    help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=list(range(2013,2031)),
-                    default=None,
-                    help="The year to be used. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
-                    default=None,
-                    help="The month to be used. [default = last month]")
 
 args = parser.parse_args()
 
@@ -1076,42 +1063,11 @@ args = parser.parse_args()
 # Process arguments.
 #
 
-# Do year first, because month might modify it.
-if args.year is None:
-    year = datetime.date.today().year
-else:
-    year = args.year
+# Get year/month-related arguments
+(year, month, begin_month_timestamp, end_month_timestamp) = argparse_get_year_month(args)
 
-# Do month now, and decrement year if want last month and this month is Dec.
-if args.month is None:
-    # No month given: use last month.
-    this_month = datetime.date.today().month
-
-    # If this month is Jan, last month was Dec. of previous year.
-    if this_month == 1:
-        month = 12
-        year -= 1
-    else:
-        month = this_month - 1
-else:
-    month = args.month
-
-# Calculate next month for range of this month.
-if month != 12:
-    next_month = month + 1
-    next_month_year = year
-else:
-    next_month = 1
-    next_month_year = year + 1
-
-# The begin_ and end_month_timestamps are to be used as follows:
-#   date is within the month if begin_month_timestamp <= date < end_month_timestamp
-# Both values should be UTC.
-begin_month_timestamp = from_ymd_date_to_timestamp(year, month, 1)
-end_month_timestamp   = from_ymd_date_to_timestamp(next_month_year, next_month, 1)
-
-# Get the absolute path for the billing_config_file.
-billing_config_file = os.path.abspath(args.billing_config_file)
+# Get BillingRoot and BillingConfig arguments
+(billing_root, billing_config_file) = argparse_get_billingroot_billingconfig(args, year, month)
 
 ###
 #
@@ -1121,21 +1077,6 @@ billing_config_file = os.path.abspath(args.billing_config_file)
 
 #billing_config_wkbk = xlrd.open_workbook(billing_config_file)
 billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
-
-#
-# Get the location of the BillingRoot directory from the Config sheet.
-#
-(billing_root, _) = read_config_sheet(billing_config_wkbk)
-
-# Override billing_root with switch args, if present.
-if args.billing_root is not None:
-    billing_root = args.billing_root
-# If we still don't have a billing root dir, use the current directory.
-if billing_root is None:
-    billing_root = os.getcwd()
-
-# Get the absolute path for the billing_root directory.
-billing_root = os.path.abspath(billing_root)
 
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
@@ -1173,10 +1114,10 @@ if not os.path.exists(google_invoice_csv):
 # Output the state of arguments.
 #
 print("GENERATING ILAB EXPORT FOR %02d/%d:" % (month, year))
-print("  BillingConfigFile: %s" % (billing_config_file))
+print("  BillingConfigFile: %s" % billing_config_file)
 print("  BillingRoot: %s" % billing_root)
-print("  BillingDetailsFile: %s" % (billing_details_file))
-print("  GoogleInvoiceCSV: %s" % (google_invoice_csv))
+print("  BillingDetailsFile: %s" % billing_details_file)
+print("  GoogleInvoiceCSV: %s" % google_invoice_csv)
 print()
 
 #

@@ -76,7 +76,9 @@ SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--dupli
 #
 #=====
 # From billing_common.py
-global config_sheet_get_dict
+global argparse_get_parent_parser
+global argparse_get_year_month
+global argparse_get_billingroot_billingconfig
 
 def get_slurm_accounting(output_pathname, slurm_field_switches):
 
@@ -169,23 +171,8 @@ def get_slurm_accounting(output_pathname, slurm_field_switches):
 #
 #=====
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(parents=[argparse_get_parent_parser()])
 
-parser.add_argument("billing_config_file",
-                    default=None,
-                    help='The BillingConfig file [default = None]')
-parser.add_argument("-r", "--billing_root",
-                    default=None,
-                    help='The Billing Root directory [default = None]')
-parser.add_argument("-v", "--verbose", action="store_true",
-                    default=False,
-                    help='Get real chatty [default = false]')
-parser.add_argument("-y","--year", type=int, choices=list(range(2013,2040)),
-                    default=None,
-                    help="The year to be filtered out. [default = this year]")
-parser.add_argument("-m", "--month", type=int, choices=list(range(1,13)),
-                    default=None,
-                    help="The month to be filtered out. [default = last month]")
 parser.add_argument("-a", "--all_only", action="store_true",
                     default=False,
                     help='Only output the complete accounting file [default = output both all and min]')
@@ -199,66 +186,11 @@ args = parser.parse_args()
 # Sanity-check arguments.
 #
 
-# Do year next, because month might modify it.
-if args.year is None:
-    year = datetime.date.today().year
-else:
-    year = args.year
+# Get year/month-related arguments
+(year, month, begin_month_timestamp, end_month_timestamp) = argparse_get_year_month(args)
 
-# What month is it today?
-today = datetime.date.today()
-todays_month = today.month
-todays_year  = today.year
-
-# No month given: use last month.
-#  Do month now, and decrement year if want last month and this month is Dec.
-if args.month is None:
-
-    # If this month is Jan, last month was Dec. of previous year.
-    if todays_month == 1:
-        month = 12
-        year -= 1
-    else:
-        month = todays_month - 1
-else:
-    month = args.month
-
-# Calculate next month for range of this month.
-if month != 12:
-    next_month = month + 1
-    next_month_year = year
-else:
-    next_month = 1
-    next_month_year = year + 1
-
-#
-# Use value for billing_root from switches, if available.
-#   Open the BillingConfig file as a openpyxl Workbook to find BillingRoot, if not.
-#
-if args.billing_config_file is not None:
-
-    # Get absolute path for billing_config_file.
-    billing_config_file = os.path.abspath(args.billing_config_file)
-
-    #billing_config_wkbk = xlrd.open_workbook(billing_config_file)
-    billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
-    config_dict = config_sheet_get_dict(billing_config_wkbk)
-
-    billing_root    = config_dict.get("BillingRoot")
-else:
-    billing_config_file = None
-    accounting_file = None
-    billing_root    = None
-
-# Override billing_root with switch args, if present.
-if args.billing_root is not None:
-    billing_root = args.billing_root
-# If we still don't have a billing root dir, use the current directory.
-if billing_root is None:
-    billing_root = os.getcwd()
-
-# Get absolute path for billing_root
-billing_root = os.path.abspath(billing_root)
+# Get BillingRoot and BillingConfig arguments
+(billing_root, billing_config_file) = argparse_get_billingroot_billingconfig(args)
 
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
 year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
