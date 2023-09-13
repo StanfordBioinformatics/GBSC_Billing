@@ -1559,7 +1559,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     else:
         # sheet.write(curr_row, 4, 0.0, charge_fmt)
-        sheet.cell(curr_row, 4, 0.0).style = charge_fmt
+        sheet.cell(curr_row, 5, 0.0).style = charge_fmt
 
     # Save reference to this cell for use in Summary subtable.
     # total_computing_charges_a1_cell = xl_rowcol_to_cell(curr_row, 4)
@@ -1663,7 +1663,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
         # sheet.write(curr_row, 1, "No Projects", item_entry_fmt)
         # sheet.write(curr_row, 4, 0.0, charge_fmt)
         sheet.cell(curr_row, 2, "No Projects").style = item_entry_fmt
-        sheet.cell(curr_row, 5, 0.0).style = charge_fmt
+
+        cost_a1_cell = rowcol_to_a1_cell(curr_row, 3)
+        pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
+        sheet.cell(curr_row, 5, "=%s*%s*%s" % (cost_a1_cell, pctage_a1_cell, rate_cloud_a1_cell)).style = charge_fmt
+
         curr_row += 1
         ending_cloud_row = starting_cloud_row
 
@@ -1738,11 +1742,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     starting_consulting_row = curr_row
 
-    if len(pi_tag_to_consulting_details[pi_tag]) > 0:
+    # Get the rate from the Rates sheet of the BillingConfig workbook.
+    rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
+    rate_consulting_a1_cell = get_rate_a1_cell(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
 
-        # Get the rate from the Rates sheet of the BillingConfig workbook.
-        rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
-        rate_consulting_a1_cell  = get_rate_a1_cell(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
+    if len(pi_tag_to_consulting_details[pi_tag]) > 0:
 
         for (date, summary, consultant, client, hours, travel_hours, billable_hours) in pi_tag_to_consulting_charges[pi_tag]:
 
@@ -1775,7 +1779,9 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
         # sheet.write(curr_row, 1, "No consulting", item_entry_fmt)
         # sheet.write(curr_row, 4, 0.0, charge_fmt)
         sheet.cell(curr_row, 2, "No consulting").style = item_entry_fmt
-        sheet.cell(curr_row, 5, 0.0).style = charge_fmt
+
+        billable_hours_a1_cell = rowcol_to_a1_cell(curr_row, 4)
+        sheet.cell(curr_row, 5, '=%s*%s' % (billable_hours_a1_cell, rate_consulting_a1_cell)).style = charge_fmt
         curr_row += 1
 
     ending_consulting_row = curr_row
