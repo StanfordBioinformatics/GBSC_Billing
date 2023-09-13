@@ -29,6 +29,8 @@ from collections import OrderedDict
 import datetime
 import os
 
+from slurm_job_accounting_entry import SlurmJobAccountingEntry
+
 #=====
 #
 # CONSTANTS
@@ -115,6 +117,9 @@ ACCOUNTING_FIELDS = (
 # OGE accounting failed codes which invalidate the accounting entry.
 # From https://arc.liv.ac.uk/SGE/htmlman/htmlman5/sge_status.html
 ACCOUNTING_FAILED_CODES = (1,3,4,5,6,7,8,9,10,11,18,19,20,21,26,27,28,29,36,38)
+
+# SLURM: Which delimiter is used in the accounting files?
+SLURMACCOUNTING_DELIMITER = SlurmJobAccountingEntry.DELIMITER_HASH
 
 # List of hostname prefixes to determine which jobs on which nodes are billable.
 BILLABLE_HOSTNAME_PREFIXES = ['scg1', 'scg3-1', 'scg3-2', 'scg4',
