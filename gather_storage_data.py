@@ -69,6 +69,7 @@ global STORAGE_PREFIX
 global BILLING_DETAILS_SHEET_COLUMNS
 global TOPLEVEL_DIRECTORIES
 global BAAS_SUBDIR_NAME
+global SUBDIR_RAWDATA
 
 #=====
 #
@@ -91,6 +92,7 @@ global read_config_sheet
 global argparse_get_parent_parser
 global argparse_get_year_month
 global argparse_get_billingroot_billingconfig
+global get_subdirectory
 
 # Look for a date in the filename for a storage data file.
 # Expected substrings in filename:
@@ -475,18 +477,15 @@ args = parser.parse_args()
 # billing_config_wkbk = xlrd.open_workbook(billing_config_file)
 billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
 
-# Within BillingRoot, create YEAR/MONTH dirs if necessary.
-year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
-if not os.path.exists(year_month_dir):
-    os.makedirs(year_month_dir)
-
+# Build path to the output subdirectory within BillingRoot for the storage data output
+output_subdir = get_subdirectory(billing_root, year, month, SUBDIR_RAWDATA, create_if_nec=True)
 
 # Generate storage usage pathname.
 if args.storage_usage_csv is not None:
     storage_usage_pathname = args.storage_usage_csv
 else:
     storage_usage_filename = "%s.%s-%02d.csv" % (STORAGE_PREFIX, str(year), month)
-    storage_usage_pathname = os.path.join(year_month_dir, storage_usage_filename)
+    storage_usage_pathname = os.path.join(output_subdir, storage_usage_filename)
 
 #
 # Output the state of arguments.

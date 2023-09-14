@@ -37,23 +37,37 @@ from slurm_job_accounting_entry import SlurmJobAccountingEntry
 #
 #=====
 
+# Directory names for hierarchy under each month
+SUBDIR_RAWDATA  = "RawData"
+SUBDIR_EXPORTS  = "Exports"
+SUBDIR_INVOICES = "Invoices"
+
 #
 # Prefixes for all files created.
 #
+
 # Prefix for BillingConfig file name.
-BILLINGCONFIG_PREFIX = "BillingConfig"
+BILLING_CONFIG_PREFIX = "GBSCBilling_Config"
+# Prefix of BillingDetails spreadsheet file name.
+BILLING_DETAILS_PREFIX = "GBSCBilling_Details"
+# Prefix for the BillingAggregate file name.
+BILLING_AGGREGATE_PREFIX = "GBSCBilling_Summary"
+
+## "Invoices" files
+# Prefix of the BillingNotifs spreadsheets file names.
+BILLING_NOTIFS_PREFIX = "GBSCBilling"
+
+## "Exports" files
+# Prefix of the iLab export files.
+ILAB_EXPORT_PREFIX = "GBSCBillingiLab"
+
+## "RawData" files
 # Prefix of SGE accounting snapshot file name.
 SGEACCOUNTING_PREFIX = "SGEAccounting"
 # Prefix of Slurm accounting snapshot file name.
 SLURMACCOUNTING_PREFIX = "SlurmAccounting"
 # Prefix of the Google Invoice CSV file name.
 GOOGLE_INVOICE_PREFIX = "GoogleInvoice"
-# Prefix of BillingDetails spreadsheet file name.
-BILLING_DETAILS_PREFIX = "BillingDetails"
-# Prefix of the BillingNotifs spreadsheets file names.
-BILLING_NOTIFS_PREFIX = "GBSCBilling"
-# Prefix of the iLab export files.
-ILAB_EXPORT_PREFIX = "BillingiLab"
 # Prefix of the consulting spreadsheet.
 CONSULTING_PREFIX = "BaaSTimesheet"
 # Prefix of the storage usage CSV file.
@@ -374,11 +388,9 @@ def argparse_get_billingroot_billingconfig(args, year, month):
             billing_root = os.getcwd()
 
         # Find BillingConfig within BillingRoot
-        year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
-        if not os.path.exists(year_month_dir):
-            pass  # Send error message
+        input_subdir = get_subdirectory(billing_root, year, month, "")
 
-        billing_config_file = os.path.join(year_month_dir, "{0}.{1:d}-{2:02d}.xlsx".format(BILLINGCONFIG_PREFIX,year, month))
+        billing_config_file = os.path.join(input_subdir, "{0}.{1:d}-{2:02d}.xlsx".format(BILLING_CONFIG_PREFIX, year, month))
         # Does this file exist?
         if not os.path.exists(billing_config_file):
             print("ArgParse: BillingConfig file {} does not exist".format(billing_config_file),file=sys.stderr)
@@ -422,3 +434,26 @@ def argparse_get_billingroot_billingconfig(args, year, month):
     return billing_root, billing_config_file
 
 
+# This function returns an integer for the Fiscal Year given month and year
+def get_fiscal_year(year, month):
+    if month >= 9:
+        return year + 1
+    else:
+        return year
+
+
+# This function generates paths below the BillingRoot, creating them if requested
+def get_subdirectory(billing_root, year, month, subdir, create_if_nec=False):
+
+    fiscal_year = get_fiscal_year(year, month)
+
+    full_subdir = os.path.join(billing_root, "FY%d" % fiscal_year, str(year), "%02d" % month, subdir)
+
+    if not os.path.exists(full_subdir):
+        if create_if_nec:
+            os.makedirs(full_subdir)
+        else:
+            print("get_subdirectory: Can't find %s" % full_subdir, file=sys.stderr)
+            return None
+
+    return full_subdir

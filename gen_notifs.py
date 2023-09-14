@@ -62,12 +62,15 @@ exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), o
 #=====
 # From billing_common.py
 global BILLING_DETAILS_PREFIX
+global BILLING_AGGREGATE_PREFIX
 global BILLING_NOTIFS_SHEET_COLUMNS
 global BILLING_AGGREG_SHEET_COLUMNS
 global BILLING_NOTIFS_PREFIX
 global CONSULTING_HOURS_FREE
 global CONSULTING_TRAVEL_RATE_DISCOUNT
 global ACCOUNT_PREFIXES
+global SUBDIR_RAWDATA
+global SUBDIR_INVOICES
 
 #=====
 #
@@ -180,6 +183,7 @@ global filter_by_dates
 global argparse_get_parent_parser
 global argparse_get_year_month
 global argparse_get_billingroot_billingconfig
+global get_subdirectory
 
 # This function takes an arbitrary number of dicts with
 # xlsxwriter Format properties in them, adds the format to the given workbook,
@@ -2469,18 +2473,21 @@ args = parser.parse_args()
 billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
 
 # Within BillingRoot, create YEAR/MONTH dirs if necessary.
-year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
-if not os.path.exists(year_month_dir):
-    os.makedirs(year_month_dir)
+input_subdir = get_subdirectory(billing_root, year, month, "")
 
 # If BillingDetails file given, use that, else look in BillingRoot.
 if args.billing_details_file is not None:
     billing_details_file = args.billing_details_file
 else:
-    billing_details_file = os.path.join(year_month_dir, "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month))
+    billing_details_file = os.path.join(input_subdir, "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month))
 
 # Get the absolute path for the billing_details_file.
 billing_details_file = os.path.abspath(billing_details_file)
+
+# Build the path to write the Notifications files into
+notifs_output_subdir = get_subdirectory(billing_root, year, month, SUBDIR_INVOICES, create_if_nec=True)
+# Build the path to write the Aggregate file into
+aggregate_output_subdir = get_subdirectory(billing_root, year, month, "")
 
 #
 # Output the state of arguments.
@@ -2536,7 +2543,7 @@ for pi_tag in sorted(pi_tag_list):
 
     # Initialize the BillingNotification spreadsheet for this PI.
     notifs_wkbk_filename = "%s-%s.%s-%02d.xlsx" % (BILLING_NOTIFS_PREFIX, pi_tag, year, month)
-    notifs_wkbk_pathname = os.path.join(year_month_dir, notifs_wkbk_filename)
+    notifs_wkbk_pathname = os.path.join(notifs_output_subdir, notifs_wkbk_filename)
 
     # billing_notifs_wkbk = xlsxwriter.Workbook(notifs_wkbk_pathname)
     billing_notifs_wkbk = openpyxl.Workbook(write_only=False)
@@ -2572,8 +2579,8 @@ for pi_tag in sorted(pi_tag_list):
 
 print("Writing billing aggregate workbook.")
 
-aggreg_wkbk_filename = "%s.%s-%02d.xlsx" % (BILLING_NOTIFS_PREFIX, year, month)
-aggreg_wkbk_pathname = os.path.join(year_month_dir, aggreg_wkbk_filename)
+aggreg_wkbk_filename = "%s.%s-%02d.xlsx" % (BILLING_AGGREGATE_PREFIX, year, month)
+aggreg_wkbk_pathname = os.path.join(input_subdir, aggreg_wkbk_filename)
 
 # billing_aggreg_wkbk = xlsxwriter.Workbook(aggreg_wkbk_pathname)
 billing_aggreg_wkbk = openpyxl.Workbook()

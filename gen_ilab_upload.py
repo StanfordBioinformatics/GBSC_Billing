@@ -62,6 +62,8 @@ global ILAB_EXPORT_PREFIX
 global CONSULTING_HOURS_FREE
 global CONSULTING_TRAVEL_RATE_DISCOUNT
 global ACCOUNT_PREFIXES
+global SUBDIR_RAWDATA
+global SUBDIR_EXPORTS
 
 # Default headers for the ilab Export CSV file (if not read in from iLab template file).
 DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
@@ -166,6 +168,7 @@ global filter_by_dates
 global argparse_get_parent_parser
 global argparse_get_year_month
 global argparse_get_billingroot_billingconfig
+global get_subdirectory
 
 # This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
 # for the PIs that the given user was working for on the given date.
@@ -714,7 +717,7 @@ def process_cluster_data():
     read_computing_sheet(billing_details_wkbk)
 
 
-def open_ilab_output_dictwriter(suffix):
+def open_ilab_output_dictwriter(subdir, suffix):
 
     ###
     #
@@ -723,7 +726,7 @@ def open_ilab_output_dictwriter(suffix):
     ###
 
     ilab_export_csv_filename = "%s-%s.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, suffix, year, month)
-    ilab_export_csv_pathname = os.path.join(year_month_dir, ilab_export_csv_filename)
+    ilab_export_csv_pathname = os.path.join(subdir, ilab_export_csv_filename)
 
     ilab_export_csv_file = open(ilab_export_csv_pathname, "w")
 
@@ -1078,37 +1081,43 @@ args = parser.parse_args()
 #billing_config_wkbk = xlrd.open_workbook(billing_config_file)
 billing_config_wkbk = openpyxl.load_workbook(billing_config_file)
 
-# Within BillingRoot, create YEAR/MONTH dirs if necessary.
-year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
-if not os.path.exists(year_month_dir):
-    os.makedirs(year_month_dir)
+# Build path to the input files
+input_subdir = get_subdirectory(billing_root, year, month, "")
 
 # If BillingDetails file given, use that, else look in BillingRoot.
 if args.billing_details_file is not None:
     billing_details_file = args.billing_details_file
 else:
-    billing_details_file = os.path.join(year_month_dir, "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month))
+    billing_details_file = os.path.join(input_subdir, "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month))
 
 # Get the absolute path for the billing_details_file.
 billing_details_file = os.path.abspath(billing_details_file)
 
 # Confirm that BillingDetails file exists.
 if not os.path.exists(billing_details_file):
-    billing_details_file = None
+    print("BillingDetailsFile %s doesn't exist" % billing_details_file, file=sys.stderr)
+    sys.exit(-1)
+
+# Build path to a possible GoogleInvoice file within BillingRoot
+google_input_subdir = get_subdirectory(billing_root, year, month, SUBDIR_RAWDATA)
 
 # If Google Invoice CSV given, use that, else look in BillingRoot.
 if args.google_invoice_csv is not None:
     google_invoice_csv = args.google_invoice_csv
 else:
     google_invoice_filename = "%s.%d-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month)
-    google_invoice_csv = os.path.join(year_month_dir, google_invoice_filename)
+    google_invoice_csv = os.path.join(google_input_subdir, google_invoice_filename)
 
 # Get absolute path for google_invoice_csv file.
 google_invoice_csv = os.path.abspath(google_invoice_csv)
 
 # Confirm that Google Invoice CSV file exists.
 if not os.path.exists(google_invoice_csv):
-    google_invoice_csv = None
+    print("GoogleInvoice %s doesn't exist" % google_invoice_csv, file=sys.stderr)
+    sys.exit(-1)
+
+# Build a path within BillingRoot to the output directory for iLab files, creating the dir if necessary.
+output_subdir = get_subdirectory(billing_root, year, month, SUBDIR_EXPORTS, create_if_nec=True)
 
 #
 # Output the state of arguments.
@@ -1132,17 +1141,16 @@ read_cloud_data = ("Cloud" in billing_config_wkbk.sheetnames)
 
 build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data)
 
-if billing_details_file is not None:
-    ###
-    #
-    # Read the BillingDetails workbook.
-    #
-    ###
+###
+#
+# Read the BillingDetails workbook.
+#
+###
 
-    # Open the BillingDetails workbook.
-    print("Opening BillingDetails workbook...")
-    #billing_details_wkbk = xlrd.open_workbook(billing_details_file)
-    billing_details_wkbk = openpyxl.load_workbook(billing_details_file)
+# Open the BillingDetails workbook.
+print("Opening BillingDetails workbook...")
+#billing_details_wkbk = xlrd.open_workbook(billing_details_file)
+billing_details_wkbk = openpyxl.load_workbook(billing_details_file)
 
 ###
 #
@@ -1202,12 +1210,12 @@ if billing_details_file is not None and not args.skip_cluster and \
     process_cluster_data()
 
     if not args.skip_cluster_storage:
-        ilab_cluster_storage_export_csv_dictwriter = open_ilab_output_dictwriter("Cluster_Storage")
+        ilab_cluster_storage_export_csv_dictwriter = open_ilab_output_dictwriter(output_subdir, "Cluster_Storage")
     else:
         ilab_cluster_storage_export_csv_dictwriter = None
 
     if not args.skip_cluster_compute:
-        ilab_cluster_compute_export_csv_dictwriter = open_ilab_output_dictwriter("Cluster_Compute")
+        ilab_cluster_compute_export_csv_dictwriter = open_ilab_output_dictwriter(output_subdir, "Cluster_Compute")
     else:
         ilab_cluster_compute_export_csv_dictwriter = None
 else:
@@ -1222,7 +1230,7 @@ else:
 ###
 if billing_details_file is not None and not args.skip_cloud:
     process_cloud_data()
-    ilab_cloud_export_csv_dictwriter = open_ilab_output_dictwriter("Cloud_Google")
+    ilab_cloud_export_csv_dictwriter = open_ilab_output_dictwriter(output_subdir, "Cloud_Google")
 else:
     ilab_cloud_export_csv_dictwriter = None
 
@@ -1234,7 +1242,7 @@ else:
 ####
 if not args.skip_consulting:
     process_consulting_data()
-    ilab_consulting_export_csv_dictwriter = open_ilab_output_dictwriter("Consulting")
+    ilab_consulting_export_csv_dictwriter = open_ilab_output_dictwriter(output_subdir, "Consulting")
 else:
     ilab_consulting_export_csv_dictwriter = None
 

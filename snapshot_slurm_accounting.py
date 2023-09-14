@@ -52,6 +52,7 @@ exec(compile(open(os.path.join(SCRIPT_DIR, "billing_common.py"), "rb").read(), o
 # From billing_common.py
 global SLURMACCOUNTING_PREFIX
 global SLURMACCOUNTING_DELIMITER
+global SUBDIR_RAWDATA
 
 SLURM_ACCT_COMMAND_NAME = ["sacct"]
 SLURM_ACCT_STATE_SWITCHES = ["--state=CA,CD,DL,F,NF,PR,TO,OOM,RQ"]
@@ -73,6 +74,7 @@ SLURM_ACCT_OTHER_SWITCHES = ["--allusers","--parsable2","--allocations","--dupli
 global argparse_get_parent_parser
 global argparse_get_year_month
 global argparse_get_billingroot_billingconfig
+global get_subdirectory
 
 def get_slurm_accounting(slurm_output_pathname, slurm_field_switches, filter_returns=False):
 
@@ -237,10 +239,8 @@ else:
 # Get BillingRoot and BillingConfig arguments
 (billing_root, billing_config_file) = argparse_get_billingroot_billingconfig(args, year, month)
 
-# Within BillingRoot, create YEAR/MONTH dirs if necessary.
-year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
-if not os.path.exists(year_month_dir):
-    os.makedirs(year_month_dir)
+# Build path to the output subdirectory within BillingRoot for the storage data output
+output_subdir = get_subdirectory(billing_root, year, month, SUBDIR_RAWDATA, create_if_nec=True)
 
 #
 # Print summary of arguments.
@@ -251,10 +251,10 @@ print("  BillingRoot: %s" % billing_root)
 
 # Create output accounting pathnames.
 slurm_accounting_filename_all = "%s.%d-%02d.all.txt" % (SLURMACCOUNTING_PREFIX, year, month)
-slurm_accounting_pathname_all = os.path.join(year_month_dir, slurm_accounting_filename_all)
+slurm_accounting_pathname_all = os.path.join(output_subdir, slurm_accounting_filename_all)
 
 slurm_accounting_filename_min = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year, month)
-slurm_accounting_pathname_min = os.path.join(year_month_dir, slurm_accounting_filename_min)
+slurm_accounting_pathname_min = os.path.join(output_subdir, slurm_accounting_filename_min)
 
 print()
 if not args.min_only: print("  SlurmAccountingFile (all): %s" % slurm_accounting_pathname_all)

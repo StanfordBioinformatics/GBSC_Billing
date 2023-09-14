@@ -84,6 +84,7 @@ global CONSULTING_PREFIX
 global STORAGE_PREFIX
 global ACCOUNT_PREFIXES
 global EXCEL_MAX_ROWS
+global SUBDIR_RAWDATA
 
 #
 # Formats for the output workbook, to be initialized along with the workbook.
@@ -123,6 +124,7 @@ global filter_by_dates
 global argparse_get_parent_parser
 global argparse_get_year_month
 global argparse_get_billingroot_billingconfig
+global get_subdirectory
 
 # Initialize the output BillingDetails workbook, given as argument.
 # It creates all the formats used within the workbook, and saves them
@@ -1170,18 +1172,17 @@ args = parser.parse_args()
 # Open the BillingConfig workbook
 billing_config_wkbk = openpyxl.load_workbook(billing_config_file)  # , read_only=True)
 
-# Find the year/month directory within BillingRoot, creating it if necessary.
-year_month_dir = os.path.join(billing_root, str(year), "%02d" % month)
-if not os.path.exists(year_month_dir):
-    os.makedirs(year_month_dir)
-
+# Get the path to the input files to be read.
+input_subdir = get_subdirectory(billing_root, year, month, SUBDIR_RAWDATA)
+# Get the path for the BillingDetails output file
+output_subdir = get_subdirectory(billing_root, year, month, "")
 
 # Use switch arg for accounting_file if present, else use file in BillingRoot.
 if args.accounting_file is not None:
     accounting_file = args.accounting_file
 else:
     accounting_filename = "%s.%d-%02d.txt" % (SLURMACCOUNTING_PREFIX, year, month)
-    accounting_file = os.path.join(year_month_dir, accounting_filename)
+    accounting_file = os.path.join(input_subdir, accounting_filename)
 
 # Get absolute path for accounting_file.
 accounting_file = os.path.abspath(accounting_file)
@@ -1191,7 +1192,7 @@ if args.google_invoice_csv is not None:
     google_invoice_csv = args.google_invoice_csv
 else:
     google_invoice_filename = "%s.%d-%02d.csv" % (GOOGLE_INVOICE_PREFIX, year, month)
-    google_invoice_csv = os.path.join(year_month_dir, google_invoice_filename)
+    google_invoice_csv = os.path.join(input_subdir, google_invoice_filename)
 
 # Get absolute path for google_invoice_csv file.
 google_invoice_csv = os.path.abspath(google_invoice_csv)
@@ -1206,7 +1207,7 @@ if args.storage_usage_csv is not None:
     storage_usage_file = args.storage_usage_csv
 else:
     storage_usage_filename = "%s.%d-%02d.csv" % (STORAGE_PREFIX, year, month)
-    storage_usage_file = os.path.join(year_month_dir, storage_usage_filename)
+    storage_usage_file = os.path.join(input_subdir, storage_usage_filename)
 
 # Get absolute path for storage_usage_file.
 storage_usage_file = os.path.abspath(storage_usage_file)
@@ -1220,7 +1221,7 @@ if args.consulting_timesheet is not None:
     consulting_timesheet = args.consulting_timesheet
 else:
     consulting_filename = "%s.%d-%02d.xlsx" % (CONSULTING_PREFIX, year, month)
-    consulting_timesheet = os.path.join(year_month_dir, consulting_filename)
+    consulting_timesheet = os.path.join(input_subdir, consulting_filename)
 
 # Get absolute path for consulting_timesheet file.
 consulting_timesheet = os.path.abspath(consulting_timesheet)
@@ -1231,7 +1232,7 @@ if not os.path.exists(consulting_timesheet):
 
 # Initialize the BillingDetails output spreadsheet.
 details_wkbk_filename = "%s.%s-%02d.xlsx" % (BILLING_DETAILS_PREFIX, year, month)
-details_wkbk_pathname = os.path.join(year_month_dir, details_wkbk_filename)
+details_wkbk_pathname = os.path.join(output_subdir, details_wkbk_filename)
 
 #billing_details_wkbk = xlsxwriter.Workbook(details_wkbk_pathname)
 billing_details_wkbk = openpyxl.Workbook()
