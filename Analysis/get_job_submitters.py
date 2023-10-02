@@ -132,7 +132,7 @@ for billing_details_file in args.billing_details_files:
     files_to_user_tuple_map[billing_details_file] = (len(billable_user_set), len(unbillable_user_set), len(failed_user_set), len(total_user_set))
     files_to_jobs_tuple_map[billing_details_file] = (len(billable_user_list), len(unbillable_user_list), len(failed_user_list), len(total_user_list))
 
-    billing_details_wkbk.release_resources()
+    #billing_details_wkbk.release_resources()
 
 # Print the unique user table.
 print("Billable Users\tNonbillable Users\tFailed Users\tTotal Users")
