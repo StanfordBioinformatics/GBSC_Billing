@@ -24,11 +24,8 @@
 #
 #=====
 import argparse
-from collections import defaultdict
-import datetime
-import os
 import os.path
-import xlrd
+import openpyxl
 import sys
 
 # Simulate an "include billing_common.py".
@@ -90,10 +87,12 @@ for billing_details_file in args.billing_details_files:
 
     # Open the BillingDetails workbook.
     #print "Reading BillingDetails workbook %s." % billing_details_file
-    billing_details_wkbk = xlrd.open_workbook(billing_details_file, on_demand=True)
+    #billing_details_wkbk = xlrd.open_workbook(billing_details_file, on_demand=True)
+    billing_details_wkbk = openpyxl.load_workbook(billing_details_file)
 
     # Get the users from the Computing sheet.
-    computing_sheet = billing_details_wkbk.sheet_by_name('Computing')
+    #computing_sheet = billing_details_wkbk.sheet_by_name('Computing')
+    computing_sheet = billing_details_wkbk['Computing']
 
     billable_user_list = sheet_get_named_column(computing_sheet, 'Username')
 
@@ -102,22 +101,24 @@ for billing_details_file in args.billing_details_files:
     # Get the users from the Unbillable Jobs sheet.
     # (try-except block guards against early BillingDetails files which didn't have this sheet)
     try:
-        unbillable_sheet = billing_details_wkbk.sheet_by_name('Nonbillable Jobs')
+        #unbillable_sheet = billing_details_wkbk.sheet_by_name('Nonbillable Jobs')
+        unbillable_sheet = billing_details_wkbk['Nonbillable Jobs']
 
         unbillable_user_list = sheet_get_named_column(unbillable_sheet, 'Username')
 
         unbillable_user_set.update(unbillable_user_list)
-    except xlrd.biffh.XLRDError: pass
+    except: pass
 
     # Get the users from the Failed Jobs sheet.
     # (try-except block guards against early BillingDetails files which didn't have this sheet)
     try:
-        failed_sheet = billing_details_wkbk.sheet_by_name('Failed Jobs')
+        #failed_sheet = billing_details_wkbk.sheet_by_name('Failed Jobs')
+        failed_sheet = billing_details_wkbk['Failed Jobs']
 
         failed_user_list = sheet_get_named_column(failed_sheet, 'Username')
 
         failed_user_set.update(failed_user_list)
-    except xlrd.biffh.XLRDError: pass
+    except: pass
 
     # Update the aggregate user set from the sheet user sets.
     total_user_set.update(billable_user_set)
