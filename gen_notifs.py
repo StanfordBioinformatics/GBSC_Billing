@@ -1367,16 +1367,16 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     computing_access_string = "%s Access" % (cluster_acct_status.capitalize())
 
     # Get both rates for CPU, in case someone outside the lab runs a job for a Free Tier lab (usually Consulting).
-    (free_rate_cpu_per_hour, free_rate_cpu_a1_cell) = \
+    (free_tier_cpu_rate, free_tier_cpu_rate_a1_cell) = \
         get_rate_amount_and_a1_cell_from_prefix("Local Computing", "Free", affiliation)
-    (full_rate_cpu_per_hour, full_rate_cpu_a1_cell) = \
+    (full_tier_cpu_rate, full_tier_cpu_rate_a1_cell) = \
         get_rate_amount_and_a1_cell_from_prefix("Local Computing", "Full", affiliation)
 
     # Choose the default rate for the lab.
     if cluster_acct_status != "Free":
-        (rate_cpu_per_hour, rate_cpu_a1_cell) = (full_rate_cpu_per_hour, full_rate_cpu_a1_cell)
+        (cpu_rate, cpu_rate_a1_cell) = (full_tier_cpu_rate, full_tier_cpu_rate_a1_cell)
     else:
-        (rate_cpu_per_hour, rate_cpu_a1_cell) = (free_rate_cpu_per_hour, free_rate_cpu_a1_cell)
+        (cpu_rate, cpu_rate_a1_cell) = (free_tier_cpu_rate, free_tier_cpu_rate_a1_cell)
 
     # Skip row before Computing header.
     # sheet.write(curr_row, 1, None, left_border_fmt)
@@ -1424,11 +1424,11 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
             # Write the computing headers.
             # sheet.write(curr_row, 1, "User", col_header_left_fmt)
-            # sheet.write(curr_row, 2, "CPU-core-hrs", col_header_fmt)
+            # sheet.write(curr_row, 2, "CPU-units", col_header_fmt)
             # sheet.write(curr_row, 3, "%age", col_header_fmt)
             # sheet.write(curr_row, 4, "Charge", col_header_right_fmt)
             sheet.cell(curr_row, 2, "User").style = col_header_left_fmt
-            sheet.cell(curr_row, 3, "CPU-core-hrs").style = col_header_fmt
+            sheet.cell(curr_row, 3, "CPU units").style = col_header_fmt
             sheet.cell(curr_row, 4, "%age").style = col_header_fmt
             sheet.cell(curr_row, 5, "Charge").style = col_header_right_fmt
             curr_row += 1
@@ -1438,46 +1438,45 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             ending_computing_row   = curr_row
             if len(username_cpu_pctage_list) > 0:
 
-                for (username, cpu_core_hrs, pctage) in username_cpu_pctage_list:
+                for (username, cpu_units, pctage) in username_cpu_pctage_list:
 
                     pi_tags_for_username = get_pi_tags_for_username_by_date(username, begin_month_timestamp)
 
                     if pi_tag in [pi_pct[0] for pi_pct in pi_tags_for_username]:
                         username_fmt = item_entry_fmt
-                        user_rate_cpu_per_hour = rate_cpu_per_hour
-                        user_rate_cpu_a1_cell  = rate_cpu_a1_cell
+                        user_cpu_rate = cpu_rate
+                        user_cpu_rate_a1_cell  = cpu_rate_a1_cell
                     else:
                         username_fmt = item_entry_italics_fmt
-                        user_rate_cpu_per_hour = full_rate_cpu_per_hour
-                        user_rate_cpu_a1_cell  = full_rate_cpu_a1_cell
+                        user_cpu_rate = full_tier_cpu_rate
+                        user_cpu_rate_a1_cell  = full_tier_cpu_rate_a1_cell
 
                     fullname = username_to_user_details[username][1]
                     # sheet.write(curr_row, 1, "%s (%s)" % (fullname, username), username_fmt)
-                    # sheet.write(curr_row, 2, cpu_core_hrs, float_entry_fmt)
+                    # sheet.write(curr_row, 2, cpu_units, float_entry_fmt)
                     # sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
                     sheet.cell(curr_row, 2, "%s (%s)" % (fullname, username)).style = username_fmt
-                    sheet.cell(curr_row, 3, cpu_core_hrs).style = float_entry_fmt
+                    sheet.cell(curr_row, 3, cpu_units).style = float_entry_fmt
                     sheet.cell(curr_row, 4, pctage).style = pctage_entry_fmt
 
-                    if user_rate_cpu_per_hour is not None:
-                        charge = cpu_core_hrs * pctage * user_rate_cpu_per_hour
+                    if user_cpu_rate is not None:
+                        charge = cpu_units * pctage * user_cpu_rate
+
+                        # Check if user has accumulated more than $5000 in a month.
+                        if charge > 5000:
+                            print("  *** User %s (%s) for PI %s, Account %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, account, charge))
+
                         total_computing_charges += charge
-                    else:
-                        charge = "No rate"
 
-                    # Check if user has accumulated more than $5000 in a month.
-                    if charge > 5000:
-                        print("  *** User %s (%s) for PI %s, Account %s: $%0.02f" % (username_to_user_details[username][1], username, pi_tag, account, charge))
-
-                    total_computing_cpuhrs += cpu_core_hrs
+                    total_computing_cpuhrs += cpu_units
 
                     # cpu_a1_cell    = xl_rowcol_to_cell(curr_row, 2)
                     # pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-                    # sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell, user_rate_cpu_a1_cell),
+                    # sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell, user_cpu_rate_a1_cell),
                     #                     charge_fmt, charge)
                     cpu_a1_cell    = rowcol_to_a1_cell(curr_row, 3)
                     pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
-                    sheet.cell(curr_row, 5, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell, user_rate_cpu_a1_cell)).style = charge_fmt
+                    sheet.cell(curr_row, 5, '=%s*%s*%s' % (cpu_a1_cell, pctage_a1_cell, user_cpu_rate_a1_cell)).style = charge_fmt
 
                     # Keep track of last row with computing values.
                     ending_computing_row = curr_row
@@ -1551,16 +1550,16 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     if len(total_computing_charges_row_list) > 0:
 
-        # total_cpuhours_cell_list = [xl_rowcol_to_cell(x, 2) for x in total_computing_charges_row_list]
+        # total_cpu_cell_list = [xl_rowcol_to_cell(x, 2) for x in total_computing_charges_row_list]
         # total_computing_charges_cell_list = [xl_rowcol_to_cell(x, 4) for x in total_computing_charges_row_list]
-        total_cpuhours_cell_list = [rowcol_to_a1_cell(x, 3) for x in total_computing_charges_row_list]
+        total_cpu_cell_list = [rowcol_to_a1_cell(x, 3) for x in total_computing_charges_row_list]
         total_computing_charges_cell_list = [rowcol_to_a1_cell(x, 5) for x in total_computing_charges_row_list]
 
-        # Create formula from account total CPU-hours cells.
-        total_cpuhours_formula = "=" + "+".join(total_cpuhours_cell_list)
+        # Create formula from account total CPU cells.
+        total_cpu_formula = "=" + "+".join(total_cpu_cell_list)
 
-        # sheet.write_formula(curr_row, 2, total_cpuhours_formula, float_entry_fmt)
-        sheet.cell(curr_row, 3, total_cpuhours_formula).style = float_entry_fmt
+        # sheet.write_formula(curr_row, 2, total_cpu_formula, float_entry_fmt)
+        sheet.cell(curr_row, 3, total_cpu_formula).style = float_entry_fmt
 
         # Create formula from account total charges cells.
         total_computing_charges_formula = "=" + "+".join(total_computing_charges_cell_list)
