@@ -795,8 +795,8 @@ def compute_consulting_charges(config_wkbk, begin_timestamp, end_timestamp, cons
     for (date, pi_tag, hours_spent, travel_hrs, participant, client, summary, note, cumul_hours_spent, sdrc_member) in \
             zip(dates, pi_tags, hours, travel_hours, participants, clients, summaries, notes, cumul_hours, sdrc_members):
 
-        # If date and pi_tag are blank, we are done.
-        if (date == "" and pi_tag == "") or (date is None and pi_tag is None):
+        # If date is blank, we are done.
+        if date == "" or date is None:
             break
 
         # Ignore this entry if there is an X in the "SDRC ?" column.
