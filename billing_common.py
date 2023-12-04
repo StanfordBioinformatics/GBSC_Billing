@@ -210,7 +210,7 @@ CONSULTING_TRAVEL_RATE_DISCOUNT = 0.5
 #
 #=====
 
-# This method takes in an xlrd Sheet object and a column name,
+# This method takes in an openpyxl Sheet object and a column name,
 # and returns all the values from that column headed by that name.
 def sheet_get_named_column(sheet, col_name):
 
@@ -225,10 +225,10 @@ def sheet_get_named_column(sheet, col_name):
     else:
         return None
 
-    max_row = sheet.max_row
+    row_values = list(list(sheet.iter_cols(min_col=col_name_idx+1,max_col=col_name_idx+1,min_row=2,values_only=True))[0])
 
     # return sheet.col_values(col_name_idx,start_rowx=1)
-    return list(list(sheet.iter_cols(min_col=col_name_idx+1,max_col=col_name_idx+1,min_row=2,values_only=True))[0])
+    return [i for i in row_values if i is not None]
 
 # This function returns the dict of values in a BillingConfig's Config sheet.
 def config_sheet_get_dict(wkbk):
