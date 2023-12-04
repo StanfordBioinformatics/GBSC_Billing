@@ -586,6 +586,10 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
     for (pi_tag, date_added, date_removed) in pi_tags_and_dates_added:
 
+        # Exit loop if pi_tag is None:
+        if pi_tag is None:
+            break
+
         # Convert the Excel dates to timestamps.
         #date_added_timestamp = from_excel_date_to_timestamp(date_added)
         date_added_timestamp = from_datetime_to_timestamp(date_added)
