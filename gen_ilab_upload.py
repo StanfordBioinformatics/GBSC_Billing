@@ -505,6 +505,13 @@ def read_computing_sheet(wkbk):
     #computing_sheet = wkbk.sheet_by_name("Computing")
     computing_sheet = wkbk["Computing"]
 
+    if args.cpu_time_unit == 'cpu-hours':
+        cpu_time_denom = 3600.0
+    elif args.cpu_time_unit == 'cpu-days':
+        cpu_time_denom = 86400.0
+    else:
+        print("Arg 'cpu_time_unit' has unknown value {args.cpu_time_unit", file=sys.stderr)
+
     sheet_number = 1
 
     while True:
@@ -517,7 +524,7 @@ def read_computing_sheet(wkbk):
             computing_sheet.iter_rows(min_row=2, values_only=True):
 
             # Calculate CPU-core-hrs for job.
-            cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
+            cpu_core_time = cores * wallclock / cpu_time_denom   # wallclock is in seconds.
 
             # Rename this variable for easier understanding.
             account = account.lower()
@@ -1059,6 +1066,9 @@ parser.add_argument("-n", "--skip_consulting", action="store_true",
 parser.add_argument( "--break_out_cloud", action="store_true",
                     default=False,
                     help="Break out individual cloud transactions. [default = False]")
+parser.add_argument("-C", "--cpu_time_unit", choices=['cpu-hours', 'cpu-days'],
+                    default='cpu-days',
+                    help='Choose the CPU time units [default = cpu-days]')
 
 args = parser.parse_args()
 

@@ -858,6 +858,13 @@ def read_computing_sheet(wkbk):
     #computing_sheet = wkbk.sheet_by_name("Computing")
     computing_sheet = wkbk["Computing"]
 
+    if args.cpu_time_unit == 'cpu-hours':
+        cpu_time_denom = 3600.0
+    elif args.cpu_time_unit == 'cpu-days':
+        cpu_time_denom = 86400.0
+    else:
+        print("Arg 'cpu_time_unit' has unknown value {args.cpu_time_unit", file=sys.stderr)
+
     sheet_number = 1
 
     while True:
@@ -869,8 +876,8 @@ def read_computing_sheet(wkbk):
         for (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) in \
             computing_sheet.iter_rows(min_row=2, values_only=True):
 
-            # Calculate CPU-core-hrs for job.
-            cpu_core_hrs = cores * wallclock / 3600.0  # wallclock is in seconds.
+            # Calculate CPU time units for job.
+            cpu_core_time = cores * wallclock / cpu_time_denom   # wallclock is in seconds.
 
             # Rename this variable for easier understanding.
             account = account.lower()
@@ -905,26 +912,26 @@ def read_computing_sheet(wkbk):
                             # Find job username in list for account:
                             for username_cpu in pi_username_cpu_pctage_list:
                                 if job_username == username_cpu[0]:
-                                    username_cpu[1] += cpu_core_hrs
+                                    username_cpu[1] += cpu_core_time
                                     break
                             else:
-                                pi_username_cpu_pctage_list.append([job_username, cpu_core_hrs, pctage])
+                                pi_username_cpu_pctage_list.append([job_username, cpu_core_time, pctage])
 
                             # Leave account_username_cpu_list loop.
                             break
 
                     else:
                         # No matching account in pi_tag list -- add a new one to the list.
-                        account_username_cpu_list.append([account, [[job_username, cpu_core_hrs, pctage]]])
+                        account_username_cpu_list.append([account, [[job_username, cpu_core_time, pctage]]])
 
                 # Else start a new account/CPUs list for the pi_tag.
                 else:
-                    pi_tag_to_account_username_cpus[pi_tag] = [[account, [[job_username, cpu_core_hrs, pctage]]]]
+                    pi_tag_to_account_username_cpus[pi_tag] = [[account, [[job_username, cpu_core_time, pctage]]]]
 
                 #
                 # Save job details for pi_tag.
                 #
-                new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
+                new_job_details = [job_date, job_username, job_name, account, node, cpu_core_time, jobID, pctage]
                 pi_tag_to_job_details[pi_tag].append(new_job_details)
 
         sheet_number += 1
@@ -2450,6 +2457,9 @@ parser.add_argument("-D","--billing_details_file",
 parser.add_argument("-p", "--pi_sheets", action="store_true",
                     default=False,
                     help='Add PI-specific sheets to the BillingAggregate workbook [default = False]')
+parser.add_argument("-C", "--cpu_time_unit", choices=['cpu-hours', 'cpu-days'],
+                    default='cpu-days',
+                    help='Choose the CPU time units [default = cpu-days]')
 
 args = parser.parse_args()
 
