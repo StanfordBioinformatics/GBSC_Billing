@@ -2466,7 +2466,7 @@ parser.add_argument("-D","--billing_details_file",
 parser.add_argument("-p", "--pi_sheets", action="store_true",
                     default=False,
                     help='Add PI-specific sheets to the BillingAggregate workbook [default = False]')
-parser.add_argument("-C", "--cpu_time_unit", choices=['cpu-hours', 'cpu-days'],
+parser.add_argument("--cpu_time_unit", choices=['cpu-hours', 'cpu-days'],
                     default='cpu-days',
                     help='Choose the CPU time units [default = cpu-days]')
 

@@ -1072,7 +1072,7 @@ parser.add_argument("-n", "--skip_consulting", action="store_true",
 parser.add_argument( "--break_out_cloud", action="store_true",
                     default=False,
                     help="Break out individual cloud transactions. [default = False]")
-parser.add_argument("-C", "--cpu_time_unit", choices=['cpu-hours', 'cpu-days'],
+parser.add_argument("--cpu_time_unit", choices=['cpu-hours', 'cpu-days'],
                     default='cpu-days',
                     help='Choose the CPU time units [default = cpu-days]')
 
