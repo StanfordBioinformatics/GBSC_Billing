@@ -220,15 +220,15 @@ def sheet_get_named_column(sheet, col_name):
     for idx in range(len(header_row)):
         # if header_row[idx] == col_name:
         if header_row[idx].value == col_name:
-            col_name_idx = idx
+            col_name_idx = idx+1
             break
     else:
         return None
 
-    max_row = sheet.max_row
-
     # return sheet.col_values(col_name_idx,start_rowx=1)
-    return list(list(sheet.iter_cols(min_col=col_name_idx+1,max_col=col_name_idx+1,min_row=2,values_only=True))[0])
+    # return list(list(sheet.iter_cols(min_col=col_name_idx+1,max_col=col_name_idx+1,min_row=2,values_only=True))[0])
+    return list(map(lambda v: v.value, sheet[openpyxl.utils.cell.get_column_letter(col_name_idx)] ))[1:]
+
 
 # This function returns the dict of values in a BillingConfig's Config sheet.
 def config_sheet_get_dict(wkbk):
