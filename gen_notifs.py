@@ -505,6 +505,12 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     global pi_tag_list
 
     pi_tag_list = list(sheet_get_named_column(pis_sheet, "PI Tag"))
+    # Remove all empty cells from the end of the pi_tag_list
+    while (True):
+        if pi_tag_list[-1] is None:
+            pi_tag_list = pi_tag_list[:-1]
+        else:
+            break
 
     #
     # Create mapping from pi_tag to a list of PI name and email.
