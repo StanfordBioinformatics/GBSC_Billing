@@ -529,7 +529,7 @@ def read_computing_sheet(wkbk):
         for (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) in \
             computing_sheet.iter_rows(min_row=2, values_only=True):
 
-            # Calculate CPU-core-hrs for job.
+            # Calculate CPU-core units for job.
             cpu_core_time = cores * wallclock / cpu_time_denom   # wallclock is in seconds.
 
             # Rename this variable for easier understanding.
@@ -545,10 +545,10 @@ def read_computing_sheet(wkbk):
                 print("   *** No PI associated with job ID %d, pi_tag %s, account %s" % (jobID, pi_tag, account))
                 continue
 
-            # Distribute this job's CPU-hrs amongst pi_tags by %ages.
+            # Distribute this job's CPU-units amongst pi_tags by %ages.
             for (pi_tag, pctage) in job_pi_tag_pctage_list:
 
-                # This list is [account, list of [username, cpu_core_hrs, %age]].
+                # This list is [account, list of [username, cpu_core_time, %age]].
                 account_username_cpu_list = pi_tag_to_account_username_cpus.get(pi_tag)
 
                 # If pi_tag has an existing list of account/username/CPUs:
@@ -565,26 +565,26 @@ def read_computing_sheet(wkbk):
                             # Find job username in list for account:
                             for username_cpu in pi_username_cpu_pctage_list:
                                 if job_username == username_cpu[0]:
-                                    username_cpu[1] += cpu_core_hrs
+                                    username_cpu[1] += cpu_core_time
                                     break
                             else:
-                                pi_username_cpu_pctage_list.append([job_username, cpu_core_hrs, pctage])
+                                pi_username_cpu_pctage_list.append([job_username, cpu_core_time, pctage])
 
                             # Leave account_username_cpu_list loop.
                             break
 
                     else:
                         # No matching account in pi_tag list -- add a new one to the list.
-                        account_username_cpu_list.append([account, [[job_username, cpu_core_hrs, pctage]]])
+                        account_username_cpu_list.append([account, [[job_username, cpu_core_time, pctage]]])
 
                 # Else start a new account/CPUs list for the pi_tag.
                 else:
-                    pi_tag_to_account_username_cpus[pi_tag] = [[account, [[job_username, cpu_core_hrs, pctage]]]]
+                    pi_tag_to_account_username_cpus[pi_tag] = [[account, [[job_username, cpu_core_time, pctage]]]]
 
                 #
                 # Save job details for pi_tag.
                 #
-                new_job_details = [job_date, job_username, job_name, account, node, cpu_core_hrs, jobID, pctage]
+                new_job_details = [job_date, job_username, job_name, account, node, cpu_core_time, jobID, pctage]
                 pi_tag_to_job_details[pi_tag].append(new_job_details)
 
         sheet_number += 1
