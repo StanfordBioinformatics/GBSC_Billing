@@ -59,7 +59,7 @@ BILLING_NOTIFS_PREFIX = "GBSCBilling"
 
 ## "Exports" files
 # Prefix of the iLab export files.
-ILAB_EXPORT_PREFIX = "GBSCBillingiLab"
+ILAB_EXPORT_PREFIX = "GBSCBilling_iLab"
 
 ## "RawData" files
 # Prefix of SGE accounting snapshot file name.
