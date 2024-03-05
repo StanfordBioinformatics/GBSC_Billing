@@ -1304,18 +1304,12 @@ for pi_tag in sorted(pi_tag_list):
     print(" %s:" % pi_tag, end=' ')
 
     # Get the iLab service request ID for this PI.
-    ilab_service_req = str(pi_tag_to_ilab_service_req_id[pi_tag])
+    ilab_service_req = pi_tag_to_ilab_service_req_id[pi_tag]
 
-    # If this PI doesn't have a service request ID, announce that loudly and skip them.
-    if ilab_service_req == '':
-        print("** NO ILAB SERVICE REQUEST ID **")
-        continue
     # If the PI explicitly is marked as not having a service request, skip them quietly.
-    elif ilab_service_req.lower() == 'n/a':
-        print("iLab service request not needed")
+    if str(ilab_service_req).lower() == 'n/a':
+        print(" iLab service request not needed")
         continue
-    else:
-        pass  # Process this normal PI.
 
     # Get the cluster service level for this PI.
     service_level = pi_tag_to_service_level[pi_tag].lower()
