@@ -36,15 +36,11 @@
 #=====
 import argparse
 from collections import defaultdict
-import datetime
 import time
 import os
 import re
 import sys
 
-#import xlrd
-#import xlsxwriter
-#from xlsxwriter.utility import xl_rowcol_to_cell
 import openpyxl
 import openpyxl.styles
 import openpyxl.utils
@@ -71,6 +67,7 @@ global CONSULTING_TRAVEL_RATE_DISCOUNT
 global ACCOUNT_PREFIXES
 global SUBDIR_RAWDATA
 global SUBDIR_INVOICES
+global BASE_STORAGE_SIZE
 
 #=====
 #
@@ -184,6 +181,7 @@ global argparse_get_parent_parser
 global argparse_get_year_month
 global argparse_get_billingroot_billingconfig
 global get_subdirectory
+global rowcol_to_a1_cell
 
 # This function takes an arbitrary number of dicts with
 # xlsxwriter Format properties in them, adds the format to the given workbook,
@@ -327,19 +325,6 @@ def make_format(wkbk, *prop_dicts):
         prop_dict_format_list.append((final_prop_dict, format_obj))
 
     return format_obj
-
-# This function converts a row, column pair into an Excel coordinate
-def rowcol_to_a1_cell(row, col, row_absolute=False, col_absolute=False):
-    # return xl_rowcol_to_cell(row, col, row_absolute, col_absolute)
-
-    colstr = openpyxl.utils.cell.get_column_letter(col)
-    if col_absolute:
-        colstr = "$" + colstr
-    rowstr = str(row)
-    if row_absolute:
-        rowstr = "$" + rowstr
-
-    return colstr + rowstr
 
 
 # This function creates some formats in a BillingNotification workbook,
@@ -758,7 +743,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
 
 # Reads the particular rate requested from the Rates sheet of the BillingConfig workbook.
-def get_rates(wkbk, rate_type):
+def get_rate(wkbk, rate_type):
 
     #rates_sheet = wkbk.sheet_by_name('Rates')
     rates_sheet = wkbk["Rates"]
@@ -775,20 +760,13 @@ def get_rates(wkbk, rate_type):
 
 def get_rate_a1_cell(wkbk, rate_type):
 
-    #rates_sheet = wkbk.sheet_by_name('Rates')
     rates_sheet = wkbk["Rates"]
 
-    #header_row = rates_sheet.row_values(0)
     header_row = rates_sheet.iter_cols(min_row=1, max_row=1, values_only=True)
 
     # Find the column numbers for 'Type' and 'Amount'.
     type_col = -1
     amt_col = -1
-    # for idx in range(len(header_row)):
-    #     if header_row[idx] == 'Type':
-    #         type_col = idx
-    #     elif header_row[idx] == 'Amount':
-    #         amt_col = idx
     idx = 1
     for col_name in header_row:
         if col_name[0] == 'Type':
@@ -804,16 +782,9 @@ def get_rate_a1_cell(wkbk, rate_type):
         return None
 
     # Get column of 'Types'.
-    #types = rates_sheet.col_values(type_col, start_rowx=1)
     types = rates_sheet.iter_rows(min_row=2, min_col=type_col, max_col=type_col, values_only=True)
 
-    # When you find the row with rate_type, return the Amount col and this row.
-    # for idx in range(len(types[row])):
-    #     if types[idx] == rate_type:
-    #         # +1 is for "GBSC Rates:" above header line, +1 is for header line.
-    #         return 'Rates!%s' % rowcol_to_a1_cell(idx + 1 + 1 + 1, amt_col + 1, True, True)
-    # else:
-    #     return 0.0
+    # When you find the row with rate_string, return the Amount col and this row.
     idx = 2
     for row in types:
         for col in row:
@@ -824,19 +795,26 @@ def get_rate_a1_cell(wkbk, rate_type):
         return 0.0
 
 
-#
-def get_rate_amount_and_a1_cell_from_prefix(service_str, tier_str, affiliation_str):
+def get_rate_amount_and_a1_cell_from_prefix(billing_config_wkbk, service_str, tier_str, subservice_str, affiliation_str):
 
-    tier_string = "%s Access" % (tier_str.capitalize())
-    rate_string = "%s - %s" % (service_str, tier_string)
+    if service_str == "Local HPC Storage" or service_str == "Local Computing":
 
-    #if tier_str != "Free":
-    rate_string += " - " + affiliation_str.capitalize()
+        tier_string = "%s Tier" % (tier_str.capitalize())
 
-    rate_amount  = get_rates(billing_config_wkbk, rate_string)
+        # Start building rate string with service string and tier string
+        rate_string = "%s (%s)" % (service_str, tier_string)
+
+        # If there is a subservice string, add that to rate string
+        if subservice_str is not None and subservice_str != "":
+            rate_string += ": %s" % subservice_str
+
+    # Finish rate string with the affiliation string
+    rate_string += " - %s" % affiliation_str.capitalize()
+
+    rate_amount  = get_rate(billing_config_wkbk, rate_string)
     rate_a1_cell = get_rate_a1_cell(billing_config_wkbk, rate_string)
 
-    return (rate_amount, rate_a1_cell)
+    return rate_amount, rate_a1_cell
 
 
 # Reads the Storage sheet of the BillingDetails workbook given, and populates
@@ -845,11 +823,7 @@ def read_storage_sheet(wkbk):
 
     global pi_tag_to_folder_sizes
 
-    #storage_sheet = wkbk.sheet_by_name("Storage")
     storage_sheet = wkbk["Storage"]
-
-    #for row in range(1,storage_sheet.nrows):
-    #    (date, timestamp, folder, size, used, inodes_quota, inodes_used) = storage_sheet.row_values(row)
 
     for (date, timestamp, folder, size, used, inodes_quota, inodes_used) in storage_sheet.iter_rows(min_row=2, values_only=True):
         # List of [pi_tag, %age] pairs.
@@ -1130,6 +1104,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sub_header_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
                                         'align': 'right', 'underline': True,
                                         'left': border_style})
+    # For subheaders within subtables, but without underline.
+    sub_header_no_ul_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
+                                        'align': 'right',
+                                        'left': border_style})
 
     # For column headers in subtables.
     col_header_fmt = make_format(wkbk, {'font_size': 11, 'bold': True,
@@ -1254,26 +1232,12 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     ###
 
     # Skip line between "Breakdown of Charges".
-    # sheet.write(curr_row, 1, None, left_border_fmt)
-    # sheet.write(curr_row, 4, None, right_border_fmt)
     sheet.cell(curr_row, 2, None).style = left_border_fmt
     sheet.cell(curr_row, 5, None).style = right_border_fmt
     curr_row += 1
     # Write the "Storage" line.
-    # sheet.write(curr_row, 1, "Storage:", header_fmt)
-    # sheet.write(curr_row, 4, None, right_border_fmt)
     sheet.cell(curr_row, 2, "Storage:").style = header_fmt
     sheet.cell(curr_row, 5, None).style = right_border_fmt
-    curr_row += 1
-    # Write the storage headers.
-    # sheet.write(curr_row, 1, "Folder", col_header_left_fmt)
-    # sheet.write(curr_row, 2, "Storage (Tb)", col_header_fmt)
-    # sheet.write(curr_row, 3, "%age", col_header_fmt)
-    # sheet.write(curr_row, 4, "Charge", col_header_right_fmt)
-    sheet.cell(curr_row, 2, "Folder").style = col_header_left_fmt
-    sheet.cell(curr_row, 3, "Storage (Tb)").style = col_header_fmt
-    sheet.cell(curr_row, 4, "%age").style = col_header_fmt
-    sheet.cell(curr_row, 5, "Charge").style = col_header_right_fmt
     curr_row += 1
 
     total_storage_charges = 0.0
@@ -1284,83 +1248,218 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     if cluster_acct_status != "Full" and cluster_acct_status != "Free" and cluster_acct_status != "No":
         print("  Unexpected cluster status of '%s' for %s" % (cluster_acct_status, pi_tag), file=sys.stderr)
 
-    storage_access_string = "%s Access" % (cluster_acct_status.capitalize())
+    storage_access_string = "%s Tier" % (cluster_acct_status.capitalize())
 
-    (rate_tb_per_month, rate_storage_a1_cell) = get_rate_amount_and_a1_cell_from_prefix("Local HPC Storage", cluster_acct_status, affiliation)
+    (base_storage_rate, base_storage_rate_a1_cell) = (
+        get_rate_amount_and_a1_cell_from_prefix(billing_config_wkbk,"Local HPC Storage", cluster_acct_status, "Base Storage", affiliation))
+    (addl_storage_rate, addl_storage_rate_a1_cell) = (
+        get_rate_amount_and_a1_cell_from_prefix(billing_config_wkbk,"Local HPC Storage", cluster_acct_status, "Additional Storage", affiliation))
 
-    starting_storage_row = curr_row
-    ending_storage_row   = curr_row
-    for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
-        # sheet.write(curr_row, 1, folder, item_entry_fmt)
-        # sheet.write(curr_row, 2, size, float_entry_fmt)
-        # sheet.write(curr_row, 3, pctage, pctage_entry_fmt)
-        sheet.cell(curr_row, 2, folder).style = item_entry_fmt
-        sheet.cell(curr_row, 3, size).style = float_entry_fmt
-        sheet.cell(curr_row, 4, pctage).style = pctage_entry_fmt
+    # Find lab folder in pi_tag_to_folder_sizes
+    #  If found:
+    #    Lab Folder
+    #       Base Storage
+    #       Additional Storage
+    #       Total Storage - Lab Folder
+    #    Other Folders
+    #       folder 1
+    #       folder 2
+    #       Total Storage - Other Folders
+    #    Total Storage
+    #  If not:
+    #    Folders
+    #       folder 1
+    #       folder 2
+    #    Total Storage
+    #
 
-        # Calculate charges.
-        if rate_tb_per_month is not None:
-            charge = size * pctage * rate_tb_per_month
-            total_storage_charges += charge
-        else:
-            charge = "No rate"
+    # Find lab folder
+    lab_folder_items = [item for item in pi_tag_to_folder_sizes[pi_tag] if item[0] == '/labs/%s' % pi_tag]
 
-        total_storage_sizes += size
+    # How many lab folders are there?  Hopefully, just one
+    if len(lab_folder_items) == 1:
 
-        # cost_a1_cell   = xl_rowcol_to_cell(curr_row, 2)
-        # pctage_a1_cell = xl_rowcol_to_cell(curr_row, 3)
-        # sheet.write_formula(curr_row, 4, '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell, rate_storage_a1_cell),
-        #                     charge_fmt, charge)
-        cost_a1_cell   = rowcol_to_a1_cell(curr_row, 3)
-        pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
-        sheet.cell(curr_row, 5, '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell, rate_storage_a1_cell)).style = charge_fmt
+        # Get lab folder name, size, and percentage.
+        (lab_folder_name, lab_folder_size, lab_folder_pctage) = lab_folder_items[0]
 
-        # Keep track of last row with storage values.
-        ending_storage_row = curr_row
-
-        # Advance to the next row.
+        # Write the storage headers.
+        sheet.cell(curr_row, 2, "Lab Folder : %s" % lab_folder_name).style = sub_header_fmt
+        sheet.cell(curr_row, 3, "Storage (Tb)").style = col_header_fmt
+        sheet.cell(curr_row, 4, "%age").style = col_header_fmt
+        sheet.cell(curr_row, 5, "Charge").style = col_header_right_fmt
         curr_row += 1
 
+        starting_storage_row = curr_row
+
+        if lab_folder_size >= BASE_STORAGE_SIZE:
+
+            # Write the Base Storage line
+            sheet.cell(curr_row, 2, "Base Storage").style = item_entry_fmt
+            sheet.cell(curr_row, 3, BASE_STORAGE_SIZE).style = float_entry_fmt
+            sheet.cell(curr_row, 4, lab_folder_pctage).style = pctage_entry_fmt
+            pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
+            sheet.cell(curr_row, 5, '=%s*%s' % (pctage_a1_cell, base_storage_rate_a1_cell)).style = charge_fmt
+
+            ending_storage_row = curr_row
+
+            total_storage_sizes   += BASE_STORAGE_SIZE
+            total_storage_charges += base_storage_rate
+
+            curr_row += 1
+
+            # Check for additional storage for lab
+            lab_folder_addl_storage = lab_folder_size - BASE_STORAGE_SIZE
+
+        else:
+            lab_folder_addl_storage = lab_folder_size
+
+        if lab_folder_addl_storage > 0:
+
+            # Write line with additional storage amount
+            sheet.cell(curr_row, 2, "Additional Storage").style = item_entry_fmt
+            sheet.cell(curr_row, 3, lab_folder_addl_storage).style = float_entry_fmt
+            sheet.cell(curr_row, 4, lab_folder_pctage).style = pctage_entry_fmt
+            cost_a1_cell = rowcol_to_a1_cell(curr_row, 3)
+            pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
+            sheet.cell(curr_row, 5, '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell, addl_storage_rate_a1_cell)).style = charge_fmt
+
+            ending_storage_row = curr_row
+            curr_row += 1
+
+            total_storage_sizes   += lab_folder_addl_storage
+            total_storage_charges += lab_folder_addl_storage * addl_storage_rate
+
+        # Skip the line before Total Storage - "lab folder".
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1
+
+        # Write Total Storage sum line for lab folder
+        sheet.cell(curr_row, 2, "Total Storage - %s:" % lab_folder_name).style = sub_header_no_ul_fmt
+
+        top_storage_charges_a1_cell = rowcol_to_a1_cell(starting_storage_row, 3)
+        bot_storage_charges_a1_cell = rowcol_to_a1_cell(ending_storage_row + 1, 3)
+        sheet.cell(curr_row, 3,
+            '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell)).style = float_entry_fmt
+        # Nothing in pctage cell (col 4)
+        top_storage_charges_a1_cell = rowcol_to_a1_cell(starting_storage_row, 5)
+        bot_storage_charges_a1_cell = rowcol_to_a1_cell(ending_storage_row + 1, 5)
+        sheet.cell(curr_row, 5,
+                   '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell)).style = charge_fmt
+
+        lab_folder_total_sizes_a1_cell   = rowcol_to_a1_cell(curr_row, 3)  # For sum of Total Storage formula
+        lab_folder_total_charges_a1_cell = rowcol_to_a1_cell(curr_row, 5)
+        curr_row += 1
+
+        # Remove the lab folder from the pi_tag_to_folder_sizes list
+        pi_tag_to_folder_sizes[pi_tag].remove(lab_folder_items[0])
+
+    else:
+        lab_folder_total_sizes_a1_cell   = None
+        lab_folder_total_charges_a1_cell = None
+
+    # Are there more folders to list?
+    if len(pi_tag_to_folder_sizes[pi_tag]) > 0:
+
+        other_folders_storage_sizes = 0.0
+
+        # Skip row after lab folder section
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1 # Skip row after first lab folder section
+
+        sheet.cell(curr_row, 2, "Other Folders").style = sub_header_fmt
+        # Nothing in other columns
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1
+
+        starting_storage_row = curr_row
+
+        for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
+            sheet.cell(curr_row, 2, folder).style = item_entry_fmt
+            sheet.cell(curr_row, 3, size).style = float_entry_fmt
+            sheet.cell(curr_row, 4, pctage).style = pctage_entry_fmt
+
+            # Calculate charges.
+            if addl_storage_rate is not None:
+                charge = size * pctage * addl_storage_rate
+                total_storage_charges += charge
+            else:
+                charge = "No rate"
+
+            total_storage_sizes += size
+            other_folders_storage_sizes += size
+
+            cost_a1_cell = rowcol_to_a1_cell(curr_row, 3)
+            pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
+            sheet.cell(curr_row, 5,
+                       '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell, addl_storage_rate_a1_cell)).style = charge_fmt
+
+            # Keep track of last row with storage values.
+            ending_storage_row = curr_row
+
+            # Advance to the next row.
+            curr_row += 1
+
+        # Skip row after other folder section
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1  # Skip row
+
+        # Write Total Storage sum line for lab folder
+        sheet.cell(curr_row, 2, "Total Storage - Other Folders:").style = sub_header_no_ul_fmt
+
+        top_storage_charges_a1_cell = rowcol_to_a1_cell(starting_storage_row, 3)
+        bot_storage_charges_a1_cell = rowcol_to_a1_cell(ending_storage_row + 1, 3)
+        sheet.cell(curr_row, 3,
+                   '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell)).style = float_entry_fmt
+
+        # Nothing in pctage cell (col 4)
+
+        top_storage_charges_a1_cell = rowcol_to_a1_cell(starting_storage_row, 5)
+        bot_storage_charges_a1_cell = rowcol_to_a1_cell(ending_storage_row + 1, 5)
+        sheet.cell(curr_row, 5,
+                   '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell)).style = charge_fmt
+
+        other_folders_total_sizes_a1_cell = rowcol_to_a1_cell(curr_row, 3)  # For sum of Total Storage formula
+        other_folders_total_charges_a1_cell = rowcol_to_a1_cell(curr_row, 5)
+
+        curr_row += 1
+    else:
+        other_folders_total_sizes_a1_cell = None
+        other_folders_total_charges_a1_cell = None
+
     # Skip the line before Total Storage.
-    # sheet.write(curr_row, 1, None, left_border_fmt)
-    # sheet.write(curr_row, 4, None, right_border_fmt)
     sheet.cell(curr_row, 2, None).style = left_border_fmt
     sheet.cell(curr_row, 5, None).style = right_border_fmt
     curr_row += 1
 
     # Write the Total Storage line.
-    # sheet.write(curr_row, 1, "Total Storage:", bot_header_fmt)
-    # # sheet.write(curr_row, 2, total_storage_sizes, float_entry_fmt)
-    # top_sizes_a1_cell = xl_rowcol_to_cell(starting_storage_row, 2)
-    # bot_sizes_a1_cell = xl_rowcol_to_cell(ending_storage_row + 1, 2)
-    # sheet.write_formula(curr_row, 2, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell),
-    #                     float_entry_fmt, total_storage_sizes)
-    # # sheet.write(curr_row, 4, total_storage_charges, charge_fmt)
-    # top_storage_charges_a1_cell = xl_rowcol_to_cell(starting_storage_row, 4)
-    # bot_storage_charges_a1_cell = xl_rowcol_to_cell(ending_storage_row + 1, 4)
-    # sheet.write_formula(curr_row, 4, '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell),
-    #                     charge_fmt, total_storage_charges)
     sheet.cell(curr_row, 2, "Total Storage:").style = bot_header_fmt
-    # sheet.cell(curr_row, 3, total_storage_sizes).style = float_entry_fmt
-    top_sizes_a1_cell = rowcol_to_a1_cell(starting_storage_row, 3)
-    bot_sizes_a1_cell = rowcol_to_a1_cell(ending_storage_row + 1, 3)
-    sheet.cell(curr_row, 3, '=SUM(%s:%s)' % (top_sizes_a1_cell, bot_sizes_a1_cell)).style = float_entry_fmt
-    # sheet.cell(curr_row, 5, total_storage_charges).style = charge_fmt
-    top_storage_charges_a1_cell = rowcol_to_a1_cell(starting_storage_row, 5)
-    bot_storage_charges_a1_cell = rowcol_to_a1_cell(ending_storage_row + 1, 5)
-    sheet.cell(curr_row, 5, '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell)).style = charge_fmt
+    if lab_folder_total_sizes_a1_cell is not None and other_folders_total_sizes_a1_cell is not None:
+        sheet.cell(curr_row, 3, '=SUM(%s,%s)' % (lab_folder_total_sizes_a1_cell, other_folders_total_sizes_a1_cell)).style = float_entry_fmt
+    elif lab_folder_total_sizes_a1_cell is not None:
+        sheet.cell(curr_row, 3, '=%s' % lab_folder_total_sizes_a1_cell).style = float_entry_fmt
+    elif other_folders_total_sizes_a1_cell is not None:
+        sheet.cell(curr_row, 3, '=%s' % other_folders_total_sizes_a1_cell).style = float_entry_fmt
+    else:
+        sheet.cell(curr_row, 3, '').style = float_entry_fmt
+    # Nothing in pctage column (col 4)
+    if lab_folder_total_charges_a1_cell is not None and other_folders_total_charges_a1_cell is not None:
+        sheet.cell(curr_row, 5, '=SUM(%s,%s)' % (lab_folder_total_charges_a1_cell, other_folders_total_charges_a1_cell)).style = charge_fmt
+    elif lab_folder_total_charges_a1_cell is not None:
+        sheet.cell(curr_row, 5, '=%s' % lab_folder_total_charges_a1_cell).style = charge_fmt
+    elif other_folders_total_charges_a1_cell is not None:
+        sheet.cell(curr_row, 5, '=%s' % other_folders_total_charges_a1_cell).style = charge_fmt
+    else:
+        sheet.cell(curr_row, 5, '').style = charge_fmt
 
     # Save reference to this cell for use in Summary subtable.
-    # total_storage_charges_a1_cell = xl_rowcol_to_cell(curr_row, 4)
     total_storage_charges_a1_cell = rowcol_to_a1_cell(curr_row, 5)
 
     curr_row += 1
 
     # Skip the next line and draw line under this row.
-    # sheet.write(curr_row, 1, None, lower_left_border_fmt)
-    # sheet.write(curr_row, 2, None, bottom_border_fmt)
-    # sheet.write(curr_row, 3, None, bottom_border_fmt)
-    # sheet.write(curr_row, 4, None, lower_right_border_fmt)
     sheet.cell(curr_row, 2, None).style = lower_left_border_fmt
     sheet.cell(curr_row, 3, None).style = bottom_border_fmt
     sheet.cell(curr_row, 4, None).style = bottom_border_fmt
@@ -1374,13 +1473,13 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     ###
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    computing_access_string = "%s Access" % (cluster_acct_status.capitalize())
+    computing_access_string = "%s Tier" % (cluster_acct_status.capitalize())
 
     # Get both rates for CPU, in case someone outside the lab runs a job for a Free Tier lab (usually Consulting).
     (free_tier_cpu_rate, free_tier_cpu_rate_a1_cell) = \
-        get_rate_amount_and_a1_cell_from_prefix("Local Computing", "Free", affiliation)
+        get_rate_amount_and_a1_cell_from_prefix(billing_config_wkbk,"Local Computing", "Free", None, affiliation)
     (full_tier_cpu_rate, full_tier_cpu_rate_a1_cell) = \
-        get_rate_amount_and_a1_cell_from_prefix("Local Computing", "Full", affiliation)
+        get_rate_amount_and_a1_cell_from_prefix(billing_config_wkbk,"Local Computing", "Full", None, affiliation)
 
     # Choose the default rate for the lab.
     if cluster_acct_status != "Free":
@@ -1630,7 +1729,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_cloud_charges = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_cloud_per_dollar = get_rates(billing_config_wkbk, 'Cloud Services - %s' % affiliation)
+    rate_cloud_per_dollar = get_rate(billing_config_wkbk, 'Cloud Services - %s' % affiliation)
     rate_cloud_a1_cell    = get_rate_a1_cell(billing_config_wkbk, 'Cloud Services - %s' % affiliation)
 
     starting_cloud_row = curr_row
@@ -1763,7 +1862,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     starting_consulting_row = curr_row
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
-    rate_consulting_per_hour = get_rates(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
+    rate_consulting_per_hour = get_rate(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
     rate_consulting_a1_cell = get_rate_a1_cell(billing_config_wkbk, 'Bioinformatics Consulting - %s' % affiliation)
 
     if len(pi_tag_to_consulting_details[pi_tag]) > 0:
@@ -1932,9 +2031,9 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     #
     # Fill in row in pi_tag -> charges hash.
 
-    pi_tag_to_charges[pi_tag] = (total_storage_charges, total_computing_charges, total_cloud_charges,
+    pi_tag_to_charges[pi_tag] = [total_storage_charges, total_computing_charges, total_cloud_charges,
                                  total_consulting_charges,
-                                 total_charges)
+                                 total_charges]
 
     # CHECK: If "Free Tier" and total_storage_charges >= 7 TB: flag an error
     if cluster_acct_status == "Free" and total_storage_charges >= 7:

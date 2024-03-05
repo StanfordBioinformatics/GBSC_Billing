@@ -203,6 +203,8 @@ CONSULTING_HOURS_FREE = 1
 # What is the discount rate for travel hours?
 CONSULTING_TRAVEL_RATE_DISCOUNT = 0.5
 
+# Storage: How much space does the base storage rate give you, in TB?
+BASE_STORAGE_SIZE = 10
 
 #=====
 #
@@ -457,3 +459,17 @@ def get_subdirectory(billing_root, year, month, subdir, create_if_nec=False):
             return None
 
     return full_subdir
+
+
+# This function converts a row, column pair into an Excel coordinate
+def rowcol_to_a1_cell(row, col, row_absolute=False, col_absolute=False):
+    # return xl_rowcol_to_cell(row, col, row_absolute, col_absolute)
+
+    colstr = openpyxl.utils.cell.get_column_letter(col)
+    if col_absolute:
+        colstr = "$" + colstr
+    rowstr = str(row)
+    if row_absolute:
+        rowstr = "$" + rowstr
+
+    return colstr + rowstr

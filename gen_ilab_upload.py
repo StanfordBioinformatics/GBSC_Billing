@@ -64,6 +64,7 @@ global CONSULTING_TRAVEL_RATE_DISCOUNT
 global ACCOUNT_PREFIXES
 global SUBDIR_RAWDATA
 global SUBDIR_EXPORTS
+global BASE_STORAGE_SIZE
 
 # Default headers for the ilab Export CSV file (if not read in from iLab template file).
 DEFAULT_CSV_HEADERS = ['service_id','note','service_quantity','purchased_on',
@@ -169,6 +170,7 @@ global argparse_get_parent_parser
 global argparse_get_year_month
 global argparse_get_billingroot_billingconfig
 global get_subdirectory
+global rowcol_to_a1_cell
 
 # This function scans the username_to_pi_tag_dates dict to create a list of [pi_tag, %age]s
 # for the PIs that the given user was working for on the given date.
@@ -203,24 +205,6 @@ def get_google_invoice_csv_subtable_lines(csvfile_obj):
         line = csvfile_obj.readline()
 
     return subtable
-
-
-#
-# Gets the iLab Service ID from the Rates sheet by querying from a Type string.
-#
-def get_ilab_service_id(wkbk, type_name):
-
-    #rates_sheet = wkbk.sheet_by_name("Rates")
-    rates_sheet = wkbk["Rates"]
-
-    type_column = sheet_get_named_column(rates_sheet,"Type")
-    iLab_column = sheet_get_named_column(rates_sheet,"iLab Service ID")
-
-    for (type, id) in zip(type_column, iLab_column):
-        if type == type_name and id != 'None':
-            return int(id)
-    else:
-        return None
 
 
 # Creates all the data structures used to write the BillingNotification workbook.
@@ -302,7 +286,7 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
         cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
         cloud_rows = filter_by_dates(list(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
-                                         cloud_accounts, cloud_pctage)),
+                                              cloud_accounts, cloud_pctage)),
                                      list(zip(cloud_dates_added, cloud_dates_remvd)),
                                      #begin_month_exceldate, end_month_exceldate)
                                      begin_month_datetime, end_month_datetime)
@@ -435,7 +419,7 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
 
     account_rows = filter_by_dates(list(zip(accounts, pi_tags, pctages)), list(zip(dates_added, dates_removed)),
                                    #begin_month_exceldate, end_month_exceldate)
-                                    begin_month_datetime, end_month_datetime)
+                                   begin_month_datetime, end_month_datetime)
 
     for (account, pi_tag, pctage) in account_rows:
         account_to_pi_tag_pctages[account].append([pi_tag, pctage])
@@ -470,7 +454,7 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
 
     folder_rows = filter_by_dates(list(zip(folders, pi_tags, pctages)), list(zip(dates_added, dates_removed)),
                                   #begin_month_exceldate, end_month_exceldate)
-                                    begin_month_datetime, end_month_datetime)
+                                  begin_month_datetime, end_month_datetime)
 
     for (folder, pi_tag, pctage) in folder_rows:
 
@@ -481,17 +465,105 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
             folder_to_pi_tag_pctages[pi_folder].append([pi_tag, pctage])
 
 
+# Reads the particular rate requested from the Rates sheet of the BillingConfig workbook.
+def get_rate(wkbk, rate_type):
+
+    rates_sheet = wkbk["Rates"]
+
+    types   = sheet_get_named_column(rates_sheet, 'Type')
+    amounts = sheet_get_named_column(rates_sheet, 'Amount')
+
+    for (type, amount) in zip(types, amounts):
+        if type == rate_type:
+            return amount
+    else:
+        return None
+
+
+def get_rate_a1_cell(wkbk, rate_string):
+
+    rates_sheet = wkbk["Rates"]
+
+    header_row = rates_sheet.iter_cols(min_row=1, max_row=1, values_only=True)
+
+    # Find the column numbers for 'Type' and 'Amount'.
+    type_col = -1
+    amt_col = -1
+    idx = 1
+    for col_name in header_row:
+        if col_name[0] == 'Type':
+            type_col = idx
+            if amt_col != -1: break  # Leave loop if we have both
+        elif col_name[0] == 'Amount':
+            amt_col = idx
+            if type_col != -1: break  # Leave loop if we have both
+        idx += 1
+
+    if type_col == -1 or amt_col == -1:
+        print("get_rate_a1_cell: Can't find Type/Amount headers (%d, %d)" % (type_col, amt_col), file=sys.stderr)
+        return None
+
+    # Get column of 'Types'.
+    types = rates_sheet.iter_rows(min_row=2, min_col=type_col, max_col=type_col, values_only=True)
+
+    # When you find the row with rate_string, return the Amount col and this row.
+    idx = 2
+    for row in types:
+        for col in row:
+            if col == rate_string:
+                return 'Rates!%s' % rowcol_to_a1_cell(idx + 1, amt_col, True, True)
+        idx += 1
+    else:
+        return 0.0
+
+
+def get_rate_service_id(wkbk, rate_string):
+
+    rates_sheet = wkbk["Rates"]
+
+    types    = sheet_get_named_column(rates_sheet, 'Type')
+    serv_ids = sheet_get_named_column(rates_sheet, 'iLab Service ID')
+
+    for (type, serv_id) in zip(types, serv_ids):
+        if type == rate_string:
+            return serv_id
+    else:
+        return None
+
+
+def get_rate_data_from_string(billing_config_wkbk, service_str, tier_str, subservice_str, affiliation_str):
+
+    rate_string = ""  # To start, will be appended to below
+
+    if service_str == "Local HPC Storage" or service_str == "Local Computing":
+
+        tier_string = "%s Tier" % (tier_str.capitalize())
+
+        # Start building rate string with service string and tier string
+        rate_string += "%s (%s)" % (service_str, tier_string)
+
+    # If there is a subservice string, add that to rate string
+    if subservice_str is not None and subservice_str != "":
+        rate_string += ": %s" % subservice_str
+
+    # Finish rate string with the affiliation string
+    rate_string += " - %s" % affiliation_str.capitalize()
+
+    # Look up rate amount, rate cell from rate_string
+    rate_amount     = get_rate(billing_config_wkbk, rate_string)
+    rate_a1_cell    = get_rate_a1_cell(billing_config_wkbk, rate_string)
+    rate_service_id = get_rate_service_id(billing_config_wkbk, rate_string)
+
+    return rate_amount, rate_a1_cell, rate_service_id
+
+
 # Reads the Storage sheet of the BillingDetails workbook given, and populates
 # the pi_tag_to_folder_sizes dict with the folder measurements for each PI.
 def read_storage_sheet(wkbk):
 
     global pi_tag_to_folder_sizes
 
-    #storage_sheet = wkbk.sheet_by_name("Storage")
     storage_sheet = wkbk["Storage"]
-
-    #for row in range(1,storage_sheet.nrows):
-        #(date, timestamp, folder, size, used, inodes_quota, inodes_used) = storage_sheet.row_values(row)
 
     for (date, timestamp, folder, size, used, inodes_quota, inodes_used) in storage_sheet.iter_rows(min_row=2, values_only=True):
 
@@ -523,11 +595,11 @@ def read_computing_sheet(wkbk):
     while True:
 
         #for row in range(1, computing_sheet.nrows):
-            #(job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
-            #    computing_sheet.row_values(row)
+        #(job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
+        #    computing_sheet.row_values(row)
 
         for (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) in \
-            computing_sheet.iter_rows(min_row=2, values_only=True):
+                computing_sheet.iter_rows(min_row=2, values_only=True):
 
             # Calculate CPU-core units for job.
             cpu_core_time = cores * wallclock / cpu_time_denom   # wallclock is in seconds.
@@ -590,9 +662,7 @@ def read_computing_sheet(wkbk):
         sheet_number += 1
 
         try:
-            #computing_sheet = wkbk.sheet_by_name("Computing %d" % sheet_number)
             computing_sheet = wkbk["Computing %d" % sheet_number]
-        #except xlrd.biffh.XLRDError:
         except:
             break  # No more computing sheets: exit the while True loop.
 
@@ -600,14 +670,10 @@ def read_computing_sheet(wkbk):
 # Read the Cloud sheet from the BillingDetails workbook.
 def read_cloud_sheet(wkbk):
 
-    #cloud_sheet = wkbk.sheet_by_name("Cloud")
     cloud_sheet = wkbk["Cloud"]
 
-    #for row in range(1,cloud_sheet.nrows):
-        #(platform, account, project, description, dates, quantity, uom, charge) = cloud_sheet.row_values(row)
-
     for (platform, account, project, description, dates, quantity, uom, charge) in \
-        cloud_sheet.iter_rows(min_row=2, values_only=True):
+            cloud_sheet.iter_rows(min_row=2, values_only=True):
 
         # If project is of the form "<project name>(<project-id>)" or "<project name>[<project-id>]", get the "<project-id>".
         project_re = re.search("[(\[]([a-z0-9-:.]+)[\])]", project)
@@ -689,7 +755,7 @@ def read_google_invoice(google_invoice_csv_file):
     # Compare total charges to "Amount Due".
     if abs(google_invoice_total_amount - google_invoice_amount_due) >= 0.01:  # Ignore differences less than a penny.
         print("  WARNING: Accumulated amounts do not equal amount due: ($%.2f != $%.2f)" % (google_invoice_total_amount,
-                                                                                                           google_invoice_amount_due), file=sys.stderr)
+                                                                                            google_invoice_amount_due), file=sys.stderr)
     else:
         print("  VERIFIED: Sum of individual transactions equals Amount due.", file=sys.stderr)
 
@@ -705,10 +771,10 @@ def read_consulting_sheet(wkbk):
     consulting_sheet = wkbk["Consulting"]
 
     #for row in range(1, consulting_sheet.nrows):
-        #(date, pi_tag, hours, travel_hours, participants, clients, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
+    #(date, pi_tag, hours, travel_hours, participants, clients, summary, notes, cumul_hours) = consulting_sheet.row_values(row)
 
     for (date, pi_tag, hours, travel_hours, participants, clients, summary, notes, cumul_hours) in \
-        consulting_sheet.iter_rows(min_row=2, values_only=True):
+            consulting_sheet.iter_rows(min_row=2, values_only=True):
 
         if travel_hours is None: travel_hours = 0
 
@@ -796,8 +862,8 @@ def process_consulting_data():
 #
 # It uses dict pi_tag_to_folder_sizes.
 #
-def output_ilab_csv_data_for_cluster_storage(csv_dictwriter, pi_tag, storage_service_id,
-    begin_month_timestamp, end_month_timestamp):
+def output_ilab_csv_data_for_cluster_storage(csv_dictwriter, pi_tag, service_req_id, storage_base_service_id, storage_addl_service_id,
+                                             begin_month_timestamp, end_month_timestamp):
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1)  # Last date of billing period.
 
@@ -807,22 +873,32 @@ def output_ilab_csv_data_for_cluster_storage(csv_dictwriter, pi_tag, storage_ser
     #
     ###
     total_storage_sizes = 0.0
-    if storage_service_id is not None:
+    if storage_base_service_id is not None:
 
         for (folder, size, pctage) in pi_tag_to_folder_sizes[pi_tag]:
 
-            # Note format: <folder> [<pct>%, if not 0%]
-            note = "%s" % (folder)
+            if folder == '/labs/%s' % pi_tag and size >= BASE_STORAGE_SIZE:
+                # Note format: <folder>
+                note = "%s" % (folder)
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, purchased_on_date, storage_base_service_id, note,1)
 
-            if 0.0 < pctage < 1.0:
-                note += " [%d%%]" % (pctage * 100)
+                total_storage_sizes += BASE_STORAGE_SIZE
 
-            quantity = size * pctage
+                size -= BASE_STORAGE_SIZE
 
-            if quantity > 0.0:
-                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, storage_service_id, note, quantity)
+            if size > 0.0:
+                # Note format: <folder> [<pct>%, if not 0%]
+                note = "%s" % (folder)
 
-                total_storage_sizes += size
+                if 0.0 < pctage < 1.0:
+                    note += " [%d%%]" % (pctage * 100)
+
+                quantity = size * pctage
+
+                if quantity > 0.0:
+                    output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, purchased_on_date, storage_addl_service_id, note, quantity)
+
+                    total_storage_sizes += size
 
     return True
 
@@ -832,8 +908,8 @@ def output_ilab_csv_data_for_cluster_storage(csv_dictwriter, pi_tag, storage_ser
 #
 # It uses dicts pi_tag_to_username_cpus, and pi_tag_to_account_cpus.
 #
-def output_ilab_csv_data_for_cluster_compute(csv_dictwriter, pi_tag, lab_computing_service_id, full_computing_service_id,
-    begin_month_timestamp, end_month_timestamp):
+def output_ilab_csv_data_for_cluster_compute(csv_dictwriter, pi_tag, service_req_id, lab_computing_service_id, full_computing_service_id,
+                                             begin_month_timestamp, end_month_timestamp):
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1)  # Last date of billing period.
 
@@ -866,7 +942,7 @@ def output_ilab_csv_data_for_cluster_compute(csv_dictwriter, pi_tag, lab_computi
 
                     if quantity > 0.0:
                         if lab_computing_service_id is not None:
-                            output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, lab_computing_service_id,
+                            output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, purchased_on_date, lab_computing_service_id,
                                                      note, quantity)
                         # Lab is in Free Tier, and we can charge them if someone outside the lab ran the job.
                         else:
@@ -874,7 +950,7 @@ def output_ilab_csv_data_for_cluster_compute(csv_dictwriter, pi_tag, lab_computi
 
                             # If the user is not within the lab membership, then use the full tier service ID.
                             if pi_tag not in [pi_pct[0] for pi_pct in pi_tags_for_username]:
-                                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, full_computing_service_id, note, quantity)
+                                output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, purchased_on_date, full_computing_service_id, note, quantity)
                             else:
                                 print("  *** In Free Tier Lab %s, lab member %s ran billable jobs (%f)." % (pi_tag, username, quantity), file=sys.stderr)
 
@@ -889,7 +965,7 @@ def output_ilab_csv_data_for_cluster_compute(csv_dictwriter, pi_tag, lab_computi
 #
 # It uses dicts pi_tag_to_cloud_account_pctages and cloud_project_account_to_cloud_details.
 #
-def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
+def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, service_req_id, cloud_service_id,
                                    begin_month_timestamp, end_month_timestamp):
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
@@ -934,7 +1010,7 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                     note += " [%d%%]" % (pctage * 100)
 
                 # Output the single transaction for the project.
-                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note,
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, purchased_on_date, cloud_service_id, note,
                                          pi_amount)
 
             else:
@@ -961,18 +1037,16 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, cloud_service_id,
                     if pi_amount == 0.0: continue
 
                     # Write out the iLab export line.
-                    output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, cloud_service_id, note, pi_amount)
+                    output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, purchased_on_date, cloud_service_id, note, pi_amount)
 
     return True
 
 
-def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag, consulting_free_service_id, consulting_paid_service_id,
-    begin_month_timestamp, end_month_timestamp):
+def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag, service_req_id, consulting_free_service_id, consulting_paid_service_id,
+                                        begin_month_timestamp, end_month_timestamp):
 
     for (date, summary, client, hours, travel_hours, cumul_hours) in consulting_details[pi_tag]:
 
-        #date_timestamp    = from_excel_date_to_timestamp(date)
-        #purchased_on_date = from_excel_date_to_date_string(date)
         date_timestamp    = from_datetime_to_timestamp(date)
         purchased_on_date = from_datetime_to_date_string(date)
 
@@ -998,26 +1072,18 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag, consulting_free_
 
             # Write out the iLab export line for the free hours used.
             if free_hours_used > 0:
-                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, consulting_free_service_id,
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, purchased_on_date, consulting_free_service_id,
                                          "%s [%s]" % (summary, client), free_hours_used)
 
             # Write out the iLab export line for the paid hours used.
             if paid_hours_used > 0:
-                output_ilab_csv_data_row(csv_dictwriter, pi_tag, purchased_on_date, consulting_paid_service_id,
+                output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, purchased_on_date, consulting_paid_service_id,
                                          "%s [%s]" % (summary, client), paid_hours_used)
 
     return True
 
 
-def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_id, note, amount):
-
-    # If this PI doesn't have a service request ID, skip them.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == '':
-        print("  Skipping %s: no iLab service request ID" % (pi_tag))
-        return
-    # If the PI explicitly is marked as not having a service request, skip them silently.
-    if pi_tag_to_ilab_service_req_id[pi_tag] == 'N/A':
-        return False
+def output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, end_month_string, service_id, note, amount):
 
     # Create a dictionary to be written out as CSV.
     csv_dict = dict()
@@ -1026,8 +1092,8 @@ def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_i
         csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][3]
     else:
         csv_dict['owner_email'] = pi_tag_to_names_email[pi_tag][2]
-    csv_dict['pi_email']    = pi_tag_to_names_email[pi_tag][2]
-    csv_dict['service_request_id'] = int(pi_tag_to_ilab_service_req_id[pi_tag])
+    csv_dict['pi_email']     = pi_tag_to_names_email[pi_tag][2]
+    csv_dict['service_request_id'] = int(service_req_id)
     csv_dict['purchased_on'] = end_month_string  # Last date of billing period.
     csv_dict['service_id'] = service_id
 
@@ -1035,6 +1101,8 @@ def output_ilab_csv_data_row(csv_dictwriter, pi_tag, end_month_string, service_i
     csv_dict['service_quantity'] = amount
 
     csv_dictwriter.writerow(csv_dict)
+
+    return True
 
 
 #=====
@@ -1070,8 +1138,8 @@ parser.add_argument("-n", "--skip_consulting", action="store_true",
                     default=False,
                     help="Don't output consulting iLab file. [default = False]")
 parser.add_argument( "--break_out_cloud", action="store_true",
-                    default=False,
-                    help="Break out individual cloud transactions. [default = False]")
+                     default=False,
+                     help="Break out individual cloud transactions. [default = False]")
 parser.add_argument("--cpu_time_unit", choices=['cpu-hours', 'cpu-days'],
                     default='cpu-days',
                     help='Choose the CPU time units [default = cpu-days]')
@@ -1183,39 +1251,6 @@ if args.ilab_template is not None:
 else:
     ilab_csv_headers = DEFAULT_CSV_HEADERS
 
-###
-#
-# Variables of service IDs from iLab, indexed by affiliation.
-#
-###
-
-ilab_service_id_local_computing = dict()
-ilab_service_id_local_computing[('free','stanford')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
-ilab_service_id_local_computing[('free','affiliate')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
-ilab_service_id_local_computing[('free','external')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Free Access')
-ilab_service_id_local_computing[('full','stanford')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Stanford')
-ilab_service_id_local_computing[('full','affiliate')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - Affiliate')
-ilab_service_id_local_computing[('full','external')] = get_ilab_service_id(billing_config_wkbk, 'Local Computing - Full Access - External')
-
-ilab_service_id_local_storage = dict()
-ilab_service_id_local_storage[('free','stanford')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
-ilab_service_id_local_storage[('free','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
-ilab_service_id_local_storage[('free','external')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Free Access')
-ilab_service_id_local_storage[('full','stanford')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Stanford')
-ilab_service_id_local_storage[('full','affiliate')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - Affiliate')
-ilab_service_id_local_storage[('full','external')]   = get_ilab_service_id(billing_config_wkbk, 'Local HPC Storage - Full Access - External')
-
-ilab_service_id_cloud_passthrough = dict()
-ilab_service_id_cloud_passthrough['stanford']    = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - Stanford')
-ilab_service_id_cloud_passthrough['affiliate']   = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - Affiliate')
-ilab_service_id_cloud_passthrough['external']    = get_ilab_service_id(billing_config_wkbk, 'Cloud Services - External')
-
-ilab_service_id_consulting = dict()
-ilab_service_id_consulting['free']       = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Free Access')
-ilab_service_id_consulting['stanford']   = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Stanford')
-ilab_service_id_consulting['affiliate']  = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - Affiliate')
-ilab_service_id_consulting['external']   = get_ilab_service_id(billing_config_wkbk, 'Bioinformatics Consulting - External')
-
 #####
 #
 # Output Cluster data into iLab Cluster export file, if requested.
@@ -1298,13 +1333,23 @@ for pi_tag in sorted(pi_tag_list):
     #
     if ilab_cluster_storage_export_csv_dictwriter is not None:
 
-    # Output Cluster data into iLab Cluster export file, if requested.
-       if service_level != "no":
-           # Storage
-           _ = output_ilab_csv_data_for_cluster_storage(ilab_cluster_storage_export_csv_dictwriter, pi_tag,
-                                                        ilab_service_id_local_storage[service_level, affiliation],
-                                                        begin_month_timestamp, end_month_timestamp)
-           print("cluster-storage", end=' ')
+        # Output Cluster data into iLab Cluster export file, if requested.
+        if service_level != "no":
+            # Storage
+
+            # Get service IDs for base storage and additional storage
+            (_, _, service_id_base_storage) = (
+                get_rate_data_from_string(billing_config_wkbk, "Local HPC Storage", service_level,
+                                          "Base Storage", affiliation))
+            (_, _, service_id_addl_storage) = (
+                get_rate_data_from_string(billing_config_wkbk, "Local HPC Storage", service_level,
+                                          "Additional Storage", affiliation))
+
+            if service_id_base_storage != "None":
+                _ = output_ilab_csv_data_for_cluster_storage(ilab_cluster_storage_export_csv_dictwriter, pi_tag, ilab_service_req,
+                                                     service_id_base_storage, service_id_addl_storage,
+                                                     begin_month_timestamp, end_month_timestamp)
+                print("cluster-storage", end=' ')
 
     #
     # Cluster Compute
@@ -1312,28 +1357,50 @@ for pi_tag in sorted(pi_tag_list):
     if ilab_cluster_compute_export_csv_dictwriter is not None:
 
         if service_level != "no":
-           # Compute
-           _ = output_ilab_csv_data_for_cluster_compute(ilab_cluster_compute_export_csv_dictwriter, pi_tag,
-                                                        ilab_service_id_local_computing[service_level, affiliation],
-                                                        ilab_service_id_local_computing["full", affiliation],
-                                                        begin_month_timestamp, end_month_timestamp)
-           print("cluster-compute", end=' ')
+            # Compute
+
+            # Get service IDs for the lab's computing tier and the full computing tier (for non-lab members)
+            (_, _, service_id_lab_computing) = (
+                get_rate_data_from_string(billing_config_wkbk, "Local Computing", service_level,
+                                          None, affiliation))
+            (_, _, service_id_full_computing) = (
+                get_rate_data_from_string(billing_config_wkbk, "Local Computing", "Full",
+                                          None, affiliation))
+
+            _ = output_ilab_csv_data_for_cluster_compute(ilab_cluster_compute_export_csv_dictwriter, pi_tag, ilab_service_req,
+                                                         service_id_lab_computing,
+                                                         service_id_full_computing,
+                                                         begin_month_timestamp, end_month_timestamp)
+            print("cluster-compute", end=' ')
 
     # Output Cloud data into iLab Cloud export file, if requested.
     if ilab_cloud_export_csv_dictwriter is not None:
 
-       _ = output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag,
-                                          ilab_service_id_cloud_passthrough[affiliation],
-                                          begin_month_timestamp, end_month_timestamp)
-       print("cloud", end=' ')
+        # Get service IDs for cloud services
+        (_, _, service_id_cloud) = (
+            get_rate_data_from_string(billing_config_wkbk, "Cloud Services", None,
+                                      None, affiliation))
+
+        _ = output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag, ilab_service_req,
+                                           service_id_cloud,
+                                           begin_month_timestamp, end_month_timestamp)
+        print("cloud", end=' ')
 
     # Output Consulting data into iLab Cluster export file, if requested.
     if ilab_consulting_export_csv_dictwriter is not None:
 
-       _ = output_ilab_csv_data_for_consulting(ilab_consulting_export_csv_dictwriter, pi_tag,
-                                               ilab_service_id_consulting['free'], ilab_service_id_consulting[affiliation],
-                                               begin_month_timestamp, end_month_timestamp)
-       print("consulting", end=' ')
+        # Get service IDs for consulting
+        (_, _, service_id_consulting_free) = (
+            get_rate_data_from_string(billing_config_wkbk, "Bioinformatics Consulting", None,
+                                      "Free Access", affiliation))
+        (_, _, service_id_consulting_paid) = (
+            get_rate_data_from_string(billing_config_wkbk, "Bioinformatics Consulting", None,
+                                      None, affiliation))
+
+        _ = output_ilab_csv_data_for_consulting(ilab_consulting_export_csv_dictwriter, pi_tag, ilab_service_req,
+                                                service_id_consulting_free, service_id_consulting_paid,
+                                                begin_month_timestamp, end_month_timestamp)
+        print("consulting", end=' ')
 
     print()  # End line for PI tag.
 
