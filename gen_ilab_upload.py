@@ -533,14 +533,11 @@ def get_rate_service_id(wkbk, rate_string):
 
 def get_rate_data_from_string(billing_config_wkbk, service_str, tier_str, subservice_str, affiliation_str):
 
-    rate_string = ""  # To start, will be appended to below
+    rate_string = service_str  # To start, will be appended to below
 
     if service_str == "Local HPC Storage" or service_str == "Local Computing":
-
-        tier_string = "%s Tier" % (tier_str.capitalize())
-
-        # Start building rate string with service string and tier string
-        rate_string += "%s (%s)" % (service_str, tier_string)
+        # Add the tier string
+        rate_string += " (%s Tier)" % tier_str.capitalize()
 
     # If there is a subservice string, add that to rate string
     if subservice_str is not None and subservice_str != "":
