@@ -17,7 +17,7 @@ class JobAccountingEntry:
     def dict_get_timestamp(dictionary, field):
         value = dictionary.get(field)
 
-        if value is not None and value != '':
+        if value is not None and value != '' and value != "Unknown" and value != "None":
             return calendar.timegm(time.strptime(value,"%Y-%m-%dT%H:%M:%S"))
         else:
             return None
