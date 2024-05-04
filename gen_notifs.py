@@ -475,7 +475,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
         cloud_account_to_cloud_projects[account].add(project)
         cloud_account_to_cloud_projects[account].add(projnum)
         cloud_account_to_cloud_projects[account].add(projid)
-        cloud_account_to_cloud_projects[account].add("")  # For credits to the account.
+        cloud_account_to_cloud_projects[account].add(None)  # For credits to the account.
 
         # Associate the project ID with its project number.
         cloud_projnum_to_cloud_project[projnum] = projid
@@ -847,11 +847,12 @@ def read_cloud_sheet(wkbk):
     for (platform, account, project, description, dates, quantity, uom, charge) in cloud_sheet.iter_rows(min_row=2, values_only=True):
 
         # If project is of the form "<project name>(<project-id>)" or "<project name>[<project-id>]", get the "<project-id>".
-        project_re = re.search("[(\[]([a-z0-9-:.]+)[\])]", project)
-        if project_re is not None:
-            project = project_re.group(1)
-        else:
-            pass  # If no parens, use the original project name.
+        if project is not None:
+            project_re = re.search("[(\[]([a-z0-9-:.]+)[\])]", project)
+            if project_re is not None:
+                project = project_re.group(1)
+            else:
+                pass  # If no parens, use the original project name.
 
         # Save the cloud item in a list of charges for that PI.
         cloud_project_account_to_cloud_details[(project, account)].append((platform, description, dates, quantity, uom, charge))
@@ -1578,7 +1579,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
             if project_cost != 0.0:
                 # A blank project name means (usually) a credit applied to the account.
-                if len(project) > 0:
+                if project is not None:
                     # If we have the project number here, use the project name.
                     if project[0].isdigit():
                         sheet.cell(curr_row, 2, cloud_projnum_to_cloud_project[project]).style = item_entry_fmt
@@ -1925,8 +1926,7 @@ def generate_cloud_details_sheet(sheet, pi_tag):
                 curr_col = 1
                 sheet.cell(curr_row, curr_col, platform);    curr_col += 1
                 # If we have the project number here, use the project name.
-                if len(project) > 0 and project[0].isdigit():
-                    # sheet.write(curr_row, curr_col, cloud_projnum_to_cloud_project[project]) ; curr_col += 1
+                if project is not None and project[0].isdigit():
                     sheet.cell(curr_row, curr_col, cloud_projnum_to_cloud_project[project]);  curr_col += 1
                 else:
                     sheet.cell(curr_row, curr_col, project) ; curr_col += 1
