@@ -314,7 +314,7 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
             cloud_account_to_cloud_projects[account].add(project)
             cloud_account_to_cloud_projects[account].add(projnum)
             cloud_account_to_cloud_projects[account].add(projid)
-            cloud_account_to_cloud_projects[account].add("")  # For credits to the account.
+            cloud_account_to_cloud_projects[account].add(None)  # For charges not specific to a project'.
 
             # Associate the project ID with its project number.
             cloud_projnum_to_cloud_project[projnum] = projid
@@ -1007,7 +1007,7 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, service_req_id, cloud
                 if pi_amount == 0.0: continue
 
                 # Create a note for the rolled-up transactions.
-                if project_name != '':
+                if project_name is not None:
                     note = "Google :: Charges for Project '%s' (%s)" % (project_name, project_id)
                 else:
                     note = "Google :: Misc charges/credits for %s " % (pi_last_name)
