@@ -212,10 +212,6 @@ def get_google_invoice_csv_subtable_lines(csvfile_obj):
 # to build the table, all that is needed is to print out one of these data structures.
 def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data):
 
-    # pis_sheet      = wkbk.sheet_by_name("PIs")
-    # folders_sheet  = wkbk.sheet_by_name("Folders")
-    # users_sheet    = wkbk.sheet_by_name("Users")
-    # accounts_sheet = wkbk.sheet_by_name("Accounts")
     pis_sheet      = billing_config_wkbk["PIs"]
     folders_sheet  = billing_config_wkbk["Folders"]
     users_sheet    = billing_config_wkbk["Users"]
@@ -341,10 +337,8 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
 
         # Convert the Excel dates to timestamps.
         if date_added is None: continue
-        #date_added_timestamp = from_excel_date_to_timestamp(date_added)
         date_added_timestamp = from_datetime_to_timestamp(date_added)
         if date_removed != '' and date_removed is not None:
-            #date_removed_timestamp = from_excel_date_to_timestamp(date_removed)
             date_removed_timestamp = from_datetime_to_timestamp(date_removed)
         else:
             date_removed_timestamp = end_month_timestamp + 1  # Not in this month.
@@ -354,13 +348,11 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
         # then remove the pi_tag from the list.
         if date_added_timestamp >= end_month_timestamp:
 
-            #print(" *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_added)), file=sys.stderr)
             print(" *** Ignoring PI %s: added after this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_datetime_to_date_string(date_added)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
         elif date_removed_timestamp < begin_month_timestamp:
 
-            #print(" *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_excel_date_to_date_string(date_removed)), file=sys.stderr)
             print(" *** Ignoring PI %s: removed before this month on %s" % (pi_tag_to_names_email[pi_tag][1], from_datetime_to_date_string(date_removed)), file=sys.stderr)
             pi_tag_list.remove(pi_tag)
 
@@ -577,7 +569,6 @@ def read_computing_sheet(wkbk):
 
     global pi_tag_to_job_details
 
-    #computing_sheet = wkbk.sheet_by_name("Computing")
     computing_sheet = wkbk["Computing"]
 
     if args.cpu_time_unit == 'cpu-hours':
@@ -590,10 +581,6 @@ def read_computing_sheet(wkbk):
     sheet_number = 1
 
     while True:
-
-        #for row in range(1, computing_sheet.nrows):
-        #(job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) = \
-        #    computing_sheet.row_values(row)
 
         for (job_date, job_timestamp, job_username, job_name, account, node, cores, wallclock, jobID) in \
                 computing_sheet.iter_rows(min_row=2, values_only=True):
@@ -800,7 +787,6 @@ def open_ilab_output_dictwriter(subdir, suffix):
     # Open an iLab CSV file for writing out.
     #
     ###
-
     ilab_export_csv_filename = "%s-%s.%s-%02d.csv" % (ILAB_EXPORT_PREFIX, suffix, year, month)
     ilab_export_csv_pathname = os.path.join(subdir, ilab_export_csv_filename)
 
@@ -827,7 +813,6 @@ def process_cloud_data():
         read_google_invoice(google_invoice_csv)
 
     # Read in the Cloud sheet from the BillingDetails file, if present.
-    #elif "Cloud" in billing_details_wkbk.sheet_names():
     elif "Cloud" in billing_details_wkbk.sheetnames:
 
         print("Reading cloud sheet.")
@@ -845,7 +830,6 @@ def process_cloud_data():
 def process_consulting_data():
 
     # Read in its Consulting sheet.
-    #if "Consulting" in billing_details_wkbk.sheet_names():
     if "Consulting" in billing_details_wkbk.sheetnames:
         print("Reading consulting sheet.")
         read_consulting_sheet(billing_details_wkbk)
@@ -1217,7 +1201,6 @@ print("Building configuration data structures.")
 
 # Determine whether we should read in Cloud data from the BillingConfig spreadsheet.
 # We should if the BillingConfig spreadsheet has a Cloud sheet.
-#read_cloud_data = ("Cloud" in billing_config_wkbk.sheet_names())
 read_cloud_data = ("Cloud" in billing_config_wkbk.sheetnames)
 
 build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data)
