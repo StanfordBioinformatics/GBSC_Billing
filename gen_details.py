@@ -980,7 +980,7 @@ def write_cloud_details_V3(cloud_sheet, row_dict, output_row):
         quantity = ''
 
     # Output 'Quantity' field.
-    cloud_sheet.cell(output_row+1, output_col, quantity).style = FLOAT_FORMAT
+    cloud_sheet.cell(output_row+1, output_col+1, quantity).style = FLOAT_FORMAT
     output_col += 1
 
     # Output 'Unit of Measure' field.
