@@ -144,6 +144,9 @@ pi_tag_to_cloud_account_pctages = defaultdict(set)
 # Mapping from cloud account to set of cloud project IDs (several per project possible in this set).
 cloud_account_to_cloud_projects = defaultdict(set)
 
+# Mapping from cloud account to cloud account name
+cloud_account_to_account_names = dict()
+
 # Mapping from (cloud project ID, cloud account) to lists of (platform, account, description, dates, quantity, UOM, charge) tuples.
 cloud_project_account_to_cloud_details = defaultdict(list)
 
@@ -415,11 +418,8 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
 
     pi_tag_list = list(sheet_get_named_column(pis_sheet, "PI Tag"))
     # Remove all empty cells from the end of the pi_tag_list
-    while (True):
-        if pi_tag_list[-1] is None:
-            pi_tag_list = pi_tag_list[:-1]
-        else:
-            break
+    while pi_tag_list[-1] is None:
+        pi_tag_list = pi_tag_list[:-1]
 
     #
     # Create mapping from pi_tag to a list of PI name and email.
@@ -437,7 +437,7 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     #
     # Organize data from the Cloud sheet, if present.
     #
-    cloud_sheet = wkbk["Cloud"]
+    cloud_sheet = wkbk["Cloud Accounts"]
 
     #
     # Create mapping from pi_tag to cloud project from the BillingConfig PIs sheet.
@@ -447,38 +447,33 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     #
     global pi_tag_to_cloud_account_pctages
     global cloud_account_to_cloud_projects
+    global cloud_account_to_account_names
 
+    cloud_platforms   = sheet_get_named_column(cloud_sheet, "Platform")
     cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
-    cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
-    cloud_projnums    = sheet_get_named_column(cloud_sheet, "Project Number")
-    cloud_projids     = sheet_get_named_column(cloud_sheet, "Project ID")
-    cloud_accounts    = sheet_get_named_column(cloud_sheet, "Account")
-    cloud_pctage      = sheet_get_named_column(cloud_sheet, "%age")
+    cloud_accounts    = sheet_get_named_column(cloud_sheet, "Billing Account Number")
+    cloud_account_names = sheet_get_named_column(cloud_sheet, "Billing Account Name")
+    cloud_pctages     = sheet_get_named_column(cloud_sheet, "%age")
 
     cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
     cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
-    cloud_rows = filter_by_dates(list(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
-                                     cloud_accounts, cloud_pctage)),
+    cloud_rows = filter_by_dates(list(zip(cloud_platforms, cloud_pi_tags,
+                                          cloud_accounts, cloud_account_names, cloud_pctages)),
                                  list(zip(cloud_dates_added, cloud_dates_remvd)),
                                  begin_month_datetime, end_month_datetime)
 
-    for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
+    #for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
+    for (platform, pi_tag, account, acct_name, pctage) in cloud_rows:
+
+        # Only Google Cloud is supported by automated billing (for now)
+        if platform != "Google": continue
 
         # Associate the project name and percentage to be charged with the pi_tag.
         pi_tag_to_cloud_account_pctages[pi_tag].add((account, pctage))
 
-        # Associate the project number with the pi_tag also, in case the project is deleted and loses its name.
-        #pi_tag_to_cloud_account_pctages[pi_tag].add((projnum, pctage))
-
-        # Associate the account with the project name, the project number, and the project ID.
-        cloud_account_to_cloud_projects[account].add(project)
-        cloud_account_to_cloud_projects[account].add(projnum)
-        cloud_account_to_cloud_projects[account].add(projid)
-        cloud_account_to_cloud_projects[account].add(None)  # For credits to the account.
-
-        # Associate the project ID with its project number.
-        cloud_projnum_to_cloud_project[projnum] = projid
+        # Associate the account name with the account
+        cloud_account_to_account_names[account] = acct_name
 
     #
     # Create mapping from pi_tags to a string denoting affiliation (Stanford/Affiliate/External).
@@ -853,6 +848,10 @@ def read_cloud_sheet(wkbk):
                 project = project_re.group(1)
             else:
                 pass  # If no parens, use the original project name.
+
+
+        # Save the project that the account line item is for.
+        cloud_account_to_cloud_projects[account].add(project)
 
         # Save the cloud item in a list of charges for that PI.
         cloud_project_account_to_cloud_details[(project, account)].append((platform, description, dates, quantity, uom, charge))
@@ -1487,7 +1486,6 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
             bot_cpu_a1_cell = rowcol_to_a1_cell(ending_computing_row, 3)
             sheet.cell(curr_row, 3, '=SUM(%s:%s)' % (top_cpu_a1_cell, bot_cpu_a1_cell)).style = float_entry_fmt
 
-            # sheet.write(curr_row, 3, None, col_header_fmt)
             sheet.cell(curr_row, 4, None).style = col_header_fmt
 
             # Write the formula for the charges subtotal for the account.
@@ -1517,8 +1515,6 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
         # Create formula from account total CPU cells.
         total_cpu_formula = "=" + "+".join(total_cpu_cell_list)
-
-        # sheet.write_formula(curr_row, 2, total_cpu_formula, float_entry_fmt)
         sheet.cell(curr_row, 3, total_cpu_formula).style = float_entry_fmt
 
         # Create formula from account total charges cells.
@@ -1556,22 +1552,47 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.cell(curr_row, 2, "Cloud Services:").style = header_fmt
     sheet.cell(curr_row, 5, None).style = right_border_fmt
     curr_row += 1
-    # Write the cloud services headers.
-    sheet.cell(curr_row, 2, "Project").style = col_header_left_fmt
-    sheet.cell(curr_row, 3, "Cost").style = col_header_fmt
-    sheet.cell(curr_row, 4, "%age").style = col_header_fmt
-    sheet.cell(curr_row, 5, "Charge").style = col_header_right_fmt
-    curr_row += 1
-
-    total_cloud_charges = 0.0
 
     # Get the rate from the Rates sheet of the BillingConfig workbook.
     rate_cloud_per_dollar = get_rate(billing_config_wkbk, 'Cloud Services - %s' % affiliation)
     rate_cloud_a1_cell    = get_rate_a1_cell(billing_config_wkbk, 'Cloud Services - %s' % affiliation)
 
-    starting_cloud_row = curr_row
-    ending_cloud_row   = curr_row - 1 # Inverted order of start and end means "no projects found".
-    for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
+    total_cloud_charges = 0.0
+
+    # The list of "Total Charges" rows for each account.
+    total_cloud_charges_row_list = []
+
+    # For all the cloud accounts for this PI:
+    pi_cloud_account_pctages = pi_tag_to_cloud_account_pctages[pi_tag]
+
+    for (account, pctage) in pi_cloud_account_pctages:
+
+        account_name = cloud_account_to_account_names[account]
+
+        # Write the account subheader.
+        if account_name is not None and account_name != "":
+            sheet.cell(curr_row, 2, "Account: %s" % account_name).style = sub_header_fmt
+        else:
+            sheet.cell(curr_row, 2, "Account: %s" % account).style = sub_header_fmt
+        sheet.cell(curr_row, 5, None).style = col_header_right_fmt
+        curr_row += 1
+
+        # Skip row after account subheader.
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1
+
+        # Write the cloud services headers.
+        sheet.cell(curr_row, 2, "Project").style = col_header_left_fmt
+        sheet.cell(curr_row, 3, "Cost").style = col_header_fmt
+        sheet.cell(curr_row, 4, "%age").style = col_header_fmt
+        sheet.cell(curr_row, 5, "Charge").style = col_header_right_fmt
+        curr_row += 1
+
+        total_cloud_account_charges = 0.0
+
+        starting_cloud_row = curr_row
+        ending_cloud_row   = curr_row - 1 # Inverted order of start and end means "no projects found".
 
         for project in cloud_account_to_cloud_projects[account]:
 
@@ -1592,7 +1613,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
                 # Calculate charges.
                 charge = project_cost * pctage * rate_cloud_per_dollar
-                total_cloud_charges += charge
+                total_cloud_account_charges += charge
 
                 # Write formula for charges to the sheet.
                 cost_a1_cell   = rowcol_to_a1_cell(curr_row, 3)
@@ -1605,16 +1626,44 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
                 # Advance to the next row.
                 curr_row += 1
 
-    # If there were no projects, put a row saying so.
-    if starting_cloud_row > ending_cloud_row:
-        sheet.cell(curr_row, 2, "No Projects").style = item_entry_fmt
+        total_cloud_charges += total_cloud_account_charges
 
-        cost_a1_cell = rowcol_to_a1_cell(curr_row, 3)
-        pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
-        sheet.cell(curr_row, 5, "=%s*%s*%s" % (cost_a1_cell, pctage_a1_cell, rate_cloud_a1_cell)).style = charge_fmt
+        # If there were no projects, put a row saying so.
+        if starting_cloud_row > ending_cloud_row:
+            sheet.cell(curr_row, 2, "No Projects").style = item_entry_fmt
+
+            cost_a1_cell = rowcol_to_a1_cell(curr_row, 3)
+            pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
+            sheet.cell(curr_row, 5, "=%s*%s*%s" % (cost_a1_cell, pctage_a1_cell, rate_cloud_a1_cell)).style = charge_fmt
+
+            curr_row += 1
+            ending_cloud_row = starting_cloud_row
+
+        # Skip the line before "Total charges - ACCOUNT".
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1
+
+        # Write the Total Charges line header.
+        if account_name is not None and account_name != "":
+            sheet.cell(curr_row, 2, "Total charges - %s:" % account_name).style = col_header_left_fmt
+        else:
+            sheet.cell(curr_row, 2, "Total charges - %s:" % account).style = col_header_left_fmt
+
+        # Write the formula for the charges subtotal for the account.
+        top_charge_a1_cell = rowcol_to_a1_cell(starting_cloud_row, 5)
+        bot_charge_a1_cell = rowcol_to_a1_cell(ending_cloud_row + 1, 5)
+        sheet.cell(curr_row, 5, '=SUM(%s:%s)' % (top_charge_a1_cell, bot_charge_a1_cell)).style = charge_fmt
+
+        # Save row of this total charges for the account for Total Cloud charges sum.
+        total_cloud_charges_row_list.append(curr_row)
 
         curr_row += 1
-        ending_cloud_row = starting_cloud_row
+
+        # Skip row after account subtotal.
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1
 
     # Skip the line before "Total Cloud Services".
     sheet.cell(curr_row, 2, None).style = left_border_fmt
@@ -1623,9 +1672,19 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Write the "Total Cloud Services" line.
     sheet.cell(curr_row, 2, "Total Cloud Services:").style = bot_header_fmt
-    top_storage_charges_a1_cell = rowcol_to_a1_cell(starting_cloud_row, 5)
-    bot_storage_charges_a1_cell = rowcol_to_a1_cell(ending_cloud_row + 1, 5)
-    sheet.cell(curr_row, 5, '=SUM(%s:%s)' % (top_storage_charges_a1_cell, bot_storage_charges_a1_cell)).style = charge_fmt
+I'm '
+    if len(total_cloud_charges_row_list) > 0:
+
+        total_cloud_charges_cell_list = [rowcol_to_a1_cell(x, 5) for x in total_cloud_charges_row_list]
+
+        # Create formula from account total charges cells.
+        total_cloud_charges_formula = "=" + "+".join(total_cloud_charges_cell_list)
+
+        # sheet.write_formula(curr_row, 4, total_computing_charges_formula, charge_fmt)
+        sheet.cell(curr_row, 5, total_cloud_charges_formula).style = charge_fmt
+
+    else:
+        sheet.cell(curr_row, 5, 0.0).style = charge_fmt
 
     # Save reference to this cell for use in Summary subtable.
     total_cloud_charges_a1_cell = rowcol_to_a1_cell(curr_row, 5)
