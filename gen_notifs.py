@@ -355,6 +355,9 @@ def init_billing_aggreg_wkbk(wkbk, pi_tag_list):
 
     bold_format = make_format(wkbk, {'bold' : True})
 
+    # Remove "Sheet"
+    wkbk.remove(wkbk["Sheet"])
+
     sheet_name_to_sheet = dict()
 
     for sheet_name in BILLING_AGGREG_SHEET_COLUMNS:
@@ -1672,7 +1675,7 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     # Write the "Total Cloud Services" line.
     sheet.cell(curr_row, 2, "Total Cloud Services:").style = bot_header_fmt
-I'm '
+
     if len(total_cloud_charges_row_list) > 0:
 
         total_cloud_charges_cell_list = [rowcol_to_a1_cell(x, 5) for x in total_cloud_charges_row_list]
@@ -2197,11 +2200,9 @@ def generate_aggregrate_sheet(sheet):
     consulting_a1_cell = rowcol_to_a1_cell(curr_row, consulting_column_num)
 
     sheet.cell(curr_row, 1, "TOTALS").style = total_fmt
-    # sheet.cell(curr_row, storage_column_num, sub_total_storage).style = sub_total_charge_fmt
     top_storage_a1_cell = rowcol_to_a1_cell(2, storage_column_num)
     bot_storage_a1_cell = rowcol_to_a1_cell(curr_row - 1, storage_column_num)
     sheet.cell(curr_row, storage_column_num , '=SUM(%s:%s)' % (top_storage_a1_cell, bot_storage_a1_cell)).style = sub_total_charge_fmt
-    # sheet.cell(curr_row, computing_column_num, sub_total_computing).style = sub_total_charge_fmt
     top_computing_a1_cell = rowcol_to_a1_cell(2, computing_column_num)
     bot_computing_a1_cell = rowcol_to_a1_cell(curr_row - 1, computing_column_num)
     sheet.cell(curr_row, computing_column_num, '=SUM(%s:%s)' % (top_computing_a1_cell, bot_computing_a1_cell)).style = sub_total_charge_fmt
@@ -2210,7 +2211,6 @@ def generate_aggregrate_sheet(sheet):
     bot_cloud_a1_cell = rowcol_to_a1_cell(curr_row - 1, cloud_column_num)
     sheet.cell(curr_row, cloud_column_num, '=SUM(%s:%s)' % (top_cloud_a1_cell, bot_cloud_a1_cell)).style = sub_total_charge_fmt
 
-    # sheet.cell(curr_row, consulting_column_num + 1, sub_total_consulting, sub_total_charge_fmt)
     top_consulting_a1_cell = rowcol_to_a1_cell(2, consulting_column_num)
     bot_consulting_a1_cell = rowcol_to_a1_cell(curr_row - 1, consulting_column_num)
     sheet.cell(curr_row, consulting_column_num, '=SUM(%s:%s)' % (top_consulting_a1_cell, bot_consulting_a1_cell)).style = sub_total_charge_fmt
