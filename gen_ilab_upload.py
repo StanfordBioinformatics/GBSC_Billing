@@ -139,10 +139,14 @@ pi_tag_to_service_level = dict()
 pi_tag_to_affiliation = dict()
 
 # Mapping from pi_tag to set of (cloud account, %age) tuples.
+global pi_tag_to_cloud_account_pctages
 pi_tag_to_cloud_account_pctages = defaultdict(set)
 
 # Mapping from cloud account to set of cloud project IDs (several per project possible in this set).
 cloud_account_to_cloud_projects = defaultdict(set)
+
+# Mapping from cloud account to cloud account name
+cloud_account_to_account_names = dict()
 
 # Mapping from (cloud project ID, cloud account) to lists of (platform, account, description, dates, quantity, UOM, charge) tuples.
 cloud_project_account_to_cloud_details = defaultdict(list)
@@ -245,11 +249,8 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
 
     pi_tag_list = list(sheet_get_named_column(pis_sheet, "PI Tag"))
     # Remove all empty cells from the end of the pi_tag_list
-    while (True):
-        if pi_tag_list[-1] is None:
-            pi_tag_list = pi_tag_list[:-1]
-        else:
-            break
+    while pi_tag_list[-1] is None:
+        pi_tag_list = pi_tag_list[:-1]
 
     #
     # Create mapping from pi_tag to a list of PI name and email.
@@ -276,51 +277,40 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
 
     # Organize data from the Cloud sheet, if present.
     if read_cloud_data:
-        cloud_sheet = billing_config_wkbk["Cloud"]
+        cloud_sheet = billing_config_wkbk["Cloud Accounts"]
 
         #
-        # Create mapping from pi_tag to cloud project from the BillingConfig PIs sheet.
-        # Create mapping from cloud project to list of (pi_tag, %age) tuples.
-        # Create mapping from cloud project to cloud account (1-to-1).
+        # Create mapping from pi_tag to (cloud account, %age) tuples from the BillingConfig PIs sheet.
+        # Create mapping from cloud account to account names
         #
         global pi_tag_to_cloud_account_pctages
-        global cloud_account_to_cloud_projects
+        global cloud_account_to_account_names
 
-        cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
-        cloud_projects    = sheet_get_named_column(cloud_sheet, "Project")
-        cloud_projnums    = sheet_get_named_column(cloud_sheet, "Project Number")
-        cloud_projids = sheet_get_named_column(cloud_sheet, "Project ID")
-        cloud_accounts = sheet_get_named_column(cloud_sheet, "Account")
-        cloud_pctage = sheet_get_named_column(cloud_sheet, "%age")
+        cloud_platforms = sheet_get_named_column(cloud_sheet, "Platform")
+        cloud_pi_tags = sheet_get_named_column(cloud_sheet, "PI Tag")
+        cloud_accounts = sheet_get_named_column(cloud_sheet, "Billing Account Number")
+        cloud_account_names = sheet_get_named_column(cloud_sheet, "Billing Account Name")
+        cloud_pctages = sheet_get_named_column(cloud_sheet, "%age")
 
         cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
         cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
-        cloud_rows = filter_by_dates(list(zip(cloud_pi_tags, cloud_projects, cloud_projnums, cloud_projids,
-                                              cloud_accounts, cloud_pctage)),
+        cloud_rows = filter_by_dates(list(zip(cloud_platforms, cloud_pi_tags,
+                                              cloud_accounts, cloud_account_names, cloud_pctages)),
                                      list(zip(cloud_dates_added, cloud_dates_remvd)),
-                                     #begin_month_exceldate, end_month_exceldate)
                                      begin_month_datetime, end_month_datetime)
 
-        for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
+        # for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
+        for (platform, pi_tag, account, acct_name, pctage) in cloud_rows:
+
+            # Only Google Cloud is supported by automated billing (for now)
+            if platform != "Google": continue
 
             # Associate the project name and percentage to be charged with the pi_tag.
             pi_tag_to_cloud_account_pctages[pi_tag].add((account, pctage))
 
-            # Associate the account with the project name, the project number, and the project ID.
-            pi_tag_to_cloud_account_pctages[pi_tag].add((projnum, pctage))
-
-            # Associate the account with the project name and with the project number.
-            cloud_account_to_cloud_projects[account].add(project)
-            cloud_account_to_cloud_projects[account].add(projnum)
-            cloud_account_to_cloud_projects[account].add(projid)
-            cloud_account_to_cloud_projects[account].add(None)  # For charges not specific to a project'.
-
-            # Associate the project ID with its project number.
-            cloud_projnum_to_cloud_project[projnum] = projid
-
-            # Associate the project name with its project ID.
-            cloud_projid_to_cloud_projname[projid] = project
+            # Associate the account name with the account
+            cloud_account_to_account_names[account] = acct_name
 
     #
     # Create mapping from pi_tags to a string denoting service level on cluster.
@@ -682,6 +672,9 @@ def read_cloud_sheet(wkbk):
             else:
                 pass  # If no parens, use the original project name.
 
+        # Save the project that the account line item is for.
+        cloud_account_to_cloud_projects[account].add(project)
+
         # Save the cloud item in a list of charges for that PI.
         cloud_project_account_to_cloud_details[(project, account)].append((platform, description, dates, quantity, uom, charge))
 
@@ -984,6 +977,10 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, service_req_id, cloud
 
         if pctage == 0.0: continue
 
+        account_name = cloud_account_to_account_names[account]
+        if account_name is None or account_name == "":
+            account_name = account
+
         for project_id in cloud_account_to_cloud_projects[account]:
 
             # Get list of cloud items to charge PI for.
@@ -1232,7 +1229,7 @@ print("Building configuration data structures.")
 
 # Determine whether we should read in Cloud data from the BillingConfig spreadsheet.
 # We should if the BillingConfig spreadsheet has a Cloud sheet.
-read_cloud_data = ("Cloud" in billing_config_wkbk.sheetnames)
+read_cloud_data = ("Cloud Accounts" in billing_config_wkbk.sheetnames)
 
 build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_timestamp, read_cloud_data)
 
