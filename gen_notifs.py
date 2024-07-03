@@ -443,13 +443,10 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     cloud_sheet = wkbk["Cloud Accounts"]
 
     #
-    # Create mapping from pi_tag to cloud project from the BillingConfig PIs sheet.
-    # Create mapping from cloud project to list of (pi_tag, %age) tuples.
-    # Create mapping from cloud project to cloud account (1-to-1).
-    # Create mapping from cloud project to cloud project number (1-to-1).
+    # Create mapping from pi_tag to (cloud account, %age) tuples from the BillingConfig PIs sheet.
+    # Create mapping from cloud account to account names
     #
     global pi_tag_to_cloud_account_pctages
-    global cloud_account_to_cloud_projects
     global cloud_account_to_account_names
 
     cloud_platforms   = sheet_get_named_column(cloud_sheet, "Platform")
@@ -839,7 +836,6 @@ def read_computing_sheet(wkbk):
 # Read the Cloud sheet from the BillingDetails workbook.
 def read_cloud_sheet(wkbk):
 
-    #cloud_sheet = wkbk.sheet_by_name('Cloud')
     cloud_sheet = wkbk["Cloud"]
 
     for (platform, account, project, description, dates, quantity, uom, charge) in cloud_sheet.iter_rows(min_row=2, values_only=True):
