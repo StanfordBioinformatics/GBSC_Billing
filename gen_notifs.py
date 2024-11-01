@@ -1950,20 +1950,20 @@ def generate_computing_details_sheet(wkbk, sheet, pi_tag):
             #
             # Create a new sheet
             #
+
+            # Advance the sheet count.
+            sheet_count += 1
             sheet_name = 'Computing Details {}'.format(sheet_count)
             sheet = wkbk.create_sheet(sheet_name)
 
             # Initialize the header line for the new sheet
-            for col in range(0, len(BILLING_NOTIFS_SHEET_COLUMNS[sheet_name])):
-                sheet.cell(1, col + 1, BILLING_NOTIFS_SHEET_COLUMNS[sheet_name][col]).style = BOLD_FORMAT
+            for col in range(0, len(BILLING_NOTIFS_SHEET_COLUMNS["Computing Details"])):
+                sheet.cell(1, col + 1, BILLING_NOTIFS_SHEET_COLUMNS["Computing Details"][col]).style = BOLD_FORMAT
 
             # Freeze the first row.
             sheet.freeze_panes = 'A2'
             # Set the column dimensions.
             sheet.column_dimensions = col_dim_holder
-
-            # Advance the sheet count.
-            sheet_count += 1
 
             # Set the new next row to be the one after the header.
             curr_row = 2
