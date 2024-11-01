@@ -68,6 +68,7 @@ global ACCOUNT_PREFIXES
 global SUBDIR_RAWDATA
 global SUBDIR_INVOICES
 global BASE_STORAGE_SIZE
+global EXCEL_MAX_ROWS
 
 #=====
 #
@@ -1897,7 +1898,9 @@ def generate_rates_sheet(rates_input_sheet, pi_tag, rates_output_sheet):
 
 # Generates a Computing Details sheet for a BillingNotification workbook with
 # job details associated with a particular PI.  It reads from dict pi_tag_to_job_details.
-def generate_computing_details_sheet(sheet, pi_tag):
+def generate_computing_details_sheet(wkbk, sheet, pi_tag):
+
+    global BOLD_FORMAT
 
     # Freeze the first row.
     sheet.freeze_panes = 'A2'
@@ -1922,6 +1925,9 @@ def generate_computing_details_sheet(sheet, pi_tag):
     col_dim_holder["H"] = ColumnDimension(sheet, index="H", width=6)
     sheet.column_dimensions = col_dim_holder
 
+    # Count the number of sheets these detail lines go into
+    sheet_count = 1
+
     # Write the job details, sorted by username.
     curr_row = 2
     for (date, username, job_name, account, node, cpu_core_hrs, jobID, pctage) in sorted(pi_tag_to_job_details[pi_tag],key=lambda s: s[1]):
@@ -1938,6 +1944,29 @@ def generate_computing_details_sheet(sheet, pi_tag):
 
         # Advance to the next row.
         curr_row += 1
+
+        # If this sheet is full...
+        if curr_row > EXCEL_MAX_ROWS:
+            #
+            # Create a new sheet
+            #
+            sheet_name = 'Computing Details {}'.format(sheet_count)
+            sheet = wkbk.create_sheet(sheet_name)
+
+            # Initialize the header line for the new sheet
+            for col in range(0, len(BILLING_NOTIFS_SHEET_COLUMNS[sheet_name])):
+                sheet.cell(1, col + 1, BILLING_NOTIFS_SHEET_COLUMNS[sheet_name][col]).style = BOLD_FORMAT
+
+            # Freeze the first row.
+            sheet.freeze_panes = 'A2'
+            # Set the column dimensions.
+            sheet.column_dimensions = col_dim_holder
+
+            # Advance the sheet count.
+            sheet_count += 1
+
+            # Set the new next row to be the one after the header.
+            curr_row = 2
 
 
 # Generates the Lab Users sheet for a BillingNotification workbook with
@@ -2338,7 +2367,7 @@ for pi_tag in sorted(pi_tag_list):
     generate_rates_sheet(billing_config_wkbk['Rates'], pi_tag, sheet_name_to_sheet_map['Rates'])
 
     # Generate the Computing Details sheet.
-    generate_computing_details_sheet(sheet_name_to_sheet_map['Computing Details'], pi_tag)
+    generate_computing_details_sheet(billing_notifs_wkbk, sheet_name_to_sheet_map['Computing Details'], pi_tag)
 
     # Generate the Cloud Details sheet.
     generate_cloud_details_sheet(sheet_name_to_sheet_map['Cloud Details'], pi_tag)
