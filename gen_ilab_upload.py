@@ -1094,6 +1094,11 @@ def output_ilab_csv_data_for_consulting(csv_dictwriter, pi_tag, service_req_id, 
 
 def output_ilab_csv_data_row(csv_dictwriter, pi_tag, service_req_id, end_month_string, service_id, note, amount):
 
+    # Confirm we have a real service ID and not the "Free" of Free Tier
+    if not re.match("[0-9]+", str(service_req_id)):
+        print("\n   Free Tier PI {} has charge for {}...ignoring".format(pi_tag, note, file=sys.stderr))
+        return False 
+
     # Create a dictionary to be written out as CSV.
     csv_dict = dict()
     # If there is an 'iLab Owner Email' available, use that, o/w, use the PI email.
