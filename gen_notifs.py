@@ -139,8 +139,8 @@ pi_tag_to_charges = defaultdict(list)
 # Mapping from pi_tag to list of [iLab service request ID, iLab service request name, iLab service request owner].
 pi_tag_to_iLab_info = defaultdict(list)
 
-# Mapping from pi_tag to set of (cloud account, %age) tuples.
-pi_tag_to_cloud_account_pctages = defaultdict(set)
+# Mapping from pi_tag to set of (cloud account, fedramp?, %age) tuples.
+pi_tag_to_cloud_account_fr_pctages = defaultdict(set)
 
 # Mapping from cloud account to set of cloud project IDs (several per project possible in this set).
 cloud_account_to_cloud_projects = defaultdict(set)
@@ -444,34 +444,35 @@ def build_global_data(wkbk, begin_month_timestamp, end_month_timestamp):
     cloud_sheet = wkbk["Cloud Accounts"]
 
     #
-    # Create mapping from pi_tag to (cloud account, %age) tuples from the BillingConfig PIs sheet.
+    # Create mapping from pi_tag to (cloud account, fedramp, %age) tuples from the BillingConfig PIs sheet.
     # Create mapping from cloud account to account names
     #
-    global pi_tag_to_cloud_account_pctages
+    global pi_tag_to_cloud_account_fr_pctages
     global cloud_account_to_account_names
 
     cloud_platforms   = sheet_get_named_column(cloud_sheet, "Platform")
     cloud_pi_tags     = sheet_get_named_column(cloud_sheet, "PI Tag")
     cloud_accounts    = sheet_get_named_column(cloud_sheet, "Billing Account Number")
     cloud_account_names = sheet_get_named_column(cloud_sheet, "Billing Account Name")
+    cloud_fedramp     = sheet_get_named_column(cloud_sheet, "FedRAMP?")  # "Yes" means "FedRAMP Cloud Services"
     cloud_pctages     = sheet_get_named_column(cloud_sheet, "%age")
 
     cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
     cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
     cloud_rows = filter_by_dates(list(zip(cloud_platforms, cloud_pi_tags,
-                                          cloud_accounts, cloud_account_names, cloud_pctages)),
+                                          cloud_accounts, cloud_account_names, cloud_fedramp, cloud_pctages)),
                                  list(zip(cloud_dates_added, cloud_dates_remvd)),
                                  begin_month_datetime, end_month_datetime)
 
     #for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
-    for (platform, pi_tag, account, acct_name, pctage) in cloud_rows:
+    for (platform, pi_tag, account, acct_name, fedramp, pctage) in cloud_rows:
 
         # Only Google Cloud is supported by automated billing (for now)
         if platform != "Google": continue
 
-        # Associate the project name and percentage to be charged with the pi_tag.
-        pi_tag_to_cloud_account_pctages[pi_tag].add((account, pctage))
+        # Associate the project name, FedRAMP billing status, and percentage to be charged with the pi_tag.
+        pi_tag_to_cloud_account_fr_pctages[pi_tag].add((account, fedramp, pctage))
 
         # Associate the account name with the account
         cloud_account_to_account_names[account] = acct_name
@@ -843,7 +844,7 @@ def read_cloud_sheet(wkbk):
 
         # If project is of the form "<project name>(<project-id>)" or "<project name>[<project-id>]", get the "<project-id>".
         if project is not None:
-            project_re = re.search("[(\[]([a-z0-9-:.]+)[\])]", project)
+            project_re = re.search("[([]([a-z0-9-:.]+)[])]", project)
             if project_re is not None:
                 project = project_re.group(1)
             else:
@@ -1563,9 +1564,12 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     total_cloud_charges_row_list = []
 
     # For all the cloud accounts for this PI:
-    pi_cloud_account_pctages = pi_tag_to_cloud_account_pctages[pi_tag]
+    pi_cloud_account_fr_pctages = pi_tag_to_cloud_account_fr_pctages[pi_tag]
 
-    for (account, pctage) in pi_cloud_account_pctages:
+    for (account, fedramp, pctage) in pi_cloud_account_fr_pctages:
+
+        # If cloud account is FedRAMP, do not process it here.
+        if fedramp == "Yes": continue
 
         account_name = cloud_account_to_account_names[account]
 
@@ -1700,6 +1704,169 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
 
     ###
     #
+    # FEDRAMP CLOUD SERVICES Subtable of Breakdown of Charges table
+    #
+    ###
+
+    # Skip line between previous subtable.
+    sheet.cell(curr_row, 2, None).style = left_border_fmt
+    sheet.cell(curr_row, 5, None).style = right_border_fmt
+    curr_row += 1
+    # Write the "Cloud Services" line.
+    sheet.cell(curr_row, 2, "FedRAMP Cloud Services:").style = header_fmt
+    sheet.cell(curr_row, 5, None).style = right_border_fmt
+    curr_row += 1
+
+    # Get the rate from the Rates sheet of the BillingConfig workbook.
+    rate_fr_cloud_per_dollar = get_rate(billing_config_wkbk, 'FedRAMP Cloud Services - %s' % affiliation)
+    rate_fr_cloud_a1_cell    = get_rate_a1_cell(billing_config_wkbk, 'FedRAMP Cloud Services - %s' % affiliation)
+
+    total_fr_cloud_charges = 0.0
+
+    # The list of "Total Charges" rows for each account.
+    total_fr_cloud_charges_row_list = []
+
+    # For all the cloud accounts for this PI:
+    pi_cloud_account_fr_pctages = pi_tag_to_cloud_account_fr_pctages[pi_tag]
+
+    for (account, fedramp, pctage) in pi_cloud_account_fr_pctages:
+
+        # If cloud account is not FedRAMP, do not process it here.
+        if fedramp != "Yes": continue
+
+        account_name = cloud_account_to_account_names[account]
+
+        # Write the account subheader.
+        if account_name is not None and account_name != "":
+            sheet.cell(curr_row, 2, "Account: %s" % account_name).style = sub_header_fmt
+        else:
+            sheet.cell(curr_row, 2, "Account: %s" % account).style = sub_header_fmt
+        sheet.cell(curr_row, 5, None).style = col_header_right_fmt
+        curr_row += 1
+
+        # Skip row after account subheader.
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1
+
+        # Write the cloud services headers.
+        sheet.cell(curr_row, 2, "Project").style = col_header_left_fmt
+        sheet.cell(curr_row, 3, "Cost").style = col_header_fmt
+        sheet.cell(curr_row, 4, "%age").style = col_header_fmt
+        sheet.cell(curr_row, 5, "Charge").style = col_header_right_fmt
+        curr_row += 1
+
+        total_fr_cloud_account_charges = 0.0
+
+        starting_cloud_row = curr_row
+        ending_cloud_row   = curr_row - 1 # Inverted order of start and end means "no projects found".
+
+        for project in cloud_account_to_cloud_projects[account]:
+
+            project_cost = cloud_project_account_to_total_charges[(project, account)]
+
+            if project_cost != 0.0:
+                # A blank project name means (usually) a credit applied to the account.
+                if project is not None:
+                    # If we have the project number here, use the project name.
+                    if project[0].isdigit():
+                        sheet.cell(curr_row, 2, cloud_projnum_to_cloud_project[project]).style = item_entry_fmt
+                    else:
+                        sheet.cell(curr_row, 2, project).style = item_entry_fmt
+                else:
+                    sheet.cell(curr_row, 2, "Misc charges/credits").style = item_entry_fmt
+                sheet.cell(curr_row, 3, project_cost).style = cost_fmt
+                sheet.cell(curr_row, 4, pctage).style = pctage_entry_fmt
+
+                # Calculate charges.
+                charge = project_cost * pctage * rate_fr_cloud_per_dollar
+                total_fr_cloud_account_charges += charge
+
+                # Write formula for charges to the sheet.
+                cost_a1_cell   = rowcol_to_a1_cell(curr_row, 3)
+                pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
+                sheet.cell(curr_row, 5, '=%s*%s*%s' % (cost_a1_cell, pctage_a1_cell, rate_fr_cloud_a1_cell)).style = charge_fmt
+
+                # Keep track of last row with cloud project values.
+                ending_cloud_row = curr_row
+
+                # Advance to the next row.
+                curr_row += 1
+
+        total_fr_cloud_charges += total_fr_cloud_account_charges
+
+        # If there were no projects, put a row saying so.
+        if starting_cloud_row > ending_cloud_row:
+            sheet.cell(curr_row, 2, "No Projects").style = item_entry_fmt
+
+            cost_a1_cell = rowcol_to_a1_cell(curr_row, 3)
+            pctage_a1_cell = rowcol_to_a1_cell(curr_row, 4)
+            sheet.cell(curr_row, 5, "=%s*%s*%s" % (cost_a1_cell, pctage_a1_cell, rate_fr_cloud_a1_cell)).style = charge_fmt
+
+            curr_row += 1
+            ending_cloud_row = starting_cloud_row
+
+        # Skip the line before "Total charges - ACCOUNT".
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1
+
+        # Write the Total Charges line header.
+        if account_name is not None and account_name != "":
+            sheet.cell(curr_row, 2, "Total charges - %s:" % account_name).style = col_header_left_fmt
+        else:
+            sheet.cell(curr_row, 2, "Total charges - %s:" % account).style = col_header_left_fmt
+
+        # Write the formula for the charges subtotal for the account.
+        top_charge_a1_cell = rowcol_to_a1_cell(starting_cloud_row, 5)
+        bot_charge_a1_cell = rowcol_to_a1_cell(ending_cloud_row + 1, 5)
+        sheet.cell(curr_row, 5, '=SUM(%s:%s)' % (top_charge_a1_cell, bot_charge_a1_cell)).style = charge_fmt
+
+        # Save row of this total charges for the account for Total Cloud charges sum.
+        total_fr_cloud_charges_row_list.append(curr_row)
+
+        curr_row += 1
+
+        # Skip row after account subtotal.
+        sheet.cell(curr_row, 2, None).style = left_border_fmt
+        sheet.cell(curr_row, 5, None).style = right_border_fmt
+        curr_row += 1
+
+    # Skip the line before "Total Cloud Services".
+    sheet.cell(curr_row, 2, None).style = left_border_fmt
+    sheet.cell(curr_row, 5, None).style = right_border_fmt
+    curr_row += 1
+
+    # Write the "Total FedRAMP Cloud Services" line.
+    sheet.cell(curr_row, 2, "Total FedRAMP Cloud Services:").style = bot_header_fmt
+
+    if len(total_fr_cloud_charges_row_list) > 0:
+
+        total_fr_cloud_charges_cell_list = [rowcol_to_a1_cell(x, 5) for x in total_fr_cloud_charges_row_list]
+
+        # Create formula from account total charges cells.
+        total_fr_cloud_charges_formula = "=" + "+".join(total_fr_cloud_charges_cell_list)
+
+        # sheet.write_formula(curr_row, 4, total_computing_charges_formula, charge_fmt)
+        sheet.cell(curr_row, 5, total_fr_cloud_charges_formula).style = charge_fmt
+
+    else:
+        sheet.cell(curr_row, 5, 0.0).style = charge_fmt
+
+    # Save reference to this cell for use in Summary subtable.
+    total_fr_cloud_charges_a1_cell = rowcol_to_a1_cell(curr_row, 5)
+
+    curr_row += 1
+
+    # Skip the next line and draw line under this row.
+    sheet.cell(curr_row, 2, None).style = lower_left_border_fmt
+    sheet.cell(curr_row, 3, None).style = bottom_border_fmt
+    sheet.cell(curr_row, 4, None).style = bottom_border_fmt
+    sheet.cell(curr_row, 5, None).style = lower_right_border_fmt
+    curr_row += 1
+
+    ###
+    #
     # CONSULTING Subtable of Breakdown of Charges table
     #
     ###
@@ -1816,6 +1983,10 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.cell(curr_row, 2, "Cloud Services").style = header_no_ul_fmt
     sheet.cell(curr_row, 5, '=%s' % total_cloud_charges_a1_cell).style = big_charge_fmt
     curr_row += 1
+    # Write the FedRAMP Cloud Services line.
+    sheet.cell(curr_row, 2, "FedRAMP Cloud Services").style = header_no_ul_fmt
+    sheet.cell(curr_row, 5, '=%s' % total_fr_cloud_charges_a1_cell).style = big_charge_fmt
+    curr_row += 1
     # Write the Consulting line.
     sheet.cell(curr_row, 2, "Bioinformatics Consulting").style = header_no_ul_fmt
     sheet.cell(curr_row, 3, total_consulting_billable_hours).style = float_entry_fmt
@@ -1830,13 +2001,16 @@ def generate_billing_sheet(wkbk, sheet, pi_tag, begin_month_timestamp, end_month
     sheet.cell(curr_row, 3, None).style = bottom_border_fmt
     sheet.cell(curr_row, 4, None).style = bottom_border_fmt
     total_charges = total_storage_charges + total_computing_charges + total_cloud_charges + total_consulting_charges
-    sheet.cell(curr_row, 5, '=%s+%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell, total_cloud_charges_a1_cell, total_consulting_charges_a1_cell)).style = big_bold_charge_fmt
+    sheet.cell(curr_row, 5, '=%s+%s+%s+%s+%s' % (total_storage_charges_a1_cell, total_computing_charges_a1_cell,
+                                                 total_cloud_charges_a1_cell, total_fr_cloud_charges_a1_cell,
+                                                 total_consulting_charges_a1_cell)).style = big_bold_charge_fmt
     curr_row += 1
 
     #
     # Fill in row in pi_tag -> charges hash.
 
-    pi_tag_to_charges[pi_tag] = [total_storage_charges, total_computing_charges, total_cloud_charges,
+    pi_tag_to_charges[pi_tag] = [total_storage_charges, total_computing_charges,
+                                 total_cloud_charges, total_fr_cloud_charges,
                                  total_consulting_charges,
                                  total_charges]
 
@@ -1972,7 +2146,7 @@ def generate_computing_details_sheet(wkbk, sheet, pi_tag):
 # Generates the Lab Users sheet for a BillingNotification workbook with
 # username details for a particular PI.  It reads from dicts:
 #  cloud_project_account_to_cloud_details
-#  pi_tag_to_cloud_account_pctages
+#  pi_tag_to_cloud_account_fr_pctages
 def generate_cloud_details_sheet(sheet, pi_tag):
 
     # Freeze the first row.
@@ -1998,12 +2172,14 @@ def generate_cloud_details_sheet(sheet, pi_tag):
     col_dim_holder["H"] = ColumnDimension(sheet, index="H", width=6)
     # "Cost"
     col_dim_holder["I"] = ColumnDimension(sheet, index="I", width=10)
+    # "FedRAMP?"
+    col_dim_holder["J"] = ColumnDimension(sheet, index="J", width=10)
     sheet.column_dimensions = col_dim_holder
 
     curr_row = 2
     
     # Get the list of accounts associated with this PI.
-    for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
+    for (account, fedramp, pctage) in pi_tag_to_cloud_account_fr_pctages[pi_tag]:
 
         for project in cloud_account_to_cloud_projects[account]:
 
@@ -2026,6 +2202,8 @@ def generate_cloud_details_sheet(sheet, pi_tag):
 
                 lab_cost = charge * pctage
                 sheet.cell(curr_row, curr_col, lab_cost).style = MONEY_FORMAT; curr_col += 1
+
+                sheet.cell(curr_row, curr_col, fedramp);                       curr_col += 1
 
                 # Advance to the next row.
                 curr_row += 1
@@ -2145,15 +2323,16 @@ def generate_aggregrate_sheet(sheet):
 
     # Set column widths
     dim_holder = openpyxl.worksheet.dimensions.DimensionHolder(sheet)
-    dim_holder["A"] = ColumnDimension(sheet, index="A", width=12)
-    dim_holder["B"] = ColumnDimension(sheet, index="B", width=12)
-    dim_holder["C"] = ColumnDimension(sheet, index="C", width=12)
+    dim_holder["A"] = ColumnDimension(sheet, index="A", width=12) # PI First Name
+    dim_holder["B"] = ColumnDimension(sheet, index="B", width=12) # PI Last Name
+    dim_holder["C"] = ColumnDimension(sheet, index="C", width=12) # PI Tag
     dim_holder["D"] = ColumnDimension(sheet, index="D", width=20) # iLab service request name
-    dim_holder["E"] = ColumnDimension(sheet, index="E", width=12)
-    dim_holder["F"] = ColumnDimension(sheet, index="F", width=12)
-    dim_holder["G"] = ColumnDimension(sheet, index="G", width=12)
-    dim_holder["H"] = ColumnDimension(sheet, index="H", width=12)
-    dim_holder["I"] = ColumnDimension(sheet, index="I", width=12)
+    dim_holder["E"] = ColumnDimension(sheet, index="E", width=13) # Storage total
+    dim_holder["F"] = ColumnDimension(sheet, index="F", width=13) # Compute total
+    dim_holder["G"] = ColumnDimension(sheet, index="G", width=13) # Cloud total
+    dim_holder["H"] = ColumnDimension(sheet, index="H", width=13) # FedRAMP Cloud total
+    dim_holder["I"] = ColumnDimension(sheet, index="I", width=13) # Consulting total
+    dim_holder["J"] = ColumnDimension(sheet, index="J", width=13) # Total Charges
 
     sheet.column_dimensions = dim_holder
 
@@ -2172,6 +2351,7 @@ def generate_aggregrate_sheet(sheet):
     sub_total_storage = 0.0
     sub_total_computing = 0.0
     sub_total_cloud = 0.0
+    sub_total_fr_cloud = 0.0
     sub_total_consulting = 0.0
     grand_total_charges = 0.0
 
@@ -2179,6 +2359,7 @@ def generate_aggregrate_sheet(sheet):
     storage_column_num     = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Storage') + 1
     computing_column_num   = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Computing') + 1
     cloud_column_num       = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Cloud') + 1
+    fr_cloud_column_num    = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('FedRAMP Cloud') + 1
     consulting_column_num  = BILLING_AGGREG_SHEET_COLUMNS['Totals'].index('Consulting') + 1
 
     # Sort PI Tags by PI's last name
@@ -2189,7 +2370,7 @@ def generate_aggregrate_sheet(sheet):
     curr_row = 2  # Below header
     for pi_tag in [pi_tag_list[0] for pi_tag_list in pi_tags_sorted]:
 
-        (storage, computing, cloud, consulting, total_charges) = pi_tag_to_charges[pi_tag]
+        (storage, computing, cloud, fr_cloud, consulting, total_charges) = pi_tag_to_charges[pi_tag]
         (pi_first_name, pi_last_name, _) = pi_tag_to_names_email[pi_tag]
         (serv_req_id, serv_req_name, serv_req_owner) = pi_tag_to_iLab_info[pi_tag]
 
@@ -2201,11 +2382,13 @@ def generate_aggregrate_sheet(sheet):
         sheet.cell(curr_row, curr_col, storage).style = charge_fmt;  curr_col += 1
         sheet.cell(curr_row, curr_col, computing).style = charge_fmt;curr_col += 1
         sheet.cell(curr_row, curr_col, cloud).style = charge_fmt;        curr_col += 1
+        sheet.cell(curr_row, curr_col, fr_cloud).style = charge_fmt;     curr_col += 1
         sheet.cell(curr_row, curr_col, consulting).style = charge_fmt;   curr_col += 1
 
         storage_a1_cell    = rowcol_to_a1_cell(curr_row, storage_column_num)
         computing_a1_cell  = rowcol_to_a1_cell(curr_row, computing_column_num)
         cloud_a1_cell      = rowcol_to_a1_cell(curr_row, cloud_column_num)
+        fr_cloud_a1_cell   = rowcol_to_a1_cell(curr_row, fr_cloud_column_num)
         consulting_a1_cell = rowcol_to_a1_cell(curr_row, consulting_column_num)
 
         sheet.cell(curr_row, curr_col, '=SUM(%s:%s)' % (storage_a1_cell, consulting_a1_cell)).style = charge_fmt
@@ -2214,6 +2397,7 @@ def generate_aggregrate_sheet(sheet):
         sub_total_storage += storage
         sub_total_computing += computing
         sub_total_cloud += cloud
+        sub_total_fr_cloud += fr_cloud
         sub_total_consulting += consulting
         grand_total_charges += total_charges
 
@@ -2222,6 +2406,7 @@ def generate_aggregrate_sheet(sheet):
     storage_a1_cell    = rowcol_to_a1_cell(curr_row, storage_column_num)
     computing_a1_cell  = rowcol_to_a1_cell(curr_row, computing_column_num)
     cloud_a1_cell      = rowcol_to_a1_cell(curr_row, cloud_column_num)
+    fr_cloud_a1_cell   = rowcol_to_a1_cell(curr_row, fr_cloud_column_num)
     consulting_a1_cell = rowcol_to_a1_cell(curr_row, consulting_column_num)
 
     sheet.cell(curr_row, 1, "TOTALS").style = total_fmt
@@ -2236,11 +2421,15 @@ def generate_aggregrate_sheet(sheet):
     bot_cloud_a1_cell = rowcol_to_a1_cell(curr_row - 1, cloud_column_num)
     sheet.cell(curr_row, cloud_column_num, '=SUM(%s:%s)' % (top_cloud_a1_cell, bot_cloud_a1_cell)).style = sub_total_charge_fmt
 
+    top_fr_cloud_a1_cell = rowcol_to_a1_cell(2, fr_cloud_column_num)
+    bot_fr_cloud_a1_cell = rowcol_to_a1_cell(curr_row - 1, fr_cloud_column_num)
+    sheet.cell(curr_row, fr_cloud_column_num, '=SUM(%s:%s)' % (top_fr_cloud_a1_cell, bot_fr_cloud_a1_cell)).style = sub_total_charge_fmt
+
     top_consulting_a1_cell = rowcol_to_a1_cell(2, consulting_column_num)
     bot_consulting_a1_cell = rowcol_to_a1_cell(curr_row - 1, consulting_column_num)
     sheet.cell(curr_row, consulting_column_num, '=SUM(%s:%s)' % (top_consulting_a1_cell, bot_consulting_a1_cell)).style = sub_total_charge_fmt
 
-    sheet.cell(curr_row, consulting_column_num + 1, '=%s+%s+%s+%s' % (storage_a1_cell, computing_a1_cell, cloud_a1_cell, consulting_a1_cell)).style = grand_charge_fmt
+    sheet.cell(curr_row, consulting_column_num + 1, '=%s+%s+%s+%s+%s' % (storage_a1_cell, computing_a1_cell, cloud_a1_cell, fr_cloud_a1_cell, consulting_a1_cell)).style = grand_charge_fmt
 
 #=====
 #
