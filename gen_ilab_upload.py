@@ -138,9 +138,9 @@ pi_tag_to_service_level = dict()
 # Mapping from pi_tag to string for their affiliate status ('Stanford', 'Affiliate', 'External').
 pi_tag_to_affiliation = dict()
 
-# Mapping from pi_tag to set of (cloud account, %age) tuples.
-global pi_tag_to_cloud_account_pctages
-pi_tag_to_cloud_account_pctages = defaultdict(set)
+# Mapping from pi_tag to set of (cloud account, fedramp?, %age) tuples.
+global pi_tag_to_cloud_account_fr_pctages
+pi_tag_to_cloud_account_fr_pctages = defaultdict(set)
 
 # Mapping from cloud account to set of cloud project IDs (several per project possible in this set).
 cloud_account_to_cloud_projects = defaultdict(set)
@@ -283,31 +283,32 @@ def build_global_data(billing_config_wkbk, begin_month_timestamp, end_month_time
         # Create mapping from pi_tag to (cloud account, %age) tuples from the BillingConfig PIs sheet.
         # Create mapping from cloud account to account names
         #
-        global pi_tag_to_cloud_account_pctages
+        global pi_tag_to_cloud_account_fr_pctages
         global cloud_account_to_account_names
 
         cloud_platforms = sheet_get_named_column(cloud_sheet, "Platform")
         cloud_pi_tags = sheet_get_named_column(cloud_sheet, "PI Tag")
         cloud_accounts = sheet_get_named_column(cloud_sheet, "Billing Account Number")
         cloud_account_names = sheet_get_named_column(cloud_sheet, "Billing Account Name")
+        cloud_fedramp = sheet_get_named_column(cloud_sheet, "FedRAMP?")  # "Yes" means "FedRAMP Cloud Services"
         cloud_pctages = sheet_get_named_column(cloud_sheet, "%age")
 
         cloud_dates_added = sheet_get_named_column(cloud_sheet, "Date Added")
         cloud_dates_remvd = sheet_get_named_column(cloud_sheet, "Date Removed")
 
         cloud_rows = filter_by_dates(list(zip(cloud_platforms, cloud_pi_tags,
-                                              cloud_accounts, cloud_account_names, cloud_pctages)),
+                                              cloud_accounts, cloud_account_names, cloud_fedramp, cloud_pctages)),
                                      list(zip(cloud_dates_added, cloud_dates_remvd)),
                                      begin_month_datetime, end_month_datetime)
 
         # for (pi_tag, project, projnum, projid, account, pctage) in cloud_rows:
-        for (platform, pi_tag, account, acct_name, pctage) in cloud_rows:
+        for (platform, pi_tag, account, acct_name, fedramp, pctage) in cloud_rows:
 
             # Only Google Cloud is supported by automated billing (for now)
             if platform != "Google": continue
 
-            # Associate the project name and percentage to be charged with the pi_tag.
-            pi_tag_to_cloud_account_pctages[pi_tag].add((account, pctage))
+            # Associate the project name, FedRAMP billing status, and percentage to be charged with the pi_tag.
+            pi_tag_to_cloud_account_fr_pctages[pi_tag].add((account, fedramp, pctage))
 
             # Associate the account name with the account
             cloud_account_to_account_names[account] = acct_name
@@ -666,7 +667,7 @@ def read_cloud_sheet(wkbk):
 
         # If project is of the form "<project name>(<project-id>)" or "<project name>[<project-id>]", get the "<project-id>".
         if project is not None:
-            project_re = re.search("[(\[]([a-z0-9-:.]+)[\])]", project)
+            project_re = re.search("[(]([a-z0-9-:.]+)[)]", project)
             if project_re is not None:
                 project = project_re.group(1)
             else:
@@ -961,9 +962,10 @@ def output_ilab_csv_data_for_cluster_compute(csv_dictwriter, pi_tag, service_req
 #
 # Generates the iLab Cloud CSV entries for a particular pi_tag.
 #
-# It uses dicts pi_tag_to_cloud_account_pctages and cloud_project_account_to_cloud_details.
+# It uses dicts pi_tag_to_cloud_account_fr_pctages and cloud_project_account_to_cloud_details.
 #
 def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, service_req_id, cloud_service_id,
+                                   fedramp_cloud_p,
                                    begin_month_timestamp, end_month_timestamp):
 
     purchased_on_date = from_timestamp_to_date_string(end_month_timestamp-1) # Last date of billing period.
@@ -971,9 +973,15 @@ def output_ilab_csv_data_for_cloud(csv_dictwriter, pi_tag, service_req_id, cloud
     # Get PI Last name for some situations below.
     (_, pi_last_name, _, _) = pi_tag_to_names_email[pi_tag]
 
-    # Get list of (account, %ages) tuples for given PI.
+    # Get list of (account, fedramp, %ages) tuples for given PI.
     output_cloud_p = False  # Were any lines written out?
-    for (account, pctage) in pi_tag_to_cloud_account_pctages[pi_tag]:
+    for (account, fedramp, pctage) in pi_tag_to_cloud_account_fr_pctages[pi_tag]:
+
+        # If we are doing ordinary Cloud and this account is FedRAMP Cloud, ignore:
+        if not fedramp_cloud_p and fedramp == "Yes": continue
+
+        # If we are doing FedRAMP Cloud and this cloud account is ordinary, ignore:
+        if fedramp_cloud_p and fedramp != "Yes": continue
 
         if pctage == 0.0: continue
 
@@ -1148,6 +1156,9 @@ parser.add_argument("-C", "--skip_cluster_compute", action="store_true",
 parser.add_argument("-l", "--skip_cloud", action="store_true",
                     default=False,
                     help="Don't output cloud iLab file. [default = False]")
+parser.add_argument("-L", "--skip_fr_cloud", action="store_true",
+                    default=False,
+                    help="Don't output FedRAMP cloud iLab file. [default = False]")
 parser.add_argument("-n", "--skip_consulting", action="store_true",
                     default=False,
                     help="Don't output consulting iLab file. [default = False]")
@@ -1291,11 +1302,22 @@ else:
 #   Read Google Invoice, if given, else use data from BillingDetails file.
 #
 ###
+process_cloud_data()
 if billing_details_file is not None and not args.skip_cloud:
-    process_cloud_data()
     ilab_cloud_export_csv_dictwriter = open_ilab_output_dictwriter(output_subdir, "Cloud_Google")
 else:
     ilab_cloud_export_csv_dictwriter = None
+
+###
+#
+# Output FedRAMP Cloud data into iLab Cloud export file, if requested.
+#   Read Google Invoice, if given, else use data from BillingDetails file.
+#
+###
+if billing_details_file is not None and not args.skip_fr_cloud:
+    ilab_fr_cloud_export_csv_dictwriter = open_ilab_output_dictwriter(output_subdir, "FedRAMP_Cloud_Google")
+else:
+    ilab_fr_cloud_export_csv_dictwriter = None
 
 #####
 #
@@ -1388,10 +1410,24 @@ for pi_tag in sorted(pi_tag_list):
             get_rate_data_from_string(billing_config_wkbk, "Cloud Services", None,
                                       None, affiliation))
 
-        if output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag, ilab_service_req,
-                                          service_id_cloud,
+        if output_ilab_csv_data_for_cloud(ilab_cloud_export_csv_dictwriter, pi_tag, ilab_service_req, service_id_cloud,
+                                          False, # FedRAMP cloud?
                                           begin_month_timestamp, end_month_timestamp):
             print("cloud", end=' ')
+
+    # Output FedRAMP Cloud data into iLab FedRAMP Cloud export file, if requested.
+    if ilab_fr_cloud_export_csv_dictwriter is not None:
+
+        # Get service IDs for cloud services
+        (_, _, service_id_cloud) = (
+            get_rate_data_from_string(billing_config_wkbk, "FedRAMP Cloud Services", None,
+                                      None, affiliation))
+
+        if output_ilab_csv_data_for_cloud(ilab_fr_cloud_export_csv_dictwriter, pi_tag, ilab_service_req, service_id_cloud,
+                                          True, # FedRAMP Cloud?
+                                          begin_month_timestamp, end_month_timestamp):
+            print("FedRAMP-cloud", end=' ')
+
 
     # Output Consulting data into iLab Cluster export file, if requested.
     if ilab_consulting_export_csv_dictwriter is not None:
