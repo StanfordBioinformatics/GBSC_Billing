@@ -702,7 +702,7 @@ def get_rate_a1_cell(wkbk, rate_type):
     for row in types:
         for col in row:
             if col == rate_type:
-                return 'Rates!%s' % rowcol_to_a1_cell(idx + 1, amt_col, True, True)
+                return 'Rates!%s' % rowcol_to_a1_cell(idx, amt_col, True, True)
         idx += 1
     else:
         return 0.0
